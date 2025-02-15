@@ -1,0 +1,31 @@
+[package]
+name = "moxalert"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+calloop = { version = "0.14.2", features = [ "executor" ] }
+calloop-wayland-source = "0.4.0"
+env_logger = "0.11.6"
+log = "0.4.25"
+mlua = { version = "0.10.3", features = [ "lua54", "serialize" ] }
+serde = { version = "1.0.217", features = [ "rc", "derive" ] }
+wayland-client = "0.31.7"
+wayland-protocols = { version = "0.32.5", features = ["staging", "client", "unstable" ] }
+futures-lite = "2.6.0"
+zbus = { version = "5.3.1", features = ["tokio", "p2p"] }
+tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread", "sync"] }
+clap = { version = "4.5.27", features = ["derive"] }
+bytemuck = { version = "1.19.0", features = ["derive"] }
+wayland-protocols-wlr = { version = "0.3.6", features = ["client"] }
+wayland-backend = { version = "0.3.7", features = ["client_system"] }
+pollster = "0.4.0"
+raw-window-handle = "0.6.2"
+anyhow = "1.0.95"
+wayland-cursor = "0.31.8"
+xkbcommon = "0.8.0"
+image = { version = "0.25.5", default-features = false, features = [ "png", "jpeg" ] }
+fast_image_resize = "5.1.1"
+url = "2.5.4"
+wgpu = { version = "24.0.1", default-features = false, features = [ "wgsl" ] }
+glyphon = "0.8.0"
