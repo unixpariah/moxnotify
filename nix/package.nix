@@ -9,22 +9,33 @@
   vulkan-loader,
   vulkan-validation-layers,
 }:
+
 let
-  cargoToml = builtins.fromTOML (builtins.readFile ../Cargo.toml);
+  daemonCargoToml = builtins.fromTOML (builtins.readFile ../moxsignal-daemon/Cargo.toml);
 in
 rustPlatform.buildRustPackage rec {
-  pname = "moxalert";
-  version = "${cargoToml.package.version}";
-  cargoLock.lockFile = ../Cargo.lock;
-  src = lib.fileset.toSource {
-    root = ./..;
-    fileset = lib.fileset.intersection (lib.fileset.fromSource (lib.sources.cleanSource ./..)) (
-      lib.fileset.unions [
-        ../src
-        ../Cargo.toml
-        ../Cargo.lock
-      ]
-    );
+  pname = "moxsignal";
+  version = daemonCargoToml.package.version;
+
+  cargoLock = {
+    lockFile = ../Cargo.lock;
+    allowBuiltinFetchGit = true;
+    outputHashes = { };
+  };
+
+  src = lib.cleanSourceWith {
+    src = ../.;
+    filter =
+      path: type:
+      let
+        relPath = lib.removePrefix (toString ../. + "/") (toString path);
+      in
+      lib.any (p: lib.hasPrefix p relPath) [
+        "moxsignal-daemon"
+        "moxsignalctl"
+        "Cargo.toml"
+        "Cargo.lock"
+      ];
   };
 
   nativeBuildInputs = [
@@ -33,27 +44,34 @@ rustPlatform.buildRustPackage rec {
   ];
 
   buildInputs = [
-    libxkbcommon
     lua5_4
     libxkbcommon
+    wayland
     vulkan-loader
     vulkan-validation-layers
-    wayland
   ];
 
-  postFixup = ''
-    patchelf --set-rpath "${lib.makeLibraryPath buildInputs}" $out/bin/moxalert
+  buildPhase = ''
+    cargo build --release --workspace
   '';
 
-  dontPatchELF = false;
-  autoPatchelf = true;
+  installPhase = ''
+    install -Dm755 target/release/moxsignal-daemon $out/bin/moxsignal-daemon
+    install -Dm755 target/release/moxsignalctl $out/bin/moxsignalctl
+  '';
+
+  postFixup = ''
+    for bin in $out/bin/moxsignal-*; do
+      patchelf --set-rpath "${lib.makeLibraryPath buildInputs}" $bin
+    done
+  '';
 
   meta = with lib; {
-    description = "";
-    mainProgram = "moxalert";
-    homepage = "https://github.com/unixpariah/moxalert";
+    description = "Mox desktop environment notification system";
+    homepage = "https://github.com/unixpariah/moxsignal";
     license = licenses.gpl3;
-    maintainers = with maintainers; [ unixpariah ];
-    platforms = platforms.unix;
+    maintainers = [ maintainers.unixpariah ];
+    platforms = platforms.linux;
+    mainProgram = "moxsignal-daemon";
   };
 }

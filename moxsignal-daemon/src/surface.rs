@@ -1,4 +1,4 @@
-use crate::Moxalert;
+use crate::Moxsignal;
 use wayland_client::{delegate_noop, protocol::wl_surface, Connection, Dispatch, QueueHandle};
 use wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_surface_v1;
 
@@ -26,7 +26,7 @@ impl Surface {
     }
 }
 
-impl Dispatch<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1, ()> for Moxalert {
+impl Dispatch<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1, ()> for Moxsignal {
     fn event(
         state: &mut Self,
         _: &zwlr_layer_surface_v1::ZwlrLayerSurfaceV1,
@@ -50,4 +50,4 @@ impl Dispatch<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1, ()> for Moxalert {
     }
 }
 
-delegate_noop!(Moxalert: ignore wl_surface::WlSurface);
+delegate_noop!(Moxsignal: ignore wl_surface::WlSurface);

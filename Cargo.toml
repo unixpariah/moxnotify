@@ -1,3 +1,6 @@
 [workspace]
+members = [
+    "moxsignal-daemon",
+    "moxsignalctl"
+]
 resolver = "2"
-members = ["moxalert"]

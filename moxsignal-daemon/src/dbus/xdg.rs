@@ -129,7 +129,7 @@ impl NotificationsImpl {
     async fn get_server_information(
         &self,
     ) -> zbus::fdo::Result<(&'static str, &'static str, &'static str, &'static str)> {
-        Ok(("moxalert", "unixpariah", VERSION, "1.2"))
+        Ok(("moxsignal", "unixpariah", VERSION, "1.2"))
     }
 
     #[zbus(signal)]

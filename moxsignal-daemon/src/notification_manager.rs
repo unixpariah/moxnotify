@@ -1,11 +1,11 @@
 use crate::{
-    EmitEvent, Moxalert, NotificationData,
     config::{self, Anchor, Config, Key, Queue},
     wgpu_state::buffers,
+    EmitEvent, Moxsignal, NotificationData,
 };
 use calloop::{
-    LoopHandle,
     timer::{TimeoutAction, Timer},
+    LoopHandle,
 };
 use glyphon::{FontSystem, TextArea};
 use notification::{Notification, NotificationId};
@@ -24,7 +24,7 @@ mod notification;
 pub struct NotificationManager {
     notifications: Vec<Notification>,
     config: Arc<Config>,
-    loop_handle: LoopHandle<'static, Moxalert>,
+    loop_handle: LoopHandle<'static, Moxsignal>,
     selected: Option<u32>,
 }
 
@@ -43,7 +43,7 @@ impl DerefMut for NotificationManager {
 }
 
 impl NotificationManager {
-    pub fn new(config: Arc<Config>, loop_handle: LoopHandle<'static, Moxalert>) -> Self {
+    pub fn new(config: Arc<Config>, loop_handle: LoopHandle<'static, Moxsignal>) -> Self {
         Self {
             loop_handle,
             notifications: Vec::new(),
@@ -118,8 +118,8 @@ impl NotificationManager {
                         if let Some(timer) = timer {
                             old_notification.registration_token = self
                                 .loop_handle
-                                .insert_source(timer, move |_, _, moxalert| {
-                                    moxalert.dismiss_notification(old_id);
+                                .insert_source(timer, move |_, _, moxsignal| {
+                                    moxsignal.dismiss_notification(old_id);
                                     TimeoutAction::Drop
                                 })
                                 .ok();
@@ -195,8 +195,8 @@ impl NotificationManager {
                     if let Some(timer) = timer {
                         old_notification.registration_token = self
                             .loop_handle
-                            .insert_source(timer, move |_, _, moxalert| {
-                                moxalert.dismiss_notification(old_id);
+                            .insert_source(timer, move |_, _, moxsignal| {
+                                moxsignal.dismiss_notification(old_id);
                                 TimeoutAction::Drop
                             })
                             .ok();
@@ -224,8 +224,8 @@ impl NotificationManager {
 
                         notification.registration_token = self
                             .loop_handle
-                            .insert_source(timer, move |_, _, moxalert| {
-                                moxalert.dismiss_notification(id);
+                            .insert_source(timer, move |_, _, moxsignal| {
+                                moxsignal.dismiss_notification(id);
                                 TimeoutAction::Drop
                             })
                             .ok();
@@ -237,8 +237,8 @@ impl NotificationManager {
                     let timer = Timer::from_duration(Duration::from_millis(timeout));
                     notification.registration_token = self
                         .loop_handle
-                        .insert_source(timer, move |_, _, moxalert| {
-                            moxalert.dismiss_notification(id);
+                        .insert_source(timer, move |_, _, moxsignal| {
+                            moxsignal.dismiss_notification(id);
                             TimeoutAction::Drop
                         })
                         .ok()
@@ -252,7 +252,7 @@ impl NotificationManager {
     }
 }
 
-impl Moxalert {
+impl Moxsignal {
     pub fn invoke_action(&mut self, id: NotificationId, serial: u32) {
         self.create_activation_token(serial, id);
         self.dismiss_notification(id);
@@ -295,8 +295,8 @@ impl Moxalert {
                         let id = notification.id;
                         notification.registration_token = self
                             .loop_handle
-                            .insert_source(timer, move |_, _, moxalert| {
-                                moxalert.dismiss_notification(id);
+                            .insert_source(timer, move |_, _, moxsignal| {
+                                moxsignal.dismiss_notification(id);
                                 TimeoutAction::Drop
                             })
                             .ok();
@@ -340,7 +340,7 @@ impl Moxalert {
                         config::Layer::Bottom => zwlr_layer_shell_v1::Layer::Bottom,
                         config::Layer::Overlay => zwlr_layer_shell_v1::Layer::Overlay,
                     },
-                    "moxalert".into(),
+                    "moxsignal".into(),
                     &self.qh,
                     (),
                 );

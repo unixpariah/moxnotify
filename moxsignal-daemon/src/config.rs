@@ -475,6 +475,6 @@ impl Config {
             .map(PathBuf::from)
             .or_else(|_| std::env::var("HOME").map(|home| PathBuf::from(home).join(".config")))?;
 
-        Ok(config_dir.join("moxalert/config.lua"))
+        Ok(config_dir.join("moxsignal/config.lua"))
     }
 }

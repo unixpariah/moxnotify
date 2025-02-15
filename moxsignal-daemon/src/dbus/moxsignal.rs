@@ -1,12 +1,12 @@
 use crate::Event;
 use zbus::fdo::RequestNameFlags;
 
-struct MoxalertInterface {
+struct MoxsignalInterface {
     event_sender: calloop::channel::Sender<Event>,
 }
 
-#[zbus::interface(name = "pl.unixpariah.moxalert")]
-impl MoxalertInterface {
+#[zbus::interface(name = "pl.unixpariah.moxsignal")]
+impl MoxsignalInterface {
     async fn focus(&self) {
         if let Err(e) = self.event_sender.send(Event::FocusSurface) {
             log::warn!("{}", e);
@@ -15,16 +15,16 @@ impl MoxalertInterface {
 }
 
 pub async fn serve(event_sender: calloop::channel::Sender<Event>) -> zbus::Result<()> {
-    let server = MoxalertInterface { event_sender };
+    let server = MoxsignalInterface { event_sender };
 
     let conn = zbus::connection::Builder::session()?
-        .serve_at("/pl/unixpariah/moxalert", server)?
+        .serve_at("/pl/unixpariah/moxsignal", server)?
         .build()
         .await?;
 
     if let Err(e) = conn
         .request_name_with_flags(
-            "pl.unixpariah.moxalert",
+            "pl.unixpariah.moxsignal",
             RequestNameFlags::DoNotQueue.into(),
         )
         .await

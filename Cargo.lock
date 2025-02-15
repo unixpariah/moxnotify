@@ -1371,7 +1371,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "moxalert"
+name = "moxsignal-daemon"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -1398,6 +1398,14 @@ dependencies = [
  "wayland-protocols-wlr",
  "wgpu",
  "xkbcommon",
+ "zbus",
+]
+
+[[package]]
+name = "moxsignalctl"
+version = "0.1.0"
+dependencies = [
+ "clap",
  "zbus",
 ]
 
