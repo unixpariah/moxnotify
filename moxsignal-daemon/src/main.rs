@@ -223,6 +223,8 @@ impl Moxsignal {
                 if let Some(layer_surface) = self.surface.layer_surface.as_ref() {
                     layer_surface.set_keyboard_interactivity(KeyboardInteractivity::Exclusive);
                     self.surface.wl_surface.commit();
+                    self.notifications.next();
+                    self.render();
                 }
             }
         };

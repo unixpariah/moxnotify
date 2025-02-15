@@ -233,6 +233,7 @@ impl Moxsignal {
                         layer_surface.set_keyboard_interactivity(KeyboardInteractivity::None);
                         self.surface.wl_surface.commit();
                         self.seat.keyboard.key_combination.key = Key::Character('\0');
+                        self.notifications.deselect();
                     }
                 }
             }
