@@ -12,6 +12,7 @@ use wayland_client::{
     protocol::{wl_keyboard, wl_seat},
     Connection, Dispatch, QueueHandle, WEnum,
 };
+use wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_surface_v1::KeyboardInteractivity;
 use xkbcommon::xkb::{Keymap, State};
 
 struct Xkb {
@@ -225,6 +226,13 @@ impl Moxsignal {
                                 self.select_notification(notification);
                             }
                         }
+                    }
+                }
+                KeyAction::Unfocus => {
+                    if let Some(layer_surface) = self.surface.layer_surface.as_ref() {
+                        layer_surface.set_keyboard_interactivity(KeyboardInteractivity::None);
+                        self.surface.wl_surface.commit();
+                        self.seat.keyboard.key_combination.key = Key::Character('\0');
                     }
                 }
             }

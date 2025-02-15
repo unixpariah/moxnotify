@@ -5,7 +5,7 @@ struct MoxsignalInterface {
     event_sender: calloop::channel::Sender<Event>,
 }
 
-#[zbus::interface(name = "pl.unixpariah.moxsignal")]
+#[zbus::interface(name = "pl.unixpariah.Moxsignal")]
 impl MoxsignalInterface {
     async fn focus(&self) {
         if let Err(e) = self.event_sender.send(Event::FocusSurface) {
@@ -18,19 +18,17 @@ pub async fn serve(event_sender: calloop::channel::Sender<Event>) -> zbus::Resul
     let server = MoxsignalInterface { event_sender };
 
     let conn = zbus::connection::Builder::session()?
-        .serve_at("/pl/unixpariah/moxsignal", server)?
+        .serve_at("/pl/unixpariah/Moxsignal", server)?
         .build()
         .await?;
 
-    if let Err(e) = conn
-        .request_name_with_flags(
-            "pl.unixpariah.moxsignal",
-            RequestNameFlags::DoNotQueue.into(),
-        )
-        .await
-    {
-        log::error!("{e}");
-    }
+    conn.request_name_with_flags(
+        "pl.unixpariah.Moxsignal",
+        RequestNameFlags::DoNotQueue.into(),
+    )
+    .await?;
+
+    std::future::pending::<()>().await;
 
     Ok(())
 }

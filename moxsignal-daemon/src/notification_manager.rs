@@ -347,7 +347,7 @@ impl Moxsignal {
 
                 self.surface.scale = output.map(|o| o.scale).unwrap_or(1.0);
 
-                layer_surface.set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
+                layer_surface.set_keyboard_interactivity(KeyboardInteractivity::None);
                 layer_surface.set_anchor(
                     zwlr_layer_surface_v1::Anchor::Right | zwlr_layer_surface_v1::Anchor::Top,
                 );

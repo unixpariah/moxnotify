@@ -178,7 +178,7 @@ impl FromStr for KeyCombination {
         let mut modifiers = Modifiers::default();
         let key_str = parts.next_back().ok_or("Invalid key combination")?;
 
-        for part in parts {
+        parts.try_for_each(|part| {
             match part {
                 "ctrl" => modifiers.control = true,
                 "shift" => modifiers.shift = true,
@@ -186,7 +186,9 @@ impl FromStr for KeyCombination {
                 "meta" => modifiers.meta = true,
                 _ => return Err(format!("Invalid modifier: {}", part)),
             }
-        }
+
+            Ok(())
+        })?;
 
         let key = match key_str.to_lowercase().as_str() {
             "enter" => Key::SpecialKey(SpecialKeyCode::Enter),
@@ -259,6 +261,7 @@ pub enum KeyAction {
     PreviousNotification,
     DismissNotification,
     InvokeAction,
+    Unfocus,
 }
 
 #[derive(Deserialize, PartialEq, Eq, Hash, Debug, Default)]
@@ -375,6 +378,7 @@ where
         Key::SpecialKey(SpecialKeyCode::Enter),
         KeyAction::InvokeAction,
     );
+    insert_default(Key::SpecialKey(SpecialKeyCode::Escape), KeyAction::Unfocus);
 
     Ok(keymaps)
 }

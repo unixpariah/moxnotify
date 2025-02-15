@@ -222,6 +222,7 @@ impl Moxsignal {
             Event::FocusSurface => {
                 if let Some(layer_surface) = self.surface.layer_surface.as_ref() {
                     layer_surface.set_keyboard_interactivity(KeyboardInteractivity::Exclusive);
+                    self.surface.wl_surface.commit();
                 }
             }
         };
@@ -436,11 +437,21 @@ async fn main() -> anyhow::Result<()> {
     });
 
     let (event_sender, event_receiver) = calloop::channel::channel();
-
     let (executor, scheduler) = calloop::futures::executor()?;
-    scheduler.schedule(async move {
-        _ = dbus::xdg::serve(event_sender, emit_receiver).await;
-    })?;
+
+    {
+        let event_sender = event_sender.clone();
+        scheduler.schedule(async move {
+            _ = dbus::xdg::serve(event_sender, emit_receiver).await;
+        })?;
+    }
+
+    {
+        let event_sender = event_sender.clone();
+        scheduler.schedule(async move {
+            _ = dbus::moxsignal::serve(event_sender).await;
+        })?;
+    }
 
     event_loop
         .handle()
