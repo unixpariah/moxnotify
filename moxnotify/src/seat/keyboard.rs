@@ -1,6 +1,6 @@
 use crate::{
     config::{Key, KeyAction, KeyCombination, Modifiers},
-    Moxsignal,
+    Moxnotify,
 };
 use ::xkbcommon::xkb::Context;
 use calloop::{
@@ -35,7 +35,7 @@ struct RepeatInfo {
 }
 
 impl Keyboard {
-    pub fn new(qh: &QueueHandle<Moxsignal>, wl_seat: &wl_seat::WlSeat) -> Self {
+    pub fn new(qh: &QueueHandle<Moxnotify>, wl_seat: &wl_seat::WlSeat) -> Self {
         let wl_keyboard = wl_seat.get_keyboard(qh, ());
 
         let xkb_context = Context::new(0);
@@ -52,7 +52,7 @@ impl Keyboard {
     }
 }
 
-impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxsignal {
+impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
     fn event(
         state: &mut Self,
         _: &wl_keyboard::WlKeyboard,
@@ -150,8 +150,8 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxsignal {
                                 let rate = (1000 / state.seat.keyboard.repeat.rate) as u64;
                                 state.seat.keyboard.repeat.registration_token = state
                                     .loop_handle
-                                    .insert_source(timer, move |_, _, moxsignal| {
-                                        moxsignal.handle_key(serial);
+                                    .insert_source(timer, move |_, _, moxnotify| {
+                                        moxnotify.handle_key(serial);
                                         TimeoutAction::ToDuration(Duration::from_millis(rate))
                                     })
                                     .ok();
@@ -176,7 +176,7 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxsignal {
     }
 }
 
-impl Moxsignal {
+impl Moxnotify {
     fn handle_key(&mut self, serial: u32) {
         if let Some(action) = self.config.keymaps.get(&self.seat.keyboard.key_combination) {
             match action {

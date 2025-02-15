@@ -1,4 +1,4 @@
-use crate::Moxsignal;
+use crate::Moxnotify;
 use wayland_client::{
     globals::GlobalList,
     protocol::{wl_compositor, wl_pointer, wl_seat, wl_shm, wl_surface},
@@ -26,7 +26,7 @@ pub struct Pointer {
 impl Pointer {
     pub fn new(
         conn: &Connection,
-        qh: &QueueHandle<Moxsignal>,
+        qh: &QueueHandle<Moxnotify>,
         compositor: &wl_compositor::WlCompositor,
         globals: &GlobalList,
         wl_seat: &wl_seat::WlSeat,
@@ -83,7 +83,7 @@ impl Pointer {
 
 const LEFT_MOUSE_CLICK: u32 = 272;
 
-impl Dispatch<wl_pointer::WlPointer, ()> for Moxsignal {
+impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
     fn event(
         state: &mut Self,
         _proxy: &wl_pointer::WlPointer,

@@ -1,7 +1,7 @@
 mod keyboard;
 mod pointer;
 
-use crate::Moxsignal;
+use crate::Moxnotify;
 use keyboard::Keyboard;
 use pointer::Pointer;
 use wayland_client::{
@@ -23,7 +23,7 @@ pub struct Seat {
 impl Seat {
     pub fn new(
         conn: &Connection,
-        qh: &QueueHandle<Moxsignal>,
+        qh: &QueueHandle<Moxnotify>,
         globals: &GlobalList,
         compositor: &wl_compositor::WlCompositor,
     ) -> anyhow::Result<Self> {
@@ -41,7 +41,7 @@ impl Seat {
     }
 }
 
-impl Dispatch<wl_seat::WlSeat, ()> for Moxsignal {
+impl Dispatch<wl_seat::WlSeat, ()> for Moxnotify {
     fn event(
         state: &mut Self,
         _proxy: &wl_seat::WlSeat,
@@ -56,4 +56,4 @@ impl Dispatch<wl_seat::WlSeat, ()> for Moxsignal {
     }
 }
 
-delegate_noop!(Moxsignal: ignore wl_shm::WlShm);
+delegate_noop!(Moxnotify: ignore wl_shm::WlShm);

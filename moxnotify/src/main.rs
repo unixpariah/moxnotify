@@ -51,7 +51,7 @@ impl Output {
     }
 }
 
-struct Moxsignal {
+struct Moxnotify {
     layer_shell: zwlr_layer_shell_v1::ZwlrLayerShellV1,
     text_ctx: TextContext,
     seat: Seat,
@@ -66,10 +66,10 @@ struct Moxsignal {
     emit_sender: mpsc::Sender<EmitEvent>,
 }
 
-impl Moxsignal {
+impl Moxnotify {
     fn new(
         conn: &Connection,
-        qh: QueueHandle<Moxsignal>,
+        qh: QueueHandle<Moxnotify>,
         globals: GlobalList,
         loop_handle: calloop::LoopHandle<'static, Self>,
         emit_sender: mpsc::Sender<EmitEvent>,
@@ -319,7 +319,7 @@ pub enum Event {
     FocusSurface,
 }
 
-impl Dispatch<wl_registry::WlRegistry, GlobalListContents> for Moxsignal {
+impl Dispatch<wl_registry::WlRegistry, GlobalListContents> for Moxnotify {
     fn event(
         state: &mut Self,
         registry: &wl_registry::WlRegistry,
@@ -349,7 +349,7 @@ impl Dispatch<wl_registry::WlRegistry, GlobalListContents> for Moxsignal {
     }
 }
 
-impl Dispatch<wl_output::WlOutput, ()> for Moxsignal {
+impl Dispatch<wl_output::WlOutput, ()> for Moxnotify {
     fn event(
         state: &mut Self,
         wl_output: &wl_output::WlOutput,
@@ -374,7 +374,7 @@ impl Dispatch<wl_output::WlOutput, ()> for Moxsignal {
     }
 }
 
-impl Dispatch<xdg_activation_token_v1::XdgActivationTokenV1, u32> for Moxsignal {
+impl Dispatch<xdg_activation_token_v1::XdgActivationTokenV1, u32> for Moxnotify {
     fn event(
         state: &mut Self,
         _: &xdg_activation_token_v1::XdgActivationTokenV1,
@@ -405,9 +405,9 @@ impl Dispatch<xdg_activation_token_v1::XdgActivationTokenV1, u32> for Moxsignal 
     }
 }
 
-delegate_noop!(Moxsignal: xdg_activation_v1::XdgActivationV1);
-delegate_noop!(Moxsignal: wl_compositor::WlCompositor);
-delegate_noop!(Moxsignal: zwlr_layer_shell_v1::ZwlrLayerShellV1);
+delegate_noop!(Moxnotify: xdg_activation_v1::XdgActivationV1);
+delegate_noop!(Moxnotify: wl_compositor::WlCompositor);
+delegate_noop!(Moxnotify: zwlr_layer_shell_v1::ZwlrLayerShellV1);
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -417,23 +417,23 @@ async fn main() -> anyhow::Result<()> {
 
     let (emit_sender, emit_receiver) = mpsc::channel();
     let mut event_loop = EventLoop::try_new()?;
-    let mut moxsignal = Moxsignal::new(&conn, qh, globals, event_loop.handle(), emit_sender)?;
+    let mut moxnotify = Moxnotify::new(&conn, qh, globals, event_loop.handle(), emit_sender)?;
 
     WaylandSource::new(conn, event_queue)
         .insert(event_loop.handle())
         .map_err(|e| anyhow::anyhow!("Failed to insert wayland source: {}", e))?;
 
-    moxsignal.globals.contents().with_list(|list| {
+    moxnotify.globals.contents().with_list(|list| {
         list.iter().for_each(|global| {
             if global.interface == wl_output::WlOutput::interface().name {
-                let wl_output = moxsignal.globals.registry().bind(
+                let wl_output = moxnotify.globals.registry().bind(
                     global.name,
                     global.version,
-                    &moxsignal.qh,
+                    &moxnotify.qh,
                     (),
                 );
                 let output = crate::Output::new(wl_output, global.name);
-                moxsignal.outputs.push(output);
+                moxnotify.outputs.push(output);
             }
         });
     });
@@ -451,7 +451,7 @@ async fn main() -> anyhow::Result<()> {
     {
         let event_sender = event_sender.clone();
         scheduler.schedule(async move {
-            _ = dbus::moxsignal::serve(event_sender).await;
+            _ = dbus::moxnotify::serve(event_sender).await;
         })?;
     }
 
@@ -462,16 +462,16 @@ async fn main() -> anyhow::Result<()> {
 
     event_loop
         .handle()
-        .insert_source(event_receiver, |event, _, moxsignal| {
+        .insert_source(event_receiver, |event, _, moxnotify| {
             if let calloop::channel::Event::Msg(event) = event {
-                if let Err(e) = moxsignal.handle_app_event(event) {
+                if let Err(e) = moxnotify.handle_app_event(event) {
                     log::error!("Failed to handle event: {e}");
                 }
             }
         })
         .map_err(|e| anyhow::anyhow!("Failed to insert source: {}", e))?;
 
-    event_loop.run(None, &mut moxsignal, |_| {})?;
+    event_loop.run(None, &mut moxnotify, |_| {})?;
 
     Ok(())
 }

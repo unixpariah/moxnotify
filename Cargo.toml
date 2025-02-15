@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "moxsignal-daemon",
-    "moxsignalctl"
+    "moxnotify",
+    "mox"
 ]
 resolver = "2"

@@ -11,10 +11,10 @@
 }:
 
 let
-  daemonCargoToml = builtins.fromTOML (builtins.readFile ../moxsignal-daemon/Cargo.toml);
+  daemonCargoToml = builtins.fromTOML (builtins.readFile ../moxnotify/Cargo.toml);
 in
 rustPlatform.buildRustPackage rec {
-  pname = "moxsignal";
+  pname = "moxnotify";
   version = daemonCargoToml.package.version;
 
   cargoLock = {
@@ -31,8 +31,8 @@ rustPlatform.buildRustPackage rec {
         relPath = lib.removePrefix (toString ../. + "/") (toString path);
       in
       lib.any (p: lib.hasPrefix p relPath) [
-        "moxsignal-daemon"
-        "moxsignalctl"
+        "moxnotify"
+        "mox"
         "Cargo.toml"
         "Cargo.lock"
       ];
@@ -56,22 +56,23 @@ rustPlatform.buildRustPackage rec {
   '';
 
   installPhase = ''
-    install -Dm755 target/release/moxsignal-daemon $out/bin/moxsignal-daemon
-    install -Dm755 target/release/moxsignalctl $out/bin/moxsignalctl
+    install -Dm755 target/release/moxnotify $out/bin/moxnotify
+    install -Dm755 target/release/mox $out/bin/mox
   '';
 
   postFixup = ''
-    for bin in $out/bin/moxsignal-*; do
-      patchelf --set-rpath "${lib.makeLibraryPath buildInputs}" $bin
-    done
+    patchelf --set-rpath "${lib.makeLibraryPath buildInputs}" $out/bin/moxnotify
   '';
+
+  dontPatchELF = false;
+  autoPatchelf = true;
 
   meta = with lib; {
     description = "Mox desktop environment notification system";
-    homepage = "https://github.com/unixpariah/moxsignal";
+    homepage = "https://github.com/unixpariah/moxnotify";
     license = licenses.gpl3;
     maintainers = [ maintainers.unixpariah ];
     platforms = platforms.linux;
-    mainProgram = "moxsignal-daemon";
+    mainProgram = "moxnotify";
   };
 }
