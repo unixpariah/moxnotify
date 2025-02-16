@@ -2,7 +2,8 @@ struct InstanceInput {
     @location(2) pos: vec2<f32>,
     @location(3) size: vec2<f32>,
     @location(4) radius: vec4<f32>,
-}
+    @location(5) container_rect: vec4<f32>,
+};
 
 struct VertexInput {
     @location(0) position: vec2<f32>,
@@ -13,7 +14,9 @@ struct VertexOutput {
     @location(0) tex_coords: vec2<f32>,
     @location(1) layer: u32,
     @location(2) radius: vec4<f32>,
-    @location(3) size: vec2<f32>, 
+    @location(3) size: vec2<f32>,
+    @location(4) container_rect: vec4<f32>,
+    @location(5) surface_position: vec2<f32>,
 };
 
 struct ProjectionUniform {
@@ -45,6 +48,8 @@ fn vs_main(
     );
     
     out.size = instance.size; 
+    out.container_rect = instance.container_rect;
+    out.surface_position = position;
     
     return out;
 }
@@ -80,6 +85,20 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let antialias = 1.0;
     let alpha = 1.0 - smoothstep(0.0, antialias, d);
+
+    let min_x = in.container_rect.x;
+    let min_y = in.container_rect.y;
+    let max_x = in.container_rect.z;
+    let max_y = in.container_rect.w;
+
+    let inside = (in.surface_position.x >= min_x) && 
+                 (in.surface_position.x <= max_x) &&
+                 (in.surface_position.y >= min_y) && 
+                 (in.surface_position.y <= max_y);
+
+    if (!inside) {
+        discard;
+    }
 
     return vec4<f32>(tex_color.rgb, tex_color.a * alpha);
 }

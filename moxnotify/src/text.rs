@@ -8,13 +8,7 @@ use wgpu::{MultisampleState, TextureFormat};
 pub struct Text(pub Buffer);
 
 impl Text {
-    pub fn new(
-        font: &Font,
-        font_system: &mut FontSystem,
-        summary: &str,
-        body: &str,
-        max_width: f32,
-    ) -> Self {
+    pub fn new(font: &Font, font_system: &mut FontSystem, summary: &str, body: &str) -> Self {
         let attrs = Attrs::new();
         attrs.family(glyphon::Family::Name(&font.family));
 
@@ -35,13 +29,8 @@ impl Text {
 
         buffer.set_rich_text(font_system, spans.iter().copied(), attrs, Shaping::Advanced);
         buffer.shape_until_scroll(font_system, true);
-        buffer.set_size(font_system, Some(max_width), None);
 
         Self(buffer)
-    }
-
-    pub fn buffer(&self) -> &Buffer {
-        &self.0
     }
 
     pub fn extents(&self) -> (f32, f32) {

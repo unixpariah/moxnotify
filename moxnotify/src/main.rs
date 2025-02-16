@@ -30,7 +30,10 @@ use wayland_protocols::xdg::activation::v1::client::{xdg_activation_token_v1, xd
 use wayland_protocols_wlr::layer_shell::v1::client::{
     zwlr_layer_shell_v1, zwlr_layer_surface_v1::KeyboardInteractivity,
 };
-use wgpu_state::{texture_renderer::TextureData, WgpuState};
+use wgpu_state::{
+    texture_renderer::{TextureArea, TextureBounds},
+    WgpuState,
+};
 
 #[derive(Debug)]
 struct Output {
@@ -193,14 +196,22 @@ impl Moxnotify {
                     let content_height = extents.height - top_offset - bottom_offset;
                     let vertical_offset = (content_height - image.height as f32) / 2.;
 
-                    return Some(TextureData {
-                        x: (extents.x + style.border.size + style.padding.left + style.margin.left)
-                            as u32,
-                        y: self.surface.config.height
-                            - (extents.y + top_offset + vertical_offset) as u32
-                            - image.height,
-                        width: image.width,
-                        height: image.height,
+                    let x = extents.x + style.border.size + style.padding.left + style.margin.left;
+
+                    let y = self.surface.config.height as f32
+                        - (extents.y + top_offset + vertical_offset)
+                        - image.height as f32;
+
+                    return Some(TextureArea {
+                        left: x,
+                        top: y,
+                        scale: self.surface.scale,
+                        bounds: TextureBounds {
+                            left: x as u32,
+                            top: y as u32,
+                            right: x as u32 + image.width,
+                            bottom: y as u32 + image.height,
+                        },
                         data: &image.data,
                         radius: style.icon.border.radius.into(),
                     });
@@ -252,7 +263,11 @@ impl Moxnotify {
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
-        if width == self.surface.config.height || height == self.surface.config.width {
+        if width == self.surface.config.height
+            || height == self.surface.config.width
+            || width == 0
+            || height == 0
+        {
             return;
         }
         self.surface.config.width = width;

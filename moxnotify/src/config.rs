@@ -147,8 +147,10 @@ pub struct Icon {
 
 #[derive(Deserialize, Default)]
 pub struct StyleState {
+    #[serde(default = "default_width")]
+    pub width: f32,
     #[serde(default)]
-    pub min_height: Option<f32>,
+    pub min_height: f32,
     #[serde(default)]
     pub max_height: Option<f32>,
     #[serde(default)]
@@ -317,8 +319,6 @@ pub struct Config {
     pub ignore_timeout: bool,
     #[serde(default)]
     pub queue: Queue,
-    #[serde(default = "default_width")]
-    pub width: f32,
     #[serde(default)]
     pub output: Box<str>,
     #[serde(default)]

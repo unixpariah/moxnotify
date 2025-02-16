@@ -22,7 +22,6 @@ pub struct Notification {
     pub text: Text,
     pub x: f32,
     pub y: f32,
-    pub width: f32,
     pub timeout: Option<u64>,
     pub hovered: bool,
     pub config: Arc<Config>,
@@ -75,14 +74,11 @@ impl Notification {
             _ => None,
         });
 
-        let icon_size = icon.as_ref().map(|i| (i.width, i.height)).unwrap_or((0, 0));
-
         let text = Text::new(
             &config.styles.default.font,
             font_system,
             &data.summary,
             &data.body,
-            config.width - icon_size.0 as f32,
         );
 
         let timeout = match config.ignore_timeout {
@@ -121,7 +117,6 @@ impl Notification {
             app_name: data.app_name,
             actions: data.actions,
             registration_token: None,
-            width: config.width,
             timeout,
             config,
             hovered: false,
@@ -145,16 +140,22 @@ impl Notification {
             .map(|i| (i.width, i.height))
             .unwrap_or((0, 0));
 
-        let min_height = styles.min_height.unwrap_or(0.0);
         let max_height = styles.max_height.unwrap_or(f32::INFINITY);
         match styles.height {
-            Some(height) => height.clamp(min_height, max_height),
+            Some(height) => height.clamp(styles.min_height, max_height),
             None => self
                 .text
                 .extents()
                 .1
                 .max(icon_size.1 as f32)
-                .clamp(min_height, max_height),
+                .clamp(styles.min_height, max_height),
+        }
+    }
+
+    pub fn width(&self) -> f32 {
+        match self.hovered() {
+            true => self.config.styles.hover.width,
+            false => self.config.styles.default.width,
         }
     }
 
@@ -222,7 +223,7 @@ impl Notification {
         Extents {
             x: self.x,
             y: self.y,
-            width: self.width
+            width: self.width()
                 + styles.border.size * 2.
                 + styles.padding.left
                 + styles.padding.right
@@ -287,7 +288,7 @@ impl Notification {
 
         self.text
             .0
-            .set_size(font_system, Some(self.width - icon_width_layout), None);
+            .set_size(font_system, Some(self.width() - icon_width_layout), None);
 
         let icon_width_positioning = self
             .icon
@@ -311,7 +312,10 @@ impl Notification {
                     + width
                     + styles.padding.left
                     + icon_width_positioning) as i32,
-                bottom: (extents.y + styles.border.size + height + styles.padding.top) as i32,
+                bottom: (extents.y
+                    + styles.border.size
+                    + height.min(self.height())
+                    + styles.padding.top) as i32,
             },
             default_color: glyphon::Color::rgba(color[0], color[1], color[2], color[3]),
             custom_glyphs: &[],

@@ -10,14 +10,20 @@ pub struct TextureRenderer {
     instance_buffer: buffers::InstanceBuffer<buffers::TextureInstance>,
 }
 
-#[derive(Debug)]
-pub struct TextureData<'a> {
-    pub x: u32,
-    pub y: u32,
-    pub width: u32,
-    pub height: u32,
-    pub data: &'a [u8],
+pub struct TextureArea<'a> {
+    pub left: f32,
+    pub top: f32,
+    pub bounds: TextureBounds,
+    pub scale: f32,
     pub radius: [f32; 4],
+    pub data: &'a [u8],
+}
+
+pub struct TextureBounds {
+    pub left: u32,
+    pub top: u32,
+    pub right: u32,
+    pub bottom: u32,
 }
 
 impl TextureRenderer {
@@ -144,20 +150,23 @@ impl TextureRenderer {
             cache: None,
         });
 
-        let vertex_buffer = buffers::VertexBuffer::new(device, &[
-            buffers::Vertex {
-                position: [0.0, 0.0],
-            },
-            buffers::Vertex {
-                position: [1.0, 0.0],
-            },
-            buffers::Vertex {
-                position: [0.0, 1.0],
-            },
-            buffers::Vertex {
-                position: [1.0, 1.0],
-            },
-        ]);
+        let vertex_buffer = buffers::VertexBuffer::new(
+            device,
+            &[
+                buffers::Vertex {
+                    position: [0.0, 0.0],
+                },
+                buffers::Vertex {
+                    position: [1.0, 0.0],
+                },
+                buffers::Vertex {
+                    position: [0.0, 1.0],
+                },
+                buffers::Vertex {
+                    position: [1.0, 1.0],
+                },
+            ],
+        );
 
         let index_buffer = buffers::IndexBuffer::new(device, &[0, 1, 3, 3, 2, 0]);
 
@@ -190,15 +199,24 @@ impl TextureRenderer {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        textures: Vec<TextureData>,
+        textures: Vec<TextureArea>,
     ) {
         let mut instances = Vec::new();
 
         textures.iter().enumerate().for_each(|(i, texture)| {
+            let width = texture.bounds.right - texture.bounds.left;
+            let height = texture.bounds.bottom - texture.bounds.top;
+
             instances.push(buffers::TextureInstance {
-                pos: [texture.x as f32, texture.y as f32],
-                size: [texture.width as f32, texture.height as f32],
+                pos: [texture.left, texture.top],
+                size: [width as f32, height as f32],
                 radius: texture.radius,
+                container_rect: [
+                    texture.bounds.left as f32,
+                    texture.bounds.top as f32,
+                    texture.bounds.right as f32,
+                    texture.bounds.bottom as f32,
+                ],
             });
 
             queue.write_texture(
@@ -215,12 +233,12 @@ impl TextureRenderer {
                 texture.data,
                 wgpu::TexelCopyBufferLayout {
                     offset: 0,
-                    bytes_per_row: Some(4 * texture.width),
-                    rows_per_image: Some(texture.height),
+                    bytes_per_row: Some(4 * width),
+                    rows_per_image: Some(height),
                 },
                 wgpu::Extent3d {
-                    width: texture.width,
-                    height: texture.height,
+                    width,
+                    height,
                     depth_or_array_layers: 1,
                 },
             );
