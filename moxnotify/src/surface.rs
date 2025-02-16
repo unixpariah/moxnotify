@@ -5,7 +5,7 @@ use wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_surface_v1;
 pub struct Surface {
     pub wl_surface: wl_surface::WlSurface,
     pub layer_surface: Option<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1>,
-    pub surface_config: wgpu::SurfaceConfiguration,
+    pub config: wgpu::SurfaceConfiguration,
     pub wgpu_surface: wgpu::Surface<'static>,
     pub scale: f32,
 }
@@ -18,7 +18,7 @@ impl Surface {
     ) -> Self {
         Self {
             scale: 1.0,
-            surface_config: config,
+            config,
             wgpu_surface,
             wl_surface,
             layer_surface: None,

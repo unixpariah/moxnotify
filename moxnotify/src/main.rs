@@ -111,6 +111,18 @@ impl Moxnotify {
     }
 
     fn render(&mut self) {
+        self.notifications
+            .iter_mut()
+            .fold(0.0, |acc, notification| {
+                notification.change_spot(acc);
+                acc + notification.extents().height
+            });
+
+        self.resize(
+            self.notifications.width() as u32,
+            self.notifications.height() as u32,
+        );
+
         let surface_texture = self
             .surface
             .wgpu_surface
@@ -184,7 +196,7 @@ impl Moxnotify {
                     return Some(TextureData {
                         x: (extents.x + style.border.size + style.padding.left + style.margin.left)
                             as u32,
-                        y: self.surface.surface_config.height
+                        y: self.surface.config.height
                             - (extents.y + top_offset + vertical_offset) as u32
                             - image.height,
                         width: image.width,
@@ -240,11 +252,14 @@ impl Moxnotify {
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
-        self.surface.surface_config.width = width;
-        self.surface.surface_config.height = height;
+        if width == self.surface.config.height || height == self.surface.config.width {
+            return;
+        }
+        self.surface.config.width = width;
+        self.surface.config.height = height;
         self.surface
             .wgpu_surface
-            .configure(&self.wgpu_state.device, &self.surface.surface_config);
+            .configure(&self.wgpu_state.device, &self.surface.config);
         self.text_ctx.viewport.update(
             &self.wgpu_state.queue,
             glyphon::Resolution { width, height },

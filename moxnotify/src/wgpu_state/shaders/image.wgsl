@@ -35,7 +35,15 @@ fn vs_main(
     out.clip_position = projection.view_proj * vec4<f32>(position, 0.0, 1.0);
     out.tex_coords = model.position;
     out.layer = instance_idx;
-    out.radius = instance.radius; 
+    
+    let max_radius = min(instance.size.x, instance.size.y) * 0.5;
+    out.radius = vec4<f32>(
+        min(instance.radius.x, max_radius),
+        min(instance.radius.y, max_radius),
+        min(instance.radius.z, max_radius),
+        min(instance.radius.w, max_radius)
+    );
+    
     out.size = instance.size; 
     
     return out;

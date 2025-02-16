@@ -58,7 +58,15 @@ fn vs_main(
     out.rect_pos = (instance.rect_pos + instance.border_size * 1.0) * instance.scale;
     out.rect_size = instance.rect_size * instance.scale;
     out.rect_color = instance.rect_color;
-    out.border_radius = instance.border_radius * instance.scale;
+
+    let max_radius = min(instance.rect_size.x + instance.border_size * 2.0, instance.rect_size.y + instance.border_size * 2.0) * 0.5;
+    out.border_radius = vec4<f32>(
+        min(instance.border_radius.x, max_radius),
+        min(instance.border_radius.y, max_radius),
+        min(instance.border_radius.z, max_radius),
+        min(instance.border_radius.w, max_radius)
+    ) * instance.scale;
+
     out.border_size = instance.border_size * instance.scale;
     out.border_color = instance.border_color;
     out.scale = instance.scale;

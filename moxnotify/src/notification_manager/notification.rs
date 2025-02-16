@@ -23,7 +23,6 @@ pub struct Notification {
     pub x: f32,
     pub y: f32,
     pub width: f32,
-    pub height: f32,
     pub timeout: Option<u64>,
     pub hovered: bool,
     pub config: Arc<Config>,
@@ -86,14 +85,6 @@ impl Notification {
             config.width - icon_size.0 as f32,
         );
 
-        let min_height = config.min_height.unwrap_or(0.0);
-        let max_height = config.max_height.unwrap_or(f32::INFINITY);
-        let height = match config.height {
-            Some(height) => height.clamp(min_height, max_height),
-            None => text.extents().1.clamp(min_height, max_height),
-        }
-        .max(icon_size.1 as f32);
-
         let timeout = match config.ignore_timeout {
             true => {
                 if config.default_timeout > 0 {
@@ -131,7 +122,6 @@ impl Notification {
             actions: data.actions,
             registration_token: None,
             width: config.width,
-            height,
             timeout,
             config,
             hovered: false,
@@ -139,6 +129,32 @@ impl Notification {
             id: data.id,
             x,
             y,
+        }
+    }
+
+    pub fn height(&self) -> f32 {
+        let styles = if self.hovered {
+            &self.config.styles.hover
+        } else {
+            &self.config.styles.default
+        };
+
+        let icon_size = self
+            .icon
+            .as_ref()
+            .map(|i| (i.width, i.height))
+            .unwrap_or((0, 0));
+
+        let min_height = styles.min_height.unwrap_or(0.0);
+        let max_height = styles.max_height.unwrap_or(f32::INFINITY);
+        match styles.height {
+            Some(height) => height.clamp(min_height, max_height),
+            None => self
+                .text
+                .extents()
+                .1
+                .max(icon_size.1 as f32)
+                .clamp(min_height, max_height),
         }
     }
 
@@ -167,6 +183,8 @@ impl Notification {
     }
 
     pub fn get_instance(&self, scale: f32) -> buffers::Instance {
+        let extents = self.rendered_extents();
+
         let styles = if self.hovered {
             &self.config.styles.hover
         } else {
@@ -180,10 +198,10 @@ impl Notification {
         };
 
         buffers::Instance {
-            rect_pos: [self.x + styles.margin.left, self.y + styles.margin.top],
+            rect_pos: [extents.x, extents.y],
             rect_size: [
-                self.width + styles.padding.left + styles.padding.right,
-                self.height + styles.padding.top + styles.padding.bottom,
+                extents.width - styles.border.size * 2.0,
+                extents.height - styles.border.size * 2.0,
             ],
             rect_color: color.background.into(),
             border_radius: styles.border.radius.into(),
@@ -210,7 +228,7 @@ impl Notification {
                 + styles.padding.right
                 + styles.margin.left
                 + styles.margin.right,
-            height: self.height
+            height: self.height()
                 + styles.border.size * 2.
                 + styles.padding.top
                 + styles.padding.bottom
@@ -219,27 +237,28 @@ impl Notification {
         }
     }
 
-    pub fn contains_coordinates(&self, x: f64, y: f64) -> bool {
-        let styles = if self.hovered() {
+    pub fn rendered_extents(&self) -> Extents {
+        let extents = self.extents();
+        let styles = if self.hovered {
             &self.config.styles.hover
         } else {
             &self.config.styles.default
         };
 
-        x > (self.x + styles.margin.left) as f64
-            && x < (self.x
-                + styles.margin.left
-                + self.width
-                + styles.padding.left
-                + styles.padding.right
-                + styles.border.size * 2.) as f64
-            && y > (self.y + styles.margin.top) as f64
-            && y < (self.y
-                + styles.margin.top
-                + self.height
-                + styles.padding.top
-                + styles.padding.bottom
-                + styles.border.size * 2.) as f64
+        Extents {
+            x: extents.x + styles.margin.left,
+            y: extents.y + styles.margin.top,
+            width: extents.width - styles.margin.left - styles.margin.right,
+            height: extents.height - styles.margin.top - styles.margin.bottom,
+        }
+    }
+
+    pub fn contains_coordinates(&self, x: f64, y: f64) -> bool {
+        let extents = self.rendered_extents();
+        x > extents.x as f64
+            && x < (extents.x + extents.width) as f64
+            && y > (extents.y) as f64
+            && y < (extents.y + extents.height) as f64
     }
 
     pub fn change_spot(&mut self, new_y: f32) {
@@ -247,7 +266,7 @@ impl Notification {
     }
 
     pub fn text_area(&mut self, font_system: &mut FontSystem, scale: f32) -> TextArea {
-        let extents = self.extents();
+        let extents = self.rendered_extents();
         let (width, height) = self.text.extents();
 
         let styles = if self.hovered {
@@ -264,43 +283,35 @@ impl Notification {
 
         let color = color.foreground.rgba;
 
-        let icon_size = self
+        let icon_width_layout = self.icon.as_ref().map(|i| i.width as f32).unwrap_or(0.);
+
+        self.text
+            .0
+            .set_size(font_system, Some(self.width - icon_width_layout), None);
+
+        let icon_width_positioning = self
             .icon
             .as_ref()
             .map(|i| i.width as f32 + styles.padding.right)
             .unwrap_or(0.);
 
-        self.text
-            .0
-            .set_size(font_system, Some(self.width - icon_size), None);
         TextArea {
             buffer: &self.text.0,
-            left: extents.x
-                + styles.margin.left
-                + styles.border.size
-                + styles.padding.left
-                + icon_size,
-            top: extents.y + styles.margin.top + styles.border.size + styles.padding.top,
+            left: extents.x + styles.border.size + styles.padding.left + icon_width_positioning,
+            top: extents.y + styles.border.size + styles.padding.top,
             scale,
             bounds: TextBounds {
                 left: (extents.x
-                    + styles.margin.left
                     + styles.border.size
                     + styles.padding.left
-                    + icon_size) as i32,
-                top: (extents.y + styles.margin.top + styles.border.size + styles.padding.top)
-                    as i32,
+                    + icon_width_positioning) as i32,
+                top: (extents.y + styles.border.size + styles.padding.top) as i32,
                 right: (extents.x
-                    + styles.margin.left
                     + styles.border.size
                     + width
                     + styles.padding.left
-                    + icon_size) as i32,
-                bottom: (extents.y
-                    + styles.margin.top
-                    + styles.border.size
-                    + height
-                    + styles.padding.top) as i32,
+                    + icon_width_positioning) as i32,
+                bottom: (extents.y + styles.border.size + height + styles.padding.top) as i32,
             },
             default_color: glyphon::Color::rgba(color[0], color[1], color[2], color[3]),
             custom_glyphs: &[],

@@ -61,7 +61,7 @@ impl NotificationManager {
             .iter_mut()
             .enumerate()
             .filter_map(|(i, notification)| {
-                if i >= notification.config.max_visible as usize {
+                if i > notification.config.max_visible as usize {
                     return None;
                 }
                 let instance = notification.get_instance(scale);
