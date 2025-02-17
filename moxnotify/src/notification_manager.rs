@@ -10,7 +10,7 @@ use calloop::{
 use glyphon::{FontSystem, TextArea};
 use notification::{Notification, NotificationId};
 use std::{
-    ops::{Deref, DerefMut},
+    ops::{Deref, DerefMut, Range},
     sync::Arc,
     time::Duration,
 };
@@ -26,6 +26,7 @@ pub struct NotificationManager {
     config: Arc<Config>,
     loop_handle: LoopHandle<'static, Moxnotify>,
     selected: Option<u32>,
+    visible: Range<usize>,
 }
 
 impl Deref for NotificationManager {
@@ -48,6 +49,7 @@ impl NotificationManager {
             loop_handle,
             notifications: Vec::new(),
             selected: None,
+            visible: 0..config.max_visible as usize,
             config,
         }
     }
@@ -64,17 +66,26 @@ impl NotificationManager {
                 if i > notification.config.max_visible as usize {
                     return None;
                 }
-                let instance = notification.get_instance(scale);
-                let text = notification.text_area(font_system, scale);
-                Some((instance, text))
+
+                if self.visible.contains(&i) {
+                    let instance = notification.get_instance(scale);
+                    let text = notification.text_area(font_system, scale);
+                    Some((instance, text))
+                } else {
+                    None
+                }
             })
             .unzip()
     }
 
     pub fn height(&self) -> f32 {
-        self.notifications.last().map_or(0.0, |notification| {
-            let extents = notification.extents();
-            extents.y + extents.height
+        self.visible.clone().fold(0.0, |acc, i| {
+            if let Some(notification) = self.notifications.get(i) {
+                let extents = notification.extents();
+                return acc + extents.height;
+            };
+
+            acc
         })
     }
 
@@ -129,10 +140,9 @@ impl NotificationManager {
             }
         }
 
-        // TODO
-        self.selected = Some(id);
         if let Some(new_notification) = self.notifications.iter_mut().find(|n| n.id() == id) {
             new_notification.hover();
+            self.selected = Some(id);
             if let Some(token) = new_notification.registration_token.take() {
                 self.loop_handle.remove(token);
             }
@@ -140,34 +150,68 @@ impl NotificationManager {
     }
 
     pub fn next(&mut self) {
-        let next_notification = if let Some(id) = self.selected {
+        let next_notification_index = if let Some(id) = self.selected {
             self.notifications
                 .iter()
                 .position(|n| n.id() == id)
-                .and_then(|index| self.notifications.get(index + 1))
-                .or_else(|| self.notifications.first())
+                .map_or(0, |index| {
+                    if index + 1 < self.notifications.len() {
+                        index + 1
+                    } else {
+                        0
+                    }
+                })
         } else {
-            self.notifications.first()
+            0
         };
-
-        if let Some(notification) = next_notification {
+        if let Some(notification) = self.notifications.get(next_notification_index) {
             self.select(notification.id());
+            let max_visible = self.config.max_visible as usize;
+
+            if next_notification_index == 0 {
+                self.visible = 0..max_visible.min(self.notifications.len());
+            } else {
+                let last_visible = self.visible.end.saturating_sub(1);
+                if next_notification_index > last_visible {
+                    let start = next_notification_index + 1 - max_visible;
+                    let end = next_notification_index + 1;
+                    self.visible = start..end.min(self.notifications.len());
+                }
+            }
         }
     }
 
     pub fn prev(&mut self) {
-        let prev_notification = if let Some(id) = self.selected {
-            self.notifications
-                .iter()
-                .position(|n| n.id() == id)
-                .and_then(|index| index.checked_sub(1).and_then(|i| self.notifications.get(i)))
-                .or_else(|| self.notifications.last())
+        let notification_index = if let Some(id) = self.selected {
+            self.notifications.iter().position(|n| n.id() == id).map_or(
+                self.notifications.len().saturating_sub(1),
+                |index| {
+                    if index > 0 {
+                        index - 1
+                    } else {
+                        self.notifications.len().saturating_sub(1)
+                    }
+                },
+            )
         } else {
-            self.notifications.last()
+            self.notifications.len().saturating_sub(1)
         };
 
-        if let Some(notification) = prev_notification {
+        if let Some(notification) = self.notifications.get(notification_index) {
             self.select(notification.id());
+            let max_visible = self.config.max_visible as usize;
+
+            if notification_index + 1 == self.notifications.len() {
+                self.visible =
+                    (self.notifications.len() - max_visible).max(0)..self.notifications.len();
+            } else {
+                let first_visible = self.visible.start;
+                if notification_index < first_visible {
+                    let start = notification_index;
+                    let end = notification_index + max_visible;
+                    self.visible = start..end.min(self.notifications.len());
+                }
+            }
         }
     }
 

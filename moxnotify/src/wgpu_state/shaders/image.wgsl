@@ -74,7 +74,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let tex_color = textureSample(
         t_diffuse,
         s_diffuse,
-        vec2<f32>(in.tex_coords.x, 1.0 - in.tex_coords.y), // Flip texture V-coordinate
+        vec2<f32>(in.tex_coords.x, 1.0 - in.tex_coords.y),
         i32(in.layer)
     );
 
@@ -91,7 +91,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let max_x = in.container_rect.z;
     let max_y = in.container_rect.w;
 
-    // Calculate flipped Y coordinate for container check
     let flipped_y = in.surface_position.y - 2.0 * in.tex_coords.y * in.size.y + in.size.y;
     let inside = (in.surface_position.x >= min_x) && 
                  (in.surface_position.x <= max_x) &&

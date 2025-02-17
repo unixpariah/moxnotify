@@ -120,11 +120,7 @@ impl Moxnotify {
                 notification.change_spot(acc);
                 acc + notification.extents().height
             });
-
-        self.resize(
-            self.notifications.width() as u32,
-            self.notifications.height() as u32,
-        );
+        self.update_surface_size();
 
         let surface_texture = self
             .surface
@@ -248,7 +244,6 @@ impl Moxnotify {
                 }
             }
         };
-
         Ok(())
     }
 
