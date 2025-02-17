@@ -22,7 +22,7 @@ enum NotifyCommand {
 }
 
 pub enum Event {
-    Focus, // Define the Focus variant
+    Focus,
 }
 
 #[tokio::main]

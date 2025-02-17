@@ -30,10 +30,7 @@ use wayland_protocols::xdg::activation::v1::client::{xdg_activation_token_v1, xd
 use wayland_protocols_wlr::layer_shell::v1::client::{
     zwlr_layer_shell_v1, zwlr_layer_surface_v1::KeyboardInteractivity,
 };
-use wgpu_state::{
-    texture_renderer::{TextureArea, TextureBounds},
-    WgpuState,
-};
+use wgpu_state::WgpuState;
 
 #[derive(Debug)]
 struct Output {
@@ -169,53 +166,7 @@ impl Moxnotify {
             text_data,
         );
 
-        let textures: Vec<_> = self
-            .notifications
-            .iter()
-            .enumerate()
-            .filter_map(|(i, notification)| {
-                if i >= notification.config.max_visible as usize
-                    || !self.notifications.visible.contains(&i)
-                {
-                    return None;
-                }
-
-                if let Some(image) = notification.image() {
-                    let extents = notification.rendered_extents();
-                    let style = if notification.hovered() {
-                        &notification.config.styles.hover
-                    } else {
-                        &notification.config.styles.default
-                    };
-
-                    let vertical_offset = (extents.height - image.height as f32) / 2.;
-
-                    let x = extents.x + style.border.size + style.padding.left;
-
-                    let y = extents.y + vertical_offset + image.height as f32;
-                    let y = self.surface.config.height as f32 - y;
-
-                    return Some(TextureArea {
-                        left: x,
-                        top: y,
-                        width: image.width as f32,
-                        height: image.height as f32,
-                        scale: self.surface.scale,
-                        bounds: TextureBounds {
-                            left: x as u32,
-                            top: (y as u32)
-                                .max((extents.y + style.border.size + style.padding.top) as u32),
-                            right: x as u32 + image.width,
-                            bottom: y as u32 + image.height,
-                        },
-                        data: &image.data,
-                        radius: style.icon.border.radius.into(),
-                    });
-                }
-
-                None
-            })
-            .collect();
+        let textures = self.notifications.textures(self.surface.scale);
 
         self.wgpu_state.texture_renderer.prepare(
             &self.wgpu_state.device,

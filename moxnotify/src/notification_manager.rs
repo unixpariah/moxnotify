@@ -1,6 +1,9 @@
 use crate::{
     config::{self, Anchor, Config, Key, Queue},
-    wgpu_state::buffers,
+    wgpu_state::{
+        buffers,
+        texture_renderer::{TextureArea, TextureBounds},
+    },
     EmitEvent, Moxnotify, NotificationData,
 };
 use calloop::{
@@ -76,6 +79,52 @@ impl NotificationManager {
                 }
             })
             .unzip()
+    }
+
+    pub fn textures(&self, scale: f32) -> Vec<TextureArea> {
+        self.notifications
+            .iter()
+            .enumerate()
+            .filter_map(|(i, notification)| {
+                if i >= notification.config.max_visible as usize || !self.visible.contains(&i) {
+                    return None;
+                }
+
+                if let Some(image) = notification.image() {
+                    let extents = notification.rendered_extents();
+                    let style = if notification.hovered() {
+                        &notification.config.styles.hover
+                    } else {
+                        &notification.config.styles.default
+                    };
+
+                    let vertical_offset = (extents.height - image.height as f32) / 2.;
+
+                    let x = extents.x + style.border.size + style.padding.left;
+
+                    let y = extents.y + vertical_offset + image.height as f32;
+                    let y = self.height() - y;
+
+                    return Some(TextureArea {
+                        left: x,
+                        top: y,
+                        width: image.width as f32,
+                        height: image.height as f32,
+                        scale,
+                        bounds: TextureBounds {
+                            left: x as u32,
+                            top: y as u32,
+                            right: x as u32 + image.width,
+                            bottom: y as u32 + image.height,
+                        },
+                        data: &image.data,
+                        radius: style.icon.border.radius.into(),
+                    });
+                }
+
+                None
+            })
+            .collect()
     }
 
     pub fn height(&self) -> f32 {
@@ -319,6 +368,21 @@ impl Moxnotify {
                 true
             }
         });
+
+        //if let Some(i) = self
+        //    .notifications
+        //    .iter()
+        //    .position(|n| Some(n.id) == self.notifications.selected())
+        //{
+        //    let range = self.notifications.visible.clone();
+        //    if range.end == i {
+        //        let mut start = range.start;
+        //        let end = range.end;
+        //        start = start.saturating_sub(1);
+
+        //        self.notifications.visible = start..end;
+        //    }
+        //}
 
         if self.notifications.selected == Some(id) {
             self.deselect_notification();

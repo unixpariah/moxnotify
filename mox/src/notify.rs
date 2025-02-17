@@ -1,9 +1,9 @@
 use crate::Event;
 
 #[zbus::proxy(
-    interface = "pl.unixpariah.Moxnotify",
-    default_service = "pl.unixpariah.Moxnotify",
-    default_path = "/pl/unixpariah/Moxnotify"
+    interface = "pl.mox.Notify",
+    default_service = "pl.mox.Notify",
+    default_path = "/pl/mox/Notify"
 )]
 trait Notify {
     async fn focus(&self) -> zbus::Result<()>;
