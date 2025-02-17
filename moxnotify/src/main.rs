@@ -183,28 +183,25 @@ impl Moxnotify {
                 }
 
                 if let Some(image) = notification.image() {
-                    let extents = notification.extents();
+                    let extents = notification.rendered_extents();
                     let style = if notification.hovered() {
                         &notification.config.styles.hover
                     } else {
                         &notification.config.styles.default
                     };
 
-                    let top_offset = style.border.size + style.padding.top + style.margin.top;
-                    let bottom_offset =
-                        style.border.size + style.padding.bottom + style.margin.bottom;
-                    let content_height = extents.height - top_offset - bottom_offset;
-                    let vertical_offset = (content_height - image.height as f32) / 2.;
+                    let vertical_offset = (extents.height - image.height as f32) / 2.;
 
-                    let x = extents.x + style.border.size + style.padding.left + style.margin.left;
+                    let x = extents.x + style.border.size + style.padding.left;
 
-                    let y = self.surface.config.height as f32
-                        - (extents.y + top_offset + vertical_offset)
-                        - image.height as f32;
+                    let y = extents.y + vertical_offset + image.height as f32;
+                    let y = self.surface.config.height as f32 - y;
 
                     return Some(TextureArea {
                         left: x,
                         top: y,
+                        width: image.width as f32,
+                        height: image.height as f32,
                         scale: self.surface.scale,
                         bounds: TextureBounds {
                             left: x as u32,

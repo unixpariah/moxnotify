@@ -146,15 +146,24 @@ pub struct Icon {
 }
 
 #[derive(Deserialize, Default)]
+pub enum Size {
+    #[default]
+    #[serde(rename = "auto")]
+    Auto,
+    #[serde(untagged)]
+    Value(f32),
+}
+
+#[derive(Deserialize, Default)]
 pub struct StyleState {
     #[serde(default = "default_width")]
     pub width: f32,
     #[serde(default)]
     pub min_height: f32,
+    #[serde(default = "default_max_height")]
+    pub max_height: f32,
     #[serde(default)]
-    pub max_height: Option<f32>,
-    #[serde(default)]
-    pub height: Option<f32>,
+    pub height: Size,
     pub font: Font,
     pub border: Border,
     #[serde(default)]
@@ -164,6 +173,10 @@ pub struct StyleState {
     pub urgency_normal: Urgency,
     pub urgency_critical: Urgency,
     pub icon: Icon,
+}
+
+fn default_max_height() -> f32 {
+    f32::INFINITY
 }
 
 #[derive(Deserialize, Default)]

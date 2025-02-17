@@ -8,6 +8,7 @@ pub struct TextureRenderer {
     index_buffer: buffers::IndexBuffer,
     projection_uniform: buffers::ProjectionUniform,
     instance_buffer: buffers::InstanceBuffer<buffers::TextureInstance>,
+    height: f32,
 }
 
 pub struct TextureArea<'a> {
@@ -17,6 +18,8 @@ pub struct TextureArea<'a> {
     pub scale: f32,
     pub radius: [f32; 4],
     pub data: &'a [u8],
+    pub width: f32,
+    pub height: f32,
 }
 
 pub struct TextureBounds {
@@ -180,13 +183,16 @@ impl TextureRenderer {
             index_buffer,
             vertex_buffer,
             bind_group,
+            height: 0.,
         }
     }
 
-    pub fn resize(&self, queue: &wgpu::Queue, width: f32, height: f32) {
+    pub fn resize(&mut self, queue: &wgpu::Queue, width: f32, height: f32) {
         // This is fucking pissing me off, for some reason the texture just disappears when I make
         // height bottom and 0.0 top and it forces me to hack a bit
         let projection = Mat4::projection(0.0, width, height, 0.0);
+
+        self.height = height;
 
         queue.write_buffer(
             &self.projection_uniform.buffer,
@@ -204,12 +210,9 @@ impl TextureRenderer {
         let mut instances = Vec::new();
 
         textures.iter().enumerate().for_each(|(i, texture)| {
-            let width = texture.bounds.right - texture.bounds.left;
-            let height = texture.bounds.bottom - texture.bounds.top;
-
             instances.push(buffers::TextureInstance {
                 pos: [texture.left, texture.top],
-                size: [width as f32, height as f32],
+                size: [texture.width, texture.height],
                 radius: texture.radius,
                 container_rect: [
                     texture.bounds.left as f32,
@@ -233,12 +236,12 @@ impl TextureRenderer {
                 texture.data,
                 wgpu::TexelCopyBufferLayout {
                     offset: 0,
-                    bytes_per_row: Some(4 * width),
-                    rows_per_image: Some(height),
+                    bytes_per_row: Some((4. * texture.width) as u32),
+                    rows_per_image: Some(texture.height as u32),
                 },
                 wgpu::Extent3d {
-                    width,
-                    height,
+                    width: texture.width as u32,
+                    height: texture.height as u32,
                     depth_or_array_layers: 1,
                 },
             );

@@ -1,6 +1,7 @@
 use super::config::Config;
 use crate::{
-    image_data::ImageData, text::Text, wgpu_state::buffers, Hint, Image, NotificationData, Urgency,
+    config::Size, image_data::ImageData, text::Text, wgpu_state::buffers, Hint, Image,
+    NotificationData, Urgency,
 };
 use calloop::RegistrationToken;
 use glyphon::{FontSystem, TextArea, TextBounds};
@@ -140,15 +141,14 @@ impl Notification {
             .map(|i| (i.width, i.height))
             .unwrap_or((0, 0));
 
-        let max_height = styles.max_height.unwrap_or(f32::INFINITY);
         match styles.height {
-            Some(height) => height.clamp(styles.min_height, max_height),
-            None => self
+            Size::Value(height) => height.clamp(styles.min_height, styles.max_height),
+            Size::Auto => self
                 .text
                 .extents()
                 .1
                 .max(icon_size.1 as f32)
-                .clamp(styles.min_height, max_height),
+                .clamp(styles.min_height, styles.max_height),
         }
     }
 
@@ -209,7 +209,6 @@ impl Notification {
             border_size: styles.border.size,
             border_color: color.border.into(),
             scale,
-            rotation: 0.0,
         }
     }
 
