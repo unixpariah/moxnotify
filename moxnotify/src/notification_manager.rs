@@ -26,7 +26,7 @@ pub struct NotificationManager {
     config: Arc<Config>,
     loop_handle: LoopHandle<'static, Moxnotify>,
     selected: Option<u32>,
-    visible: Range<usize>,
+    pub visible: Range<usize>,
 }
 
 impl Deref for NotificationManager {
@@ -349,20 +349,20 @@ impl Moxnotify {
             }
         }
 
-        if self.notifications.is_empty() {
-            self.seat.keyboard.key_combination.key = Key::Character('\0');
-            if let Some(layer_surface) = self.surface.layer_surface.take() {
-                layer_surface.destroy();
-            }
-            return;
-        }
-
         self.update_surface_size();
     }
 
     pub fn update_surface_size(&mut self) {
         let total_height = self.notifications.height();
         let total_width = self.notifications.width();
+
+        if total_width == 0. || total_height == 0. {
+            if let Some(layer_surface) = self.surface.layer_surface.take() {
+                layer_surface.destroy();
+            }
+            self.seat.keyboard.key_combination.key = Key::Character('\0');
+            return;
+        }
 
         match &self.surface.layer_surface {
             Some(layer_surface) => {

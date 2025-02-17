@@ -174,7 +174,9 @@ impl Moxnotify {
             .iter()
             .enumerate()
             .filter_map(|(i, notification)| {
-                if i >= notification.config.max_visible as usize {
+                if i >= notification.config.max_visible as usize
+                    || !self.notifications.visible.contains(&i)
+                {
                     return None;
                 }
 
@@ -201,7 +203,8 @@ impl Moxnotify {
                         scale: self.surface.scale,
                         bounds: TextureBounds {
                             left: x as u32,
-                            top: y as u32,
+                            top: (y as u32)
+                                .max((extents.y + style.border.size + style.padding.top) as u32),
                             right: x as u32 + image.width,
                             bottom: y as u32 + image.height,
                         },
