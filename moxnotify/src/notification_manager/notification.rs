@@ -128,6 +128,16 @@ impl Notification {
         }
     }
 
+    pub fn set_text(&mut self, summary: &str, body: &str, font_system: &mut FontSystem) {
+        let styles = if self.hovered {
+            &self.config.styles.hover
+        } else {
+            &self.config.styles.default
+        };
+
+        self.text = Text::new(&styles.font, font_system, summary, body)
+    }
+
     pub fn height(&self) -> f32 {
         let styles = if self.hovered {
             &self.config.styles.hover

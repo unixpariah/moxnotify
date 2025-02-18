@@ -29,6 +29,8 @@ pub struct NotificationManager {
     config: Arc<Config>,
     loop_handle: LoopHandle<'static, Moxnotify>,
     selected: Option<u32>,
+    notification_count: Option<Notification>,
+    font_system: FontSystem,
     pub visible: Range<usize>,
 }
 
@@ -49,6 +51,8 @@ impl DerefMut for NotificationManager {
 impl NotificationManager {
     pub fn new(config: Arc<Config>, loop_handle: LoopHandle<'static, Moxnotify>) -> Self {
         Self {
+            font_system: FontSystem::new(),
+            notification_count: None,
             loop_handle,
             notifications: Vec::new(),
             selected: None,
@@ -62,7 +66,8 @@ impl NotificationManager {
         scale: f32,
         font_system: &mut FontSystem,
     ) -> (Vec<buffers::Instance>, Vec<TextArea>) {
-        self.notifications
+        let (mut instance, mut text_area): (Vec<buffers::Instance>, Vec<TextArea>) = self
+            .notifications
             .iter_mut()
             .enumerate()
             .filter_map(|(i, notification)| {
@@ -78,7 +83,14 @@ impl NotificationManager {
                     None
                 }
             })
-            .unzip()
+            .unzip();
+
+        if let Some(n) = self.notification_count.as_mut() {
+            instance.push(n.get_instance(scale));
+            text_area.push(n.text_area(font_system, scale));
+        }
+
+        (instance, text_area)
     }
 
     pub fn textures(&self, scale: f32) -> Vec<TextureArea> {
@@ -141,7 +153,10 @@ impl NotificationManager {
             };
 
             acc
-        })
+        }) + self
+            .notification_count
+            .as_ref()
+            .map_or(0., |n| n.extents().height)
     }
 
     pub fn width(&self) -> f32 {
@@ -347,6 +362,32 @@ impl NotificationManager {
 
         self.notifications.push(notification);
 
+        if self.visible.end < self.notifications.len() {
+            if let Some(notification_count) = self.notification_count.as_mut() {
+                notification_count.set_text(
+                    &format!("({} more)", self.notifications.len() - self.visible.end),
+                    "",
+                    font_system,
+                );
+            } else {
+                self.notification_count = Some(Notification::new(
+                    Arc::clone(&self.config),
+                    self.height(),
+                    font_system,
+                    NotificationData {
+                        id: 0,
+                        actions: [].into(),
+                        app_name: "".into(),
+                        summary: format!("({} more)", self.notifications.len() - self.visible.end)
+                            .into(),
+                        body: "".into(),
+                        hints: Vec::new(),
+                        timeout: 0,
+                    },
+                ));
+            }
+        }
+
         Ok(())
     }
 }
@@ -358,6 +399,12 @@ impl Moxnotify {
     }
 
     pub fn dismiss_notification(&mut self, id: NotificationId) {
+        if let Some(i) = self.notifications.iter().position(|n| n.id() == id) {
+            if !self.notifications.visible.contains(&i) {
+                return;
+            }
+        }
+
         if let Err(e) = self
             .emit_sender
             .send(EmitEvent::NotificationClosed { id, reason: 0 })
@@ -374,6 +421,20 @@ impl Moxnotify {
                 true
             }
         });
+
+        let len = self.notifications.len();
+        if let Some(mut notification_count) = self.notifications.notification_count.take() {
+            notification_count.set_text(
+                &format!("({} more)", len - self.notifications.visible.end),
+                "",
+                &mut self.text_ctx.font_system,
+            );
+            notification_count.change_spot(self.notifications.height());
+
+            if len - self.notifications.visible.end > 0 {
+                self.notifications.notification_count = Some(notification_count);
+            }
+        }
 
         //if let Some(i) = self
         //    .notifications

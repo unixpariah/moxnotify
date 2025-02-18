@@ -31,9 +31,8 @@
           with pkgs;
           mkShell rec {
             buildInputs = [
+              rustup
               cargo
-              rustc
-              rust-analyzer
               rustfmt
               clippy
               nixd

@@ -187,6 +187,9 @@ impl Moxnotify {
                 self.notifications
                     .add(data, &mut self.text_ctx.font_system)?;
                 self.update_surface_size();
+                if self.notifications.visible.end < self.notifications.len() {
+                    self.render();
+                }
             }
             Event::CloseNotification(id) => self.dismiss_notification(id),
             Event::FocusSurface => {
