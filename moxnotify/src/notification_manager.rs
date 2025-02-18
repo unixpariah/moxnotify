@@ -86,7 +86,7 @@ impl NotificationManager {
             .iter()
             .enumerate()
             .filter_map(|(i, notification)| {
-                if i >= notification.config.max_visible as usize || !self.visible.contains(&i) {
+                if !self.visible.contains(&i) {
                     return None;
                 }
 
@@ -98,24 +98,30 @@ impl NotificationManager {
                         &notification.config.styles.default
                     };
 
-                    let vertical_offset = (extents.height - image.height as f32) / 2.;
-
                     let x = extents.x + style.border.size + style.padding.left;
+                    let y = extents.y + style.border.size + style.padding.top;
+                    let width = extents.width
+                        - 2.0 * style.border.size
+                        - style.padding.left
+                        - style.padding.right;
+                    let height = extents.height
+                        - 2.0 * style.border.size
+                        - style.padding.top
+                        - style.padding.bottom;
 
-                    let y = extents.y + vertical_offset + image.height as f32;
-                    let y = self.height() - y;
+                    let image_y = y + (height - image.height as f32) / 2.0;
 
                     return Some(TextureArea {
                         left: x,
-                        top: y,
+                        top: self.height() - image_y - image.height as f32,
                         width: image.width as f32,
                         height: image.height as f32,
                         scale,
                         bounds: TextureBounds {
                             left: x as u32,
-                            top: y as u32,
-                            right: x as u32 + image.width,
-                            bottom: y as u32 + image.height,
+                            top: (self.height() - y - height) as u32,
+                            right: (x + width) as u32,
+                            bottom: (self.height() - y) as u32,
                         },
                         data: &image.data,
                         radius: style.icon.border.radius.into(),
