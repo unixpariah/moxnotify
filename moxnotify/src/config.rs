@@ -314,6 +314,12 @@ pub enum Anchor {
     Center,
 }
 
+#[derive(Deserialize)]
+pub struct NotificationStyleEntry {
+    pub app: Box<str>,
+    pub styles: Styles,
+}
+
 #[derive(Deserialize, Default)]
 pub struct Config {
     #[serde(default = "default_max_visible")]
@@ -334,6 +340,8 @@ pub struct Config {
     pub default_timeout: i32,
     #[serde(default)]
     pub styles: Styles,
+    #[serde(default)]
+    pub notification_styles: Vec<NotificationStyleEntry>,
     #[serde(deserialize_with = "deserialize_keycombination_map")]
     pub keymaps: HashMap<KeyCombination, KeyAction>,
 }
@@ -467,6 +475,23 @@ impl Config {
                         user_config.styles.default,
                         user_config.styles.hover or {{}}
                     )
+                end
+
+                if user_config.notification_styles then
+                    for _, entry in ipairs(user_config.notification_styles) do
+                        -- Change from entry[2] to entry.styles
+                        local styles = entry.styles
+                        
+                        styles.default = deep_merge(
+                            user_config.styles.default or {{}},
+                            styles.default or {{}}
+                        )
+                        
+                        styles.hover = deep_merge(
+                            styles.default,
+                            styles.hover or {{}}
+                        )
+                    end
                 end
 
                 return user_config

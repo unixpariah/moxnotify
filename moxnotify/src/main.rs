@@ -247,8 +247,9 @@ pub enum Image {
     Data(ImageData),
 }
 
-#[derive(PartialEq, Eq, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum Urgency {
+    #[default]
     Low,
     Normal,
     Critical,

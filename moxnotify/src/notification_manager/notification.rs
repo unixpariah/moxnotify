@@ -45,36 +45,29 @@ impl Notification {
         font_system: &mut FontSystem,
         data: NotificationData,
     ) -> Self {
-        let x = data
-            .hints
-            .iter()
-            .filter_map(|hint| match hint {
-                Hint::X(x) => Some(*x),
-                _ => None,
-            })
-            .next()
-            .unwrap_or(0) as f32;
+        let mut x = None;
+        let mut y = None;
+        let mut icon = None;
+        let mut urgency = None;
 
-        let y = data
-            .hints
-            .iter()
-            .filter_map(|hint| match hint {
-                Hint::Y(y) => Some(*y as f32),
-                _ => None,
-            })
-            .next()
-            .unwrap_or(start_pos);
+        for hint in data.hints {
+            match hint {
+                Hint::X(val) if x.is_none() => x = Some(val as f32),
+                Hint::Y(val) if y.is_none() => y = Some(val as f32),
+                Hint::Image(Image::Data(image_data)) => {
+                    icon = Some(image_data.into_rgba(config.max_icon_size));
+                }
+                Hint::Urgency(level) if urgency.is_none() => urgency = Some(level),
+                _ => {}
+            }
+        }
 
-        let mut iter = data.hints.into_iter();
+        // Set default values where needed
+        let x = x.unwrap_or(0.0);
+        let y = y.unwrap_or(start_pos);
+        let urgency = urgency.unwrap_or_default();
 
-        let icon = iter.find_map(|hint| match hint {
-            Hint::Image(image) => match image {
-                Image::Data(image_data) => Some(image_data.into_rgba(config.max_icon_size)),
-                Image::Name(_) | Image::File(_) => None,
-            },
-            _ => None,
-        });
-
+        // Prepare text content
         let text = Text::new(
             &config.styles.default.font,
             font_system,
@@ -82,49 +75,31 @@ impl Notification {
             &data.body,
         );
 
-        let timeout = match config.ignore_timeout {
-            true => {
-                if config.default_timeout > 0 {
-                    Some(config.default_timeout as u64 * 1000)
-                } else {
-                    None
-                }
-            }
-            false => match data.timeout {
+        // Calculate timeout
+        let timeout = if config.ignore_timeout {
+            (config.default_timeout > 0).then(|| (config.default_timeout as u64) * 1000)
+        } else {
+            match data.timeout {
                 0 => None,
-                -1 => {
-                    if config.default_timeout > 0 {
-                        Some(config.default_timeout as u64 * 1000)
-                    } else {
-                        None
-                    }
-                }
-                timeout if timeout > 0 => Some(timeout as u64),
+                -1 => (config.default_timeout > 0).then(|| (config.default_timeout as u64) * 1000),
+                t if t > 0 => Some(t as u64),
                 _ => None,
-            },
+            }
         };
 
-        let urgency = iter
-            .filter_map(|hint| match hint {
-                Hint::Urgency(level) => Some(level),
-                _ => None,
-            })
-            .next()
-            .unwrap_or(crate::Urgency::Low);
-
         Self {
-            urgency,
-            icon,
+            id: data.id,
             app_name: data.app_name,
-            actions: data.actions,
-            registration_token: None,
+            x,
+            y,
+            text,
             timeout,
             config,
             hovered: false,
-            text,
-            id: data.id,
-            x,
-            y,
+            actions: data.actions,
+            icon,
+            urgency,
+            registration_token: None,
         }
     }
 
