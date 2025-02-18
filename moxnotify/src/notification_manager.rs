@@ -29,7 +29,7 @@ pub struct NotificationManager {
     config: Arc<Config>,
     loop_handle: LoopHandle<'static, Moxnotify>,
     selected: Option<u32>,
-    notification_count: Option<Notification>,
+    pub notification_count: Option<Notification>,
     font_system: FontSystem,
     pub visible: Range<usize>,
 }
@@ -64,11 +64,10 @@ impl NotificationManager {
     pub fn data(
         &mut self,
         scale: f32,
-        font_system: &mut FontSystem,
-    ) -> (Vec<buffers::Instance>, Vec<TextArea>) {
+    ) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
         let (mut instance, mut text_area): (Vec<buffers::Instance>, Vec<TextArea>) = self
             .notifications
-            .iter_mut()
+            .iter()
             .enumerate()
             .filter_map(|(i, notification)| {
                 if i > notification.config.max_visible as usize {
@@ -77,7 +76,7 @@ impl NotificationManager {
 
                 if self.visible.contains(&i) {
                     let instance = notification.get_instance(scale);
-                    let text = notification.text_area(font_system, scale);
+                    let text = notification.text_area(scale);
                     Some((instance, text))
                 } else {
                     None
@@ -85,12 +84,14 @@ impl NotificationManager {
             })
             .unzip();
 
-        if let Some(n) = self.notification_count.as_mut() {
+        if let Some(n) = self.notification_count.as_ref() {
             instance.push(n.get_instance(scale));
-            text_area.push(n.text_area(font_system, scale));
+            text_area.push(n.text_area(scale));
         }
 
-        (instance, text_area)
+        let textures = self.textures(scale);
+
+        (instance, text_area, textures)
     }
 
     pub fn textures(&self, scale: f32) -> Vec<TextureArea> {
@@ -145,6 +146,18 @@ impl NotificationManager {
             .collect()
     }
 
+    pub fn get_by_coordinates(&self, x: f64, y: f64) -> Option<&Notification> {
+        self.notifications
+            .iter()
+            .find(|notification| notification.contains_coordinates(x, y))
+    }
+
+    pub fn get_by_id(&self, id: NotificationId) -> Option<&Notification> {
+        self.notifications
+            .iter()
+            .find(|notification| notification.id() == id)
+    }
+
     pub fn height(&self) -> f32 {
         self.visible.clone().fold(0.0, |acc, i| {
             if let Some(notification) = self.notifications.get(i) {
@@ -176,42 +189,25 @@ impl NotificationManager {
         }
 
         if let Some(old_id) = self.selected.take() {
-            let index = self.notifications.iter().position(|n| n.id() == old_id);
-            if let Some(index) = index {
-                if let Some(old_notification) = self.notifications.get_mut(index) {
-                    {
-                        old_notification.unhover();
-                        let timer = match self.config.queue {
-                            Queue::Ordered => {
-                                if index == 0 {
-                                    old_notification.timeout.map(|timeout| {
-                                        Timer::from_duration(Duration::from_millis(timeout))
-                                    })
-                                } else {
-                                    None
-                                }
-                            }
-                            Queue::Unordered => old_notification.timeout.map(|timeout| {
-                                Timer::from_duration(Duration::from_millis(timeout))
-                            }),
-                        };
-
-                        if let Some(timer) = timer {
-                            old_notification.registration_token = self
-                                .loop_handle
-                                .insert_source(timer, move |_, _, moxnotify| {
-                                    moxnotify.dismiss_notification(old_id);
-                                    TimeoutAction::Drop
-                                })
-                                .ok();
-                        }
-                    }
-                }
-            }
+            self.unhover_notification(old_id);
         }
 
+        let width = self.width();
         if let Some(new_notification) = self.notifications.iter_mut().find(|n| n.id() == id) {
             new_notification.hover();
+
+            let icon_width_layout = new_notification
+                .icon
+                .as_ref()
+                .map(|i| i.width as f32)
+                .unwrap_or(0.);
+
+            new_notification.text.0.set_size(
+                &mut self.font_system,
+                Some(width - icon_width_layout),
+                None,
+            );
+
             self.selected = Some(id);
             if let Some(token) = new_notification.registration_token.take() {
                 self.loop_handle.remove(token);
@@ -239,13 +235,13 @@ impl NotificationManager {
             let max_visible = self.config.max_visible as usize;
 
             if next_notification_index == 0 {
-                self.visible = 0..max_visible.min(self.notifications.len());
+                self.visible = 0..max_visible;
             } else {
                 let last_visible = self.visible.end.saturating_sub(1);
                 if next_notification_index > last_visible {
                     let start = next_notification_index + 1 - max_visible;
                     let end = next_notification_index + 1;
-                    self.visible = start..end.min(self.notifications.len());
+                    self.visible = start..end;
                 }
             }
         }
@@ -272,14 +268,18 @@ impl NotificationManager {
             let max_visible = self.config.max_visible as usize;
 
             if notification_index + 1 == self.notifications.len() {
-                self.visible =
-                    (self.notifications.len() - max_visible).max(0)..self.notifications.len();
+                self.visible = (self
+                    .notifications
+                    .len()
+                    .max(max_visible)
+                    .saturating_sub(max_visible))
+                    ..self.notifications.len().max(max_visible);
             } else {
                 let first_visible = self.visible.start;
                 if notification_index < first_visible {
                     let start = notification_index;
                     let end = notification_index + max_visible;
-                    self.visible = start..end.min(self.notifications.len());
+                    self.visible = start..end;
                 }
             }
         }
@@ -287,48 +287,19 @@ impl NotificationManager {
 
     pub fn deselect(&mut self) {
         if let Some(old_id) = self.selected.take() {
-            let index = self.notifications.iter().position(|n| n.id() == old_id);
-            if let Some(index) = index {
-                if let Some(old_notification) = self.notifications.get_mut(index) {
-                    old_notification.unhover();
-                    let timer = match self.config.queue {
-                        Queue::Ordered => {
-                            if index == 0 {
-                                old_notification.timeout.map(|timeout| {
-                                    Timer::from_duration(Duration::from_millis(timeout))
-                                })
-                            } else {
-                                None
-                            }
-                        }
-                        Queue::Unordered => old_notification
-                            .timeout
-                            .map(|timeout| Timer::from_duration(Duration::from_millis(timeout))),
-                    };
-
-                    if let Some(timer) = timer {
-                        old_notification.registration_token = self
-                            .loop_handle
-                            .insert_source(timer, move |_, _, moxnotify| {
-                                moxnotify.dismiss_notification(old_id);
-                                TimeoutAction::Drop
-                            })
-                            .ok();
-                    }
-                }
-            }
+            self.unhover_notification(old_id);
         }
     }
 
-    pub fn add(
-        &mut self,
-        data: NotificationData,
-        font_system: &mut FontSystem,
-    ) -> anyhow::Result<()> {
+    pub fn add(&mut self, data: NotificationData) -> anyhow::Result<()> {
         let id = data.id;
 
-        let mut notification =
-            Notification::new(Arc::clone(&self.config), self.height(), font_system, data);
+        let mut notification = Notification::new(
+            Arc::clone(&self.config),
+            self.height(),
+            &mut self.font_system,
+            data,
+        );
 
         match self.config.queue {
             Queue::Ordered => {
@@ -367,13 +338,13 @@ impl NotificationManager {
                 notification_count.set_text(
                     &format!("({} more)", self.notifications.len() - self.visible.end),
                     "",
-                    font_system,
+                    &mut self.font_system,
                 );
             } else {
                 self.notification_count = Some(Notification::new(
                     Arc::clone(&self.config),
                     self.height(),
-                    font_system,
+                    &mut self.font_system,
                     NotificationData {
                         id: 0,
                         actions: [].into(),
@@ -389,6 +360,30 @@ impl NotificationManager {
         }
 
         Ok(())
+    }
+
+    fn unhover_notification(&mut self, id: NotificationId) {
+        if let Some(index) = self.notifications.iter().position(|n| n.id() == id) {
+            if let Some(notification) = self.notifications.get_mut(index) {
+                notification.unhover();
+                let timer = match self.config.queue {
+                    Queue::Ordered if index == 0 => notification.timeout,
+                    Queue::Unordered => notification.timeout,
+                    _ => None,
+                }
+                .map(|t| Timer::from_duration(Duration::from_millis(t)));
+
+                if let Some(timer) = timer {
+                    notification.registration_token = self
+                        .loop_handle
+                        .insert_source(timer, move |_, _, moxnotify| {
+                            moxnotify.dismiss_notification(id);
+                            TimeoutAction::Drop
+                        })
+                        .ok();
+                }
+            }
+        }
     }
 }
 
@@ -429,7 +424,6 @@ impl Moxnotify {
                 "",
                 &mut self.text_ctx.font_system,
             );
-            notification_count.change_spot(self.notifications.height());
 
             if len - self.notifications.visible.end > 0 {
                 self.notifications.notification_count = Some(notification_count);
@@ -483,6 +477,59 @@ impl Moxnotify {
         self.update_surface_size();
     }
 
+    fn create_layer_surface(&mut self) -> zwlr_layer_surface_v1::ZwlrLayerSurfaceV1 {
+        let output = self
+            .outputs
+            .iter()
+            .find(|output| output.name.as_ref() == Some(&self.config.output));
+
+        let layer_surface = self.layer_shell.get_layer_surface(
+            &self.surface.wl_surface,
+            output.map(|o| &o.wl_output),
+            match self.config.layer {
+                config::Layer::Top => zwlr_layer_shell_v1::Layer::Top,
+                config::Layer::Background => zwlr_layer_shell_v1::Layer::Background,
+                config::Layer::Bottom => zwlr_layer_shell_v1::Layer::Bottom,
+                config::Layer::Overlay => zwlr_layer_shell_v1::Layer::Overlay,
+            },
+            "moxnotify".into(),
+            &self.qh,
+            (),
+        );
+
+        self.surface.scale = output.map(|o| o.scale).unwrap_or(1.0);
+
+        layer_surface.set_keyboard_interactivity(KeyboardInteractivity::None);
+        layer_surface
+            .set_anchor(zwlr_layer_surface_v1::Anchor::Right | zwlr_layer_surface_v1::Anchor::Top);
+        layer_surface.set_anchor(match self.config.anchor {
+            Anchor::TopRight => {
+                zwlr_layer_surface_v1::Anchor::Top | zwlr_layer_surface_v1::Anchor::Right
+            }
+            Anchor::TopCenter => zwlr_layer_surface_v1::Anchor::Top,
+            Anchor::TopLeft => {
+                zwlr_layer_surface_v1::Anchor::Top | zwlr_layer_surface_v1::Anchor::Left
+            }
+            Anchor::BottomRight => {
+                zwlr_layer_surface_v1::Anchor::Bottom | zwlr_layer_surface_v1::Anchor::Right
+            }
+            Anchor::BottomCenter => zwlr_layer_surface_v1::Anchor::Bottom,
+            Anchor::BottomLeft => {
+                zwlr_layer_surface_v1::Anchor::Bottom | zwlr_layer_surface_v1::Anchor::Left
+            }
+            Anchor::CenterRight => zwlr_layer_surface_v1::Anchor::Right,
+            Anchor::Center => {
+                zwlr_layer_surface_v1::Anchor::Top
+                    | zwlr_layer_surface_v1::Anchor::Bottom
+                    | zwlr_layer_surface_v1::Anchor::Left
+                    | zwlr_layer_surface_v1::Anchor::Right
+            }
+            Anchor::CenterLeft => zwlr_layer_surface_v1::Anchor::Left,
+        });
+        layer_surface.set_exclusive_zone(-1);
+        layer_surface
+    }
+
     pub fn update_surface_size(&mut self) {
         let total_height = self.notifications.height();
         let total_width = self.notifications.width();
@@ -495,67 +542,14 @@ impl Moxnotify {
             return;
         }
 
-        match &self.surface.layer_surface {
-            Some(layer_surface) => {
-                layer_surface.set_size(total_width as u32, total_height as u32);
-                self.surface.wl_surface.commit();
-            }
-            None => {
-                let output = self
-                    .outputs
-                    .iter()
-                    .find(|output| output.name.as_ref() == Some(&self.config.output));
-
-                let layer_surface = self.layer_shell.get_layer_surface(
-                    &self.surface.wl_surface,
-                    output.map(|o| &o.wl_output),
-                    match self.config.layer {
-                        config::Layer::Top => zwlr_layer_shell_v1::Layer::Top,
-                        config::Layer::Background => zwlr_layer_shell_v1::Layer::Background,
-                        config::Layer::Bottom => zwlr_layer_shell_v1::Layer::Bottom,
-                        config::Layer::Overlay => zwlr_layer_shell_v1::Layer::Overlay,
-                    },
-                    "moxnotify".into(),
-                    &self.qh,
-                    (),
-                );
-
-                self.surface.scale = output.map(|o| o.scale).unwrap_or(1.0);
-
-                layer_surface.set_keyboard_interactivity(KeyboardInteractivity::None);
-                layer_surface.set_anchor(
-                    zwlr_layer_surface_v1::Anchor::Right | zwlr_layer_surface_v1::Anchor::Top,
-                );
-                layer_surface.set_anchor(match self.config.anchor {
-                    Anchor::TopRight => {
-                        zwlr_layer_surface_v1::Anchor::Top | zwlr_layer_surface_v1::Anchor::Right
-                    }
-                    Anchor::TopCenter => zwlr_layer_surface_v1::Anchor::Top,
-                    Anchor::TopLeft => {
-                        zwlr_layer_surface_v1::Anchor::Top | zwlr_layer_surface_v1::Anchor::Left
-                    }
-                    Anchor::BottomRight => {
-                        zwlr_layer_surface_v1::Anchor::Bottom | zwlr_layer_surface_v1::Anchor::Right
-                    }
-                    Anchor::BottomCenter => zwlr_layer_surface_v1::Anchor::Bottom,
-                    Anchor::BottomLeft => {
-                        zwlr_layer_surface_v1::Anchor::Bottom | zwlr_layer_surface_v1::Anchor::Left
-                    }
-                    Anchor::CenterRight => zwlr_layer_surface_v1::Anchor::Right,
-                    Anchor::Center => {
-                        zwlr_layer_surface_v1::Anchor::Top
-                            | zwlr_layer_surface_v1::Anchor::Bottom
-                            | zwlr_layer_surface_v1::Anchor::Left
-                            | zwlr_layer_surface_v1::Anchor::Right
-                    }
-                    Anchor::CenterLeft => zwlr_layer_surface_v1::Anchor::Left,
-                });
-                layer_surface.set_exclusive_zone(-1);
-                layer_surface.set_size(total_width as u32, total_height as u32);
-                self.surface.wl_surface.commit();
-                self.surface.layer_surface = Some(layer_surface);
-            }
+        if self.surface.layer_surface.is_none() {
+            self.surface.layer_surface = Some(self.create_layer_surface());
         }
+
+        if let Some(layer_surface) = self.surface.layer_surface.as_ref() {
+            layer_surface.set_size(total_width as u32, total_height as u32);
+        }
+        self.surface.wl_surface.commit();
     }
 
     pub fn deselect_notification(&mut self) {

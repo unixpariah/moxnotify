@@ -151,14 +151,22 @@ impl Notification {
             .map(|i| (i.width, i.height))
             .unwrap_or((0, 0));
 
+        let min_height = match styles.min_height {
+            Size::Auto => 0.,
+            Size::Value(value) => value,
+        };
+        let max_height = match styles.max_height {
+            Size::Auto => f32::INFINITY,
+            Size::Value(value) => value,
+        };
         match styles.height {
-            Size::Value(height) => height.clamp(styles.min_height, styles.max_height),
+            Size::Value(height) => height.clamp(min_height, height),
             Size::Auto => self
                 .text
                 .extents()
                 .1
                 .max(icon_size.1 as f32)
-                .clamp(styles.min_height, styles.max_height),
+                .clamp(min_height, max_height),
         }
     }
 
@@ -275,7 +283,7 @@ impl Notification {
         self.y = new_y;
     }
 
-    pub fn text_area(&mut self, font_system: &mut FontSystem, scale: f32) -> TextArea {
+    pub fn text_area(&self, scale: f32) -> TextArea {
         let extents = self.rendered_extents();
         let (width, height) = self.text.extents();
 
@@ -292,12 +300,6 @@ impl Notification {
         };
 
         let color = color.foreground.rgba;
-
-        let icon_width_layout = self.icon.as_ref().map(|i| i.width as f32).unwrap_or(0.);
-
-        self.text
-            .0
-            .set_size(font_system, Some(self.width() - icon_width_layout), None);
 
         let icon_width_positioning = self
             .icon

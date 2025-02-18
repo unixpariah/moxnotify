@@ -117,6 +117,12 @@ impl Moxnotify {
                 notification.change_spot(acc);
                 acc + notification.extents().height
             });
+
+        if let Some(mut notification_count) = self.notifications.notification_count.take() {
+            notification_count.change_spot(self.notifications.height());
+            self.notifications.notification_count = Some(notification_count);
+        }
+
         self.update_surface_size();
 
         let surface_texture = self
@@ -147,9 +153,7 @@ impl Moxnotify {
             occlusion_query_set: None,
         });
 
-        let (instances, text_data) = self
-            .notifications
-            .data(self.surface.scale, &mut self.text_ctx.font_system);
+        let (instances, text_data, textures) = self.notifications.data(self.surface.scale);
 
         self.wgpu_state.shape_renderer.prepare(
             &self.wgpu_state.device,
@@ -165,8 +169,6 @@ impl Moxnotify {
             &mut render_pass,
             text_data,
         );
-
-        let textures = self.notifications.textures(self.surface.scale);
 
         self.wgpu_state.texture_renderer.prepare(
             &self.wgpu_state.device,
@@ -184,10 +186,9 @@ impl Moxnotify {
     fn handle_app_event(&mut self, event: Event) -> anyhow::Result<()> {
         match event {
             Event::Notify(data) => {
-                self.notifications
-                    .add(data, &mut self.text_ctx.font_system)?;
+                self.notifications.add(data)?;
                 self.update_surface_size();
-                if self.notifications.visible.end < self.notifications.len() {
+                if self.notifications.visible.end <= self.notifications.len() {
                     self.render();
                 }
             }

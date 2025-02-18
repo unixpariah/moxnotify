@@ -151,37 +151,29 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     }
                     wl_pointer::ButtonState::Released => {
                         if let Some(id) = state.notifications.selected() {
-                            if let Some(notification) =
-                                state.notifications.iter_mut().find(|n| n.id() == id)
-                            {
+                            if let Some(notification) = state.notifications.get_by_id(id) {
                                 let pointer = &state.seat.pointer;
                                 if notification.contains_coordinates(pointer.x, pointer.y) {
-                                    match pointer.state {
-                                        PointerState::Grabbing => {
-                                            state.seat.pointer.change_state(PointerState::Hover);
-                                            return;
-                                        }
-                                        _ => {
-                                            state.invoke_action(id, serial);
-                                            if let Some(notification) =
-                                                state.notifications.iter().find(|notification| {
-                                                    notification.contains_coordinates(
-                                                        state.seat.pointer.x,
-                                                        state.seat.pointer.y,
-                                                    )
-                                                })
-                                            {
-                                                state.select_notification(notification.id());
-                                                state
-                                                    .seat
-                                                    .pointer
-                                                    .change_state(PointerState::Hover);
-                                                return;
-                                            }
-                                        }
+                                    state.invoke_action(id, serial);
+                                    if let Some(notification) =
+                                        state.notifications.get_by_coordinates(
+                                            state.seat.pointer.x,
+                                            state.seat.pointer.y,
+                                        )
+                                    {
+                                        state.select_notification(notification.id());
+                                        state.seat.pointer.change_state(PointerState::Hover);
+                                        return;
                                     }
                                 } else {
-                                    state.deselect_notification();
+                                    let pointer = &state.seat.pointer;
+                                    if let Some(notification) =
+                                        state.notifications.get_by_coordinates(pointer.x, pointer.y)
+                                    {
+                                        state.select_notification(notification.id());
+                                        state.seat.pointer.change_state(PointerState::Hover);
+                                        return;
+                                    }
                                 }
                             }
                         }
