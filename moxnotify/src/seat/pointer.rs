@@ -5,6 +5,7 @@ use wayland_client::{
     Connection, Dispatch, QueueHandle, WEnum,
 };
 use wayland_cursor::CursorTheme;
+use wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_surface_v1::KeyboardInteractivity;
 
 #[derive(PartialEq, Debug)]
 enum PointerState {
@@ -100,8 +101,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
             } => {
                 let hovered_id = state
                     .notifications
-                    .iter()
-                    .find(|n| n.contains_coordinates(surface_x, surface_y))
+                    .get_by_coordinates(surface_x, surface_y)
                     .map(|n| n.id());
 
                 let pointer = &mut state.seat.pointer;
@@ -151,29 +151,27 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     }
                     wl_pointer::ButtonState::Released => {
                         if let Some(id) = state.notifications.selected() {
-                            if let Some(notification) = state.notifications.get_by_id(id) {
+                            let pointer = &state.seat.pointer;
+                            if state.notifications.get_by_id(id)
+                                == state.notifications.get_by_coordinates(pointer.x, pointer.y)
+                            {
+                                state.invoke_action(id, serial);
+                                if let Some(notification) = state
+                                    .notifications
+                                    .get_by_coordinates(state.seat.pointer.x, state.seat.pointer.y)
+                                {
+                                    state.select_notification(notification.id());
+                                    state.seat.pointer.change_state(PointerState::Hover);
+                                    return;
+                                }
+                            } else {
                                 let pointer = &state.seat.pointer;
-                                if notification.contains_coordinates(pointer.x, pointer.y) {
-                                    state.invoke_action(id, serial);
-                                    if let Some(notification) =
-                                        state.notifications.get_by_coordinates(
-                                            state.seat.pointer.x,
-                                            state.seat.pointer.y,
-                                        )
-                                    {
-                                        state.select_notification(notification.id());
-                                        state.seat.pointer.change_state(PointerState::Hover);
-                                        return;
-                                    }
-                                } else {
-                                    let pointer = &state.seat.pointer;
-                                    if let Some(notification) =
-                                        state.notifications.get_by_coordinates(pointer.x, pointer.y)
-                                    {
-                                        state.select_notification(notification.id());
-                                        state.seat.pointer.change_state(PointerState::Hover);
-                                        return;
-                                    }
+                                if let Some(notification) =
+                                    state.notifications.get_by_coordinates(pointer.x, pointer.y)
+                                {
+                                    state.select_notification(notification.id());
+                                    state.seat.pointer.change_state(PointerState::Hover);
+                                    return;
                                 }
                             }
                         }
@@ -187,6 +185,9 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 serial: _,
                 surface: _,
             } => {
+                if let Some(layer_surface) = state.surface.layer_surface.as_ref() {
+                    layer_surface.set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
+                }
                 state.deselect_notification();
             }
             wl_pointer::Event::Enter {
@@ -195,6 +196,10 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 surface_x,
                 surface_y,
             } => {
+                if let Some(layer_surface) = state.surface.layer_surface.as_ref() {
+                    layer_surface.set_keyboard_interactivity(KeyboardInteractivity::Exclusive);
+                }
+
                 state.seat.pointer.x = surface_x;
                 state.seat.pointer.y = surface_y;
 
