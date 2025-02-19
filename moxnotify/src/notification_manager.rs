@@ -250,6 +250,8 @@ impl NotificationManager {
                     let start = next_notification_index + 1 - max_visible;
                     let end = next_notification_index + 1;
                     self.visible = start..end;
+
+                    self.update_notification_count();
                 }
             }
         }
@@ -288,8 +290,40 @@ impl NotificationManager {
                     let start = notification_index;
                     let end = notification_index + max_visible;
                     self.visible = start..end;
+
+                    self.update_notification_count();
                 }
             }
+        }
+    }
+
+    pub fn update_notification_count(&mut self) {
+        let count = self.notifications.len().saturating_sub(self.visible.end);
+
+        if count == 0 {
+            self.notification_count = None;
+            return;
+        }
+
+        let summary = format!("({} more)", count);
+
+        if let Some(notification) = &mut self.notification_count {
+            notification.set_text(&summary, "", &mut self.font_system);
+        } else {
+            self.notification_count = Some(Notification::new(
+                Arc::clone(&self.config),
+                self.height(),
+                &mut self.font_system,
+                NotificationData {
+                    id: 0,
+                    actions: [].into(),
+                    app_name: "".into(),
+                    summary: summary.into(),
+                    body: "".into(),
+                    hints: Vec::new(),
+                    timeout: 0,
+                },
+            ));
         }
     }
 
@@ -342,29 +376,7 @@ impl NotificationManager {
         self.notifications.push(notification);
 
         if self.visible.end < self.notifications.len() {
-            if let Some(notification_count) = self.notification_count.as_mut() {
-                notification_count.set_text(
-                    &format!("({} more)", self.notifications.len() - self.visible.end),
-                    "",
-                    &mut self.font_system,
-                );
-            } else {
-                self.notification_count = Some(Notification::new(
-                    Arc::clone(&self.config),
-                    self.height(),
-                    &mut self.font_system,
-                    NotificationData {
-                        id: 0,
-                        actions: [].into(),
-                        app_name: "".into(),
-                        summary: format!("({} more)", self.notifications.len() - self.visible.end)
-                            .into(),
-                        body: "".into(),
-                        hints: Vec::new(),
-                        timeout: 0,
-                    },
-                ));
-            }
+            self.update_notification_count();
         }
 
         Ok(())
