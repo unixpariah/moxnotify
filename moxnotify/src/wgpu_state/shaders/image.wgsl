@@ -3,6 +3,8 @@ struct InstanceInput {
     @location(3) size: vec2<f32>,
     @location(4) radius: vec4<f32>,
     @location(5) container_rect: vec4<f32>,
+    @location(6) border_width: f32,
+    @location(7) border_color: vec4<f32>,
 };
 
 struct VertexInput {
@@ -17,6 +19,8 @@ struct VertexOutput {
     @location(3) size: vec2<f32>,
     @location(4) container_rect: vec4<f32>,
     @location(5) surface_position: vec2<f32>,
+    @location(6) border_width: f32,
+    @location(7) border_color: vec4<f32>,
 };
 
 struct ProjectionUniform {
@@ -50,6 +54,8 @@ fn vs_main(
     out.size = instance.size; 
     out.container_rect = instance.container_rect;
     out.surface_position = position;
+    out.border_width = instance.border_width;
+    out.border_color = instance.border_color;
     
     return out;
 }
@@ -80,26 +86,27 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let half_extent = in.size / 2.0;
     let p = (in.tex_coords - 0.5) * in.size;
-
     let d = sdf_rounded_rect(p, half_extent, in.radius);
 
-    let antialias = 1.0;
-    let alpha = 1.0 - smoothstep(0.0, antialias, d);
+    let aa = fwidth(d) * 0.75;
+    let border_aa = aa * 2.0;
 
-    let min_x = in.container_rect.x;
-    let min_y = in.container_rect.y;
-    let max_x = in.container_rect.z;
-    let max_y = in.container_rect.w;
+    let outer = smoothstep(-aa, aa, -d);
+    let inner = smoothstep(-border_aa, border_aa, -(d + in.border_width));
+    let border_alpha = clamp(outer - inner, 0.0, 1.0);
+    
+    let color = mix(tex_color, in.border_color, border_alpha);
+    let alpha = outer; 
 
     let flipped_y = in.surface_position.y - 2.0 * in.tex_coords.y * in.size.y + in.size.y;
-    let inside = (in.surface_position.x >= min_x) && 
-                 (in.surface_position.x <= max_x) &&
-                 (flipped_y >= min_y) && 
-                 (flipped_y <= max_y);
+    let inside = (in.surface_position.x >= in.container_rect.x) && 
+                 (in.surface_position.x <= in.container_rect.z) &&
+                 (flipped_y >= in.container_rect.y) && 
+                 (flipped_y <= in.container_rect.w);
 
     if (!inside) {
         discard;
     }
 
-    return vec4<f32>(tex_color.rgb, tex_color.a * alpha);
+    return vec4<f32>(color.rgb, color.a * alpha);
 }

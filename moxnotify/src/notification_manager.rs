@@ -4,7 +4,7 @@ use crate::{
         buffers,
         texture_renderer::{TextureArea, TextureBounds},
     },
-    EmitEvent, Moxnotify, NotificationData,
+    EmitEvent, Moxnotify, NotificationData, Urgency,
 };
 use calloop::{
     timer::{TimeoutAction, Timer},
@@ -111,6 +111,12 @@ impl NotificationManager {
                         &notification.config.styles.default
                     };
 
+                    let urgency = match notification.urgency() {
+                        Urgency::Low => &style.urgency_low,
+                        Urgency::Normal => &style.urgency_normal,
+                        Urgency::Critical => &style.urgency_critical,
+                    };
+
                     let x = extents.x + style.border.size + style.padding.left;
                     let y = extents.y + style.border.size + style.padding.top;
                     let width = extents.width
@@ -130,6 +136,8 @@ impl NotificationManager {
                         width: image.width as f32,
                         height: image.height as f32,
                         scale,
+                        border_size: style.border.size,
+                        border_color: urgency.border.into(),
                         bounds: TextureBounds {
                             left: x as u32,
                             top: (self.height() - y - height) as u32,
