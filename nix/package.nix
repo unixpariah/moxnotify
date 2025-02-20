@@ -40,7 +40,6 @@ rustPlatform.buildRustPackage rec {
 
   nativeBuildInputs = [
     pkg-config
-    vulkan-headers
   ];
 
   buildInputs = [
@@ -48,7 +47,6 @@ rustPlatform.buildRustPackage rec {
     libxkbcommon
     wayland
     vulkan-loader
-    vulkan-validation-layers
   ];
 
   buildPhase = ''

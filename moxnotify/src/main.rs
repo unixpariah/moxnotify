@@ -111,18 +111,6 @@ impl Moxnotify {
     }
 
     fn render(&mut self) {
-        self.notifications
-            .iter_mut()
-            .fold(0.0, |acc, notification| {
-                notification.change_spot(acc);
-                acc + notification.extents().height
-            });
-
-        if let Some(mut notification_count) = self.notifications.notification_count.take() {
-            notification_count.change_spot(self.notifications.height());
-            self.notifications.notification_count = Some(notification_count);
-        }
-
         self.update_surface_size();
 
         let surface_texture = self
@@ -188,7 +176,7 @@ impl Moxnotify {
             Event::Notify(data) => {
                 self.notifications.add(data)?;
                 self.update_surface_size();
-                if self.notifications.visible.end <= self.notifications.len() {
+                if self.notifications.notification_view.visible.end <= self.notifications.len() {
                     self.render();
                 }
             }

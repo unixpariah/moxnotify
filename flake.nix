@@ -42,7 +42,6 @@
               vulkan-loader
               vulkan-headers
               vulkan-validation-layers
-              vulkan-tools
               inputs.wgsl_analyzer.packages.${system}.default
               wayland
             ];

@@ -1,7 +1,10 @@
 use super::config::Config;
 use crate::{
-    config::Size, image_data::ImageData, text::Text, wgpu_state::buffers, Hint, Image,
-    NotificationData, Urgency,
+    config::{Size, StyleState},
+    image_data::ImageData,
+    text::Text,
+    wgpu_state::buffers,
+    Hint, Image, NotificationData, Urgency,
 };
 use calloop::RegistrationToken;
 use glyphon::{FontSystem, TextArea, TextBounds};
@@ -104,21 +107,13 @@ impl Notification {
     }
 
     pub fn set_text(&mut self, summary: &str, body: &str, font_system: &mut FontSystem) {
-        let styles = if self.hovered {
-            &self.config.styles.hover
-        } else {
-            &self.config.styles.default
-        };
+        let style = self.style();
 
-        self.text = Text::new(&styles.font, font_system, summary, body)
+        self.text = Text::new(&style.font, font_system, summary, body)
     }
 
     pub fn height(&self) -> f32 {
-        let styles = if self.hovered {
-            &self.config.styles.hover
-        } else {
-            &self.config.styles.default
-        };
+        let style = self.style();
 
         let icon_size = self
             .icon
@@ -126,15 +121,15 @@ impl Notification {
             .map(|i| (i.width, i.height))
             .unwrap_or((0, 0));
 
-        let min_height = match styles.min_height {
+        let min_height = match style.min_height {
             Size::Auto => 0.,
             Size::Value(value) => value,
         };
-        let max_height = match styles.max_height {
+        let max_height = match style.max_height {
             Size::Auto => f32::INFINITY,
             Size::Value(value) => value,
         };
-        match styles.height {
+        match style.height {
             Size::Value(height) => height.clamp(min_height, height),
             Size::Auto => self
                 .text
@@ -179,70 +174,66 @@ impl Notification {
     pub fn get_instance(&self, scale: f32) -> buffers::Instance {
         let extents = self.rendered_extents();
 
-        let styles = if self.hovered {
-            &self.config.styles.hover
-        } else {
-            &self.config.styles.default
-        };
+        let style = self.style();
 
         let color = match self.urgency() {
-            crate::Urgency::Low => &styles.urgency_low,
-            crate::Urgency::Normal => &styles.urgency_normal,
-            crate::Urgency::Critical => &styles.urgency_critical,
+            crate::Urgency::Low => &style.urgency_low,
+            crate::Urgency::Normal => &style.urgency_normal,
+            crate::Urgency::Critical => &style.urgency_critical,
         };
 
         buffers::Instance {
             rect_pos: [extents.x, extents.y],
             rect_size: [
-                extents.width - styles.border.size * 2.0,
-                extents.height - styles.border.size * 2.0,
+                extents.width - style.border.size * 2.0,
+                extents.height - style.border.size * 2.0,
             ],
             rect_color: color.background.into(),
-            border_radius: styles.border.radius.into(),
-            border_size: styles.border.size,
+            border_radius: style.border.radius.into(),
+            border_size: style.border.size,
             border_color: color.border.into(),
             scale,
         }
     }
 
     pub fn extents(&self) -> Extents {
-        let styles = if self.hovered {
-            &self.config.styles.hover
-        } else {
-            &self.config.styles.default
-        };
+        let style = self.style();
 
         Extents {
             x: self.x,
             y: self.y,
             width: self.width()
-                + styles.border.size * 2.
-                + styles.padding.left
-                + styles.padding.right
-                + styles.margin.left
-                + styles.margin.right,
+                + style.border.size * 2.
+                + style.padding.left
+                + style.padding.right
+                + style.margin.left
+                + style.margin.right,
             height: self.height()
-                + styles.border.size * 2.
-                + styles.padding.top
-                + styles.padding.bottom
-                + styles.margin.top
-                + styles.margin.bottom,
+                + style.border.size * 2.
+                + style.padding.top
+                + style.padding.bottom
+                + style.margin.top
+                + style.margin.bottom,
+        }
+    }
+
+    pub fn style(&self) -> &StyleState {
+        if self.hovered {
+            &self.config.styles.hover
+        } else {
+            &self.config.styles.default
         }
     }
 
     pub fn rendered_extents(&self) -> Extents {
         let extents = self.extents();
-        let styles = if self.hovered {
-            &self.config.styles.hover
-        } else {
-            &self.config.styles.default
-        };
+        let style = self.style();
 
         Extents {
-            x: extents.x + styles.margin.left,
-            y: extents.y + styles.margin.top,
-            width: extents.width - styles.margin.left - styles.margin.right,
-            height: extents.height - styles.margin.top - styles.margin.bottom,
+            x: extents.x + style.margin.left,
+            y: extents.y + style.margin.top,
+            width: extents.width - style.margin.left - style.margin.right,
+            height: extents.height - style.margin.top - style.margin.bottom,
         }
     }
 
@@ -262,16 +253,12 @@ impl Notification {
         let extents = self.rendered_extents();
         let (width, height) = self.text.extents();
 
-        let styles = if self.hovered {
-            &self.config.styles.hover
-        } else {
-            &self.config.styles.default
-        };
+        let style = self.style();
 
         let color = match self.urgency() {
-            crate::Urgency::Low => &styles.urgency_low,
-            crate::Urgency::Normal => &styles.urgency_normal,
-            crate::Urgency::Critical => &styles.urgency_critical,
+            crate::Urgency::Low => &style.urgency_low,
+            crate::Urgency::Normal => &style.urgency_normal,
+            crate::Urgency::Critical => &style.urgency_critical,
         };
 
         let color = color.foreground.rgba;
@@ -279,29 +266,27 @@ impl Notification {
         let icon_width_positioning = self
             .icon
             .as_ref()
-            .map(|i| i.width as f32 + styles.padding.right)
+            .map(|i| i.width as f32 + style.padding.right)
             .unwrap_or(0.);
 
         TextArea {
             buffer: &self.text.0,
-            left: extents.x + styles.border.size + styles.padding.left + icon_width_positioning,
-            top: extents.y + styles.border.size + styles.padding.top,
+            left: extents.x + style.border.size + style.padding.left + icon_width_positioning,
+            top: extents.y + style.border.size + style.padding.top,
             scale,
             bounds: TextBounds {
-                left: (extents.x
-                    + styles.border.size
-                    + styles.padding.left
-                    + icon_width_positioning) as i32,
-                top: (extents.y + styles.border.size + styles.padding.top) as i32,
+                left: (extents.x + style.border.size + style.padding.left + icon_width_positioning)
+                    as i32,
+                top: (extents.y + style.border.size + style.padding.top) as i32,
                 right: (extents.x
-                    + styles.border.size
+                    + style.border.size
                     + width
-                    + styles.padding.left
+                    + style.padding.left
                     + icon_width_positioning) as i32,
                 bottom: (extents.y
-                    + styles.border.size
+                    + style.border.size
                     + height.min(self.height())
-                    + styles.padding.top) as i32,
+                    + style.padding.top) as i32,
             },
             default_color: glyphon::Color::rgba(color[0], color[1], color[2], color[3]),
             custom_glyphs: &[],

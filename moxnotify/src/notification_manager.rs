@@ -1,3 +1,6 @@
+mod notification;
+mod notification_view;
+
 use crate::{
     config::{self, Anchor, Config, Key, Queue},
     wgpu_state::{
@@ -12,8 +15,9 @@ use calloop::{
 };
 use glyphon::{FontSystem, TextArea};
 use notification::{Notification, NotificationId};
+use notification_view::NotificationView;
 use std::{
-    ops::{Deref, DerefMut, Range},
+    ops::{Deref, DerefMut},
     sync::Arc,
     time::Duration,
 };
@@ -22,16 +26,13 @@ use wayland_protocols_wlr::layer_shell::v1::client::{
     zwlr_layer_surface_v1::{self, KeyboardInteractivity},
 };
 
-mod notification;
-
 pub struct NotificationManager {
     notifications: Vec<Notification>,
     config: Arc<Config>,
     loop_handle: LoopHandle<'static, Moxnotify>,
     selected: Option<u32>,
-    pub notification_count: Option<Notification>,
     font_system: FontSystem,
-    pub visible: Range<usize>,
+    pub notification_view: NotificationView,
 }
 
 impl Deref for NotificationManager {
@@ -51,12 +52,11 @@ impl DerefMut for NotificationManager {
 impl NotificationManager {
     pub fn new(config: Arc<Config>, loop_handle: LoopHandle<'static, Moxnotify>) -> Self {
         Self {
+            notification_view: NotificationView::new(config.max_visible, Arc::clone(&config)),
             font_system: FontSystem::new(),
-            notification_count: None,
             loop_handle,
             notifications: Vec::new(),
             selected: None,
-            visible: 0..config.max_visible as usize,
             config,
         }
     }
@@ -74,7 +74,7 @@ impl NotificationManager {
                     return None;
                 }
 
-                if self.visible.contains(&i) {
+                if self.notification_view.visible.contains(&i) {
                     let instance = notification.get_instance(scale);
                     let text = notification.text_area(scale);
                     Some((instance, text))
@@ -84,9 +84,9 @@ impl NotificationManager {
             })
             .unzip();
 
-        if let Some(n) = self.notification_count.as_ref() {
-            instance.push(n.get_instance(scale));
-            text_area.push(n.text_area(scale));
+        if let Some((instance_data, text_area_data)) = self.notification_view.prepare_data(scale) {
+            instance.push(instance_data);
+            text_area.push(text_area_data);
         }
 
         let textures = self.textures(scale);
@@ -99,17 +99,13 @@ impl NotificationManager {
             .iter()
             .enumerate()
             .filter_map(|(i, notification)| {
-                if !self.visible.contains(&i) {
+                if !self.notification_view.visible.contains(&i) {
                     return None;
                 }
 
                 if let Some(image) = notification.image() {
                     let extents = notification.rendered_extents();
-                    let style = if notification.hovered() {
-                        &notification.config.styles.hover
-                    } else {
-                        &notification.config.styles.default
-                    };
+                    let style = notification.style();
 
                     let urgency = match notification.urgency() {
                         Urgency::Low => &style.urgency_low,
@@ -167,7 +163,7 @@ impl NotificationManager {
     }
 
     pub fn height(&self) -> f32 {
-        self.visible.clone().fold(0.0, |acc, i| {
+        self.notification_view.visible.clone().fold(0.0, |acc, i| {
             if let Some(notification) = self.notifications.get(i) {
                 let extents = notification.extents();
                 return acc + extents.height;
@@ -175,7 +171,8 @@ impl NotificationManager {
 
             acc
         }) + self
-            .notification_count
+            .notification_view
+            .next
             .as_ref()
             .map_or(0., |n| n.extents().height)
     }
@@ -221,6 +218,18 @@ impl NotificationManager {
                 self.loop_handle.remove(token);
             }
         }
+
+        self.notifications
+            .iter_mut()
+            .fold(0.0, |acc, notification| {
+                notification.change_spot(acc);
+                acc + notification.extents().height
+            });
+
+        if let Some(mut notification_count) = self.notification_view.next.take() {
+            notification_count.change_spot(self.height());
+            self.notification_view.next = Some(notification_count);
+        }
     }
 
     pub fn next(&mut self) {
@@ -240,20 +249,11 @@ impl NotificationManager {
         };
         if let Some(notification) = self.notifications.get(next_notification_index) {
             self.select(notification.id());
-            let max_visible = self.config.max_visible as usize;
-
-            if next_notification_index == 0 {
-                self.visible = 0..max_visible;
-            } else {
-                let last_visible = self.visible.end.saturating_sub(1);
-                if next_notification_index > last_visible {
-                    let start = next_notification_index + 1 - max_visible;
-                    let end = next_notification_index + 1;
-                    self.visible = start..end;
-
-                    self.update_notification_count();
-                }
-            }
+            self.notification_view.next(
+                next_notification_index,
+                self.notifications.len(),
+                self.height(),
+            );
         }
     }
 
@@ -275,55 +275,11 @@ impl NotificationManager {
 
         if let Some(notification) = self.notifications.get(notification_index) {
             self.select(notification.id());
-            let max_visible = self.config.max_visible as usize;
-
-            if notification_index + 1 == self.notifications.len() {
-                self.visible = (self
-                    .notifications
-                    .len()
-                    .max(max_visible)
-                    .saturating_sub(max_visible))
-                    ..self.notifications.len().max(max_visible);
-            } else {
-                let first_visible = self.visible.start;
-                if notification_index < first_visible {
-                    let start = notification_index;
-                    let end = notification_index + max_visible;
-                    self.visible = start..end;
-
-                    self.update_notification_count();
-                }
-            }
-        }
-    }
-
-    pub fn update_notification_count(&mut self) {
-        let count = self.notifications.len().saturating_sub(self.visible.end);
-
-        if count == 0 {
-            self.notification_count = None;
-            return;
-        }
-
-        let summary = format!("({} more)", count);
-
-        if let Some(notification) = &mut self.notification_count {
-            notification.set_text(&summary, "", &mut self.font_system);
-        } else {
-            self.notification_count = Some(Notification::new(
-                Arc::clone(&self.config),
+            self.notification_view.prev(
+                notification_index,
+                self.notifications.len(),
                 self.height(),
-                &mut self.font_system,
-                NotificationData {
-                    id: 0,
-                    actions: [].into(),
-                    app_name: "".into(),
-                    summary: summary.into(),
-                    body: "".into(),
-                    hints: Vec::new(),
-                    timeout: 0,
-                },
-            ));
+            );
         }
     }
 
@@ -375,8 +331,9 @@ impl NotificationManager {
 
         self.notifications.push(notification);
 
-        if self.visible.end < self.notifications.len() {
-            self.update_notification_count();
+        if self.notification_view.visible.end < self.notifications.len() {
+            self.notification_view
+                .update_notification_count(self.notifications.len(), self.height());
         }
 
         Ok(())
@@ -403,6 +360,18 @@ impl NotificationManager {
                         .ok();
                 }
             }
+
+            self.notifications
+                .iter_mut()
+                .fold(0.0, |acc, notification| {
+                    notification.change_spot(acc);
+                    acc + notification.extents().height
+                });
+
+            if let Some(mut notification_count) = self.notification_view.next.take() {
+                notification_count.change_spot(self.height());
+                self.notification_view.next = Some(notification_count);
+            }
         }
     }
 }
@@ -415,7 +384,7 @@ impl Moxnotify {
 
     pub fn dismiss_notification(&mut self, id: NotificationId) {
         if let Some(i) = self.notifications.iter().position(|n| n.id() == id) {
-            if !self.notifications.visible.contains(&i) {
+            if !self.notifications.notification_view.visible.contains(&i) {
                 return;
             }
         }
@@ -438,15 +407,18 @@ impl Moxnotify {
         });
 
         let len = self.notifications.len();
-        if let Some(mut notification_count) = self.notifications.notification_count.take() {
+        if let Some(mut notification_count) = self.notifications.notification_view.next.take() {
             notification_count.set_text(
-                &format!("({} more)", len - self.notifications.visible.end),
+                &format!(
+                    "({} more)",
+                    len - self.notifications.notification_view.visible.end
+                ),
                 "",
                 &mut self.text_ctx.font_system,
             );
 
-            if len - self.notifications.visible.end > 0 {
-                self.notifications.notification_count = Some(notification_count);
+            if len - self.notifications.notification_view.visible.end > 0 {
+                self.notifications.notification_view.next = Some(notification_count);
             }
         }
 
