@@ -435,14 +435,6 @@ impl Moxnotify {
         let total_height = self.notifications.height();
         let total_width = self.notifications.width();
 
-        if total_width == 0. || total_height == 0. {
-            if let Some(layer_surface) = self.surface.layer_surface.take() {
-                layer_surface.destroy();
-            }
-            self.seat.keyboard.key_combination.key = Key::Character('\0');
-            return;
-        }
-
         if self.surface.layer_surface.is_none() {
             self.surface.layer_surface = Some(self.create_layer_surface());
         }
@@ -450,6 +442,14 @@ impl Moxnotify {
         if let Some(layer_surface) = self.surface.layer_surface.as_ref() {
             layer_surface.set_size(total_width as u32, total_height as u32);
         }
+
+        if total_width == 0. || total_height == 0. {
+            if let Some(layer_surface) = self.surface.layer_surface.take() {
+                layer_surface.destroy();
+            }
+            self.seat.keyboard.key_combination.key = Key::Character('\0');
+        }
+
         self.surface.wl_surface.commit();
     }
 

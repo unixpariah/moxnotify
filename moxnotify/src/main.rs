@@ -111,8 +111,6 @@ impl Moxnotify {
     }
 
     fn render(&mut self) {
-        self.update_surface_size();
-
         let surface_texture = self
             .surface
             .wgpu_surface

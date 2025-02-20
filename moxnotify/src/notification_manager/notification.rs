@@ -181,7 +181,7 @@ impl Notification {
                 extents.width - style.border.size * 2.0,
                 extents.height - style.border.size * 2.0,
             ],
-            rect_color: color.background.into(),
+            rect_color: color.background.to_linear(),
             border_radius: style.border.radius.into(),
             border_size: style.border.size,
             border_color: color.border.into(),

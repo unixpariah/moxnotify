@@ -82,7 +82,9 @@ in
         PartOf = [ config.wayland.systemd.target ];
         After = [ config.wayland.systemd.target ];
         ConditionEnvironment = "WAYLAND_DISPLAY";
-        X-Restart-Triggers = [ config.xdg.configFile."moxnotify/config.lua".source ];
+        X-Restart-Triggers = lib.mkIf (cfg.settings != { }) [
+          config.xdg.configFile."moxnotify/config.lua".source
+        ];
       };
 
       Service = {

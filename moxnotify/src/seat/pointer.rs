@@ -189,6 +189,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
             } => {
                 if let Some(layer_surface) = state.surface.layer_surface.as_ref() {
                     layer_surface.set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
+                    state.surface.wl_surface.commit();
                 }
                 state.deselect_notification();
             }
@@ -200,6 +201,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
             } => {
                 if let Some(layer_surface) = state.surface.layer_surface.as_ref() {
                     layer_surface.set_keyboard_interactivity(KeyboardInteractivity::Exclusive);
+                    state.surface.wl_surface.commit();
                 }
 
                 state.seat.pointer.x = surface_x;

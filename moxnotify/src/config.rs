@@ -57,6 +57,27 @@ impl FromStr for Color {
     }
 }
 
+impl Color {
+    pub fn to_linear(self) -> [f32; 4] {
+        let srgb_to_linear = |c: u8| {
+            let normalized = c as f32 / 255.0;
+            if normalized > 0.04045 {
+                ((normalized + 0.055) / 1.055).powf(2.4)
+            } else {
+                normalized / 12.92
+            }
+        };
+
+        let r = srgb_to_linear(self.rgba[0]);
+        let g = srgb_to_linear(self.rgba[1]);
+        let b = srgb_to_linear(self.rgba[2]);
+
+        let a = self.rgba[3] as f32 / 255.0;
+
+        [r * a, g * a, b * a, a]
+    }
+}
+
 impl<'de> Deserialize<'de> for Color {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -81,9 +102,13 @@ impl From<Color> for [f32; 4] {
 
 #[derive(Deserialize, Default, Clone, Copy)]
 pub struct BorderRadius {
+    #[serde(default)]
     top_left: f32,
+    #[serde(default)]
     top_right: f32,
+    #[serde(default)]
     bottom_left: f32,
+    #[serde(default)]
     bottom_right: f32,
 }
 
@@ -99,11 +124,14 @@ impl From<BorderRadius> for [f32; 4] {
 }
 
 #[derive(Deserialize, Default)]
-#[serde(default)]
 pub struct Insets {
+    #[serde(default)]
     pub left: f32,
+    #[serde(default)]
     pub right: f32,
+    #[serde(default)]
     pub top: f32,
+    #[serde(default)]
     pub bottom: f32,
 }
 
@@ -113,16 +141,46 @@ impl From<Insets> for [f32; 4] {
     }
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize)]
 pub struct Border {
+    #[serde(default)]
     pub size: f32,
+    #[serde(default)]
     pub radius: BorderRadius,
 }
 
-#[derive(Deserialize, Default)]
+impl Default for Border {
+    fn default() -> Self {
+        Self {
+            size: 2.,
+            radius: BorderRadius::default(),
+        }
+    }
+}
+
+#[derive(Deserialize)]
 pub struct Font {
+    #[serde(default = "default_font_size")]
     pub size: f32,
+    #[serde(default = "default_font_family")]
     pub family: Box<str>,
+}
+
+impl Default for Font {
+    fn default() -> Self {
+        Self {
+            size: 10.,
+            family: "DejaVu Sans".into(),
+        }
+    }
+}
+
+fn default_font_size() -> f32 {
+    10.
+}
+
+fn default_font_family() -> Box<str> {
+    "DejaVu Sans".into()
 }
 
 #[derive(Deserialize, PartialEq, Default)]
@@ -135,13 +193,17 @@ pub enum Queue {
 
 #[derive(Deserialize, Default)]
 pub struct Urgency {
+    #[serde(default)]
     pub background: Color,
+    #[serde(default)]
     pub foreground: Color,
+    #[serde(default)]
     pub border: Color,
 }
 
 #[derive(Deserialize, Default)]
 pub struct Icon {
+    #[serde(default)]
     pub border: Border,
 }
 
@@ -164,20 +226,47 @@ pub struct StyleState {
     pub max_height: Size,
     #[serde(default)]
     pub height: Size,
-    pub font: Font,
-    pub border: Border,
     #[serde(default)]
+    pub font: Font,
+    #[serde(default)]
+    pub border: Border,
+    #[serde(default = "default_margin")]
     pub margin: Insets,
+    #[serde(default = "default_padding")]
     pub padding: Insets,
+    #[serde(default)]
     pub urgency_low: Urgency,
+    #[serde(default)]
     pub urgency_normal: Urgency,
+    #[serde(default)]
     pub urgency_critical: Urgency,
+    #[serde(default)]
     pub icon: Icon,
+}
+
+fn default_margin() -> Insets {
+    Insets {
+        left: 5.,
+        right: 5.,
+        top: 5.,
+        bottom: 5.,
+    }
+}
+
+fn default_padding() -> Insets {
+    Insets {
+        left: 10.,
+        right: 10.,
+        top: 10.,
+        bottom: 10.,
+    }
 }
 
 #[derive(Deserialize, Default)]
 pub struct Styles {
+    #[serde(default)]
     pub default: StyleState,
+    #[serde(default)]
     pub hover: StyleState,
 }
 
@@ -317,6 +406,7 @@ pub enum Anchor {
 #[derive(Deserialize)]
 pub struct NotificationStyleEntry {
     pub app: Box<str>,
+    #[serde(default)]
     pub styles: Styles,
     #[serde(default)]
     pub default_timeout: Option<i32>,
@@ -348,8 +438,40 @@ pub struct Config {
     pub styles: Styles,
     #[serde(default)]
     pub notification: Vec<NotificationStyleEntry>,
+    #[serde(default = "default_keymaps")]
     #[serde(deserialize_with = "deserialize_keycombination_map")]
     pub keymaps: HashMap<KeyCombination, KeyAction>,
+}
+
+fn default_keymaps() -> HashMap<KeyCombination, KeyAction> {
+    let mut keymaps: HashMap<KeyCombination, KeyAction> = HashMap::new();
+
+    let mut insert_default = |key: Key, default_action: KeyAction| {
+        let key_combination = KeyCombination {
+            modifiers: Modifiers {
+                control: false,
+                shift: false,
+                alt: false,
+                meta: false,
+            },
+            key,
+        };
+
+        if !keymaps.values().any(|action| *action == default_action) {
+            keymaps.insert(key_combination, default_action);
+        }
+    };
+
+    insert_default(Key::Character('j'), KeyAction::NextNotification);
+    insert_default(Key::Character('k'), KeyAction::PreviousNotification);
+    insert_default(Key::Character('x'), KeyAction::DismissNotification);
+    insert_default(
+        Key::SpecialKey(SpecialKeyCode::Enter),
+        KeyAction::InvokeAction,
+    );
+    insert_default(Key::SpecialKey(SpecialKeyCode::Escape), KeyAction::Unfocus);
+
+    keymaps
 }
 
 fn default_scroll_sensitivity() -> f64 {
@@ -421,7 +543,38 @@ impl Config {
         } else {
             Self::path()?
         };
-        let lua_code = fs::read_to_string(&config_path)?;
+        let lua_code = match fs::read_to_string(&config_path) {
+            Ok(content) => content,
+            Err(_) => r##"
+                      return {
+                        ["styles"] = {
+                          ["default"] = {
+                            ["urgency_low"] = {
+                              ["background"] = "#1A1412",
+                              ["border"] = "#3C7B82",
+                              ["foreground"] = "#3C7B82"
+                            },
+                            ["urgency_normal"] = {
+                              ["background"] = "#1A1412",
+                              ["border"] = "#567734",
+                              ["foreground"] = "#567734"
+                            },
+                            ["urgency_critical"] = {
+                              ["background"] = "#1A1412",
+                              ["border"] = "#B04027",
+                              ["foreground"] = "#B04027"
+                            },
+                          },
+                          ["hover"] = {
+                            ["urgency_low"] = { ["background"] = "#2f3549FF" },
+                            ["urgency_normal"] = { ["background"] = "#2f3549FF" },
+                            ["urgency_critical"] = { ["background"] = "#2f3549FF" },
+                          }
+                        }
+                      }
+                      "##
+            .into(),
+        };
         let lua = Lua::new();
 
         let lua_result = lua
@@ -489,7 +642,7 @@ impl Config {
 
                 if user_config.notification then
                     for _, entry in ipairs(user_config.notification) do
-                        local styles = entry.styles
+                        local styles = entry.styles or {{}}
                         
                         styles.default = deep_merge(
                             user_config.styles.default or {{}},
@@ -523,5 +676,90 @@ impl Config {
             .or_else(|_| std::env::var("HOME").map(|home| PathBuf::from(home).join(".config")))?;
 
         Ok(config_dir.join("moxnotify/config.lua"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn valid_3_char_hex() {
+        let color = Color::from_str("#fff").unwrap();
+        assert_eq!(color.rgba, [0xff, 0xff, 0xff, 0xff]);
+
+        let color = Color::from_str("#000").unwrap();
+        assert_eq!(color.rgba, [0x00, 0x00, 0x00, 0xff]);
+    }
+
+    #[test]
+    fn valid_6_char_hex() {
+        let color = Color::from_str("#ff0000").unwrap();
+        assert_eq!(color.rgba, [0xff, 0x00, 0x00, 0xff]);
+
+        let color = Color::from_str("#00ff00ff").unwrap();
+        assert_eq!(color.rgba, [0x00, 0xff, 0x00, 0xff]);
+    }
+
+    #[test]
+    fn valid_8_char_hex() {
+        let color = Color::from_str("#12345678").unwrap();
+        assert_eq!(color.rgba, [0x12, 0x34, 0x56, 0x78]);
+
+        let color = Color::from_str("#abcdef42").unwrap();
+        assert_eq!(color.rgba, [0xab, 0xcd, 0xef, 0x42]);
+    }
+
+    #[test]
+    fn mixed_case_hex() {
+        let color = Color::from_str("#FfEeDd").unwrap();
+        assert_eq!(color.rgba, [0xff, 0xee, 0xdd, 0xff]);
+
+        let color = Color::from_str("#AaBbCcDd").unwrap();
+        assert_eq!(color.rgba, [0xaa, 0xbb, 0xcc, 0xdd]);
+    }
+
+    #[test]
+    fn invalid_cases() {
+        let test_cases = vec![
+            ("missing hash", "fff", "Hex string must start with '#'"),
+            ("invalid_char", "#ggg", "Invalid hex component"),
+            ("wrong_length_5", "#12345", "Invalid hex length: 5"),
+            ("wrong_length_7", "#1234567", "Invalid hex length: 7"),
+        ];
+
+        test_cases.iter().for_each(|(name, input, err_msg)| {
+            let result = Color::from_str(input);
+            assert!(result.is_err(), "{} should fail", name);
+            let err = result.unwrap_err();
+            assert!(
+                err.contains(err_msg),
+                "{}: Expected error containing '{}', got '{}'",
+                name,
+                err_msg,
+                err
+            );
+        });
+    }
+
+    #[test]
+    fn alpha_channel_handling() {
+        let opaque = Color::from_str("#123456").unwrap();
+        assert_eq!(opaque.rgba[3], 0xff, "Default alpha should be 0xff");
+
+        let transparent = Color::from_str("#12345678").unwrap();
+        assert_eq!(transparent.rgba[3], 0x78);
+
+        let semi_transparent = Color::from_str("#a1b2c3d4").unwrap();
+        assert_eq!(semi_transparent.rgba, [0xa1, 0xb2, 0xc3, 0xd4]);
+    }
+
+    #[test]
+    fn expansion_of_3_char() {
+        let color = Color::from_str("#f0c").unwrap();
+        assert_eq!(color.rgba, [0xff, 0x00, 0xcc, 0xff]);
+
+        let color = Color::from_str("#1a2").unwrap();
+        assert_eq!(color.rgba, [0x11, 0xaa, 0x22, 0xff]);
     }
 }

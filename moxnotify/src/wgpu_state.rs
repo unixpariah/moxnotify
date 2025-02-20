@@ -73,8 +73,8 @@ impl WgpuState {
         let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: *surface_format,
-            width: 200,
-            height: 200,
+            width: 1,
+            height: 1,
             present_mode: surface_caps.present_modes[0],
             alpha_mode: *alpha_mode,
             view_formats: vec![],
