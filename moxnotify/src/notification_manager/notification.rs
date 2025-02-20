@@ -197,10 +197,20 @@ impl Notification {
     }
 
     pub fn style(&self) -> &StyleState {
+        let styles = self
+            .config
+            .notification_styles
+            .iter()
+            .find(|n| n.app == self.app_name)
+            .map(|c| &c.styles)
+            .unwrap_or(&self.config.styles);
+
+        //println!("{}", styles.hover.ur);
+
         if self.hovered {
-            &self.config.styles.hover
+            &styles.hover
         } else {
-            &self.config.styles.default
+            &styles.default
         }
     }
 

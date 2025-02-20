@@ -494,7 +494,7 @@ impl Config {
                         )
                         
                         styles.hover = deep_merge(
-                            styles.default,
+                            user_config.styles.hover or {{}},
                             styles.hover or {{}}
                         )
                     end

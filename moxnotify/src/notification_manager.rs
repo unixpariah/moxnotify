@@ -13,11 +13,7 @@ use calloop::{
 use glyphon::{FontSystem, TextArea};
 use notification::{Notification, NotificationId};
 use notification_view::NotificationView;
-use std::{
-    ops::{Deref, DerefMut},
-    sync::Arc,
-    time::Duration,
-};
+use std::{ops::Deref, sync::Arc, time::Duration};
 use wayland_protocols_wlr::layer_shell::v1::client::{
     zwlr_layer_shell_v1,
     zwlr_layer_surface_v1::{self, KeyboardInteractivity},
@@ -37,12 +33,6 @@ impl Deref for NotificationManager {
 
     fn deref(&self) -> &Self::Target {
         &self.notifications
-    }
-}
-
-impl DerefMut for NotificationManager {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.notifications
     }
 }
 
@@ -348,7 +338,7 @@ impl Moxnotify {
         {
             log::error!("Failed to emit NotificationClosed event: {e}");
         }
-        self.notifications.retain(|n| {
+        self.notifications.notifications.retain(|n| {
             if n.id == id {
                 if let Some(token) = n.registration_token {
                     self.loop_handle.remove(token);
@@ -368,7 +358,7 @@ impl Moxnotify {
         }
 
         if self.config.queue == Queue::Ordered {
-            if let Some(notification) = self.notifications.first_mut() {
+            if let Some(notification) = self.notifications.notifications.first_mut() {
                 if !notification.hovered() {
                     if let Some(timeout) = notification.timeout {
                         let timer = Timer::from_duration(Duration::from_millis(timeout));
