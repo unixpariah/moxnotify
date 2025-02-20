@@ -65,95 +65,57 @@ impl NotificationManager {
         &mut self,
         scale: f32,
     ) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
-        let (mut instance, mut text_area): (Vec<buffers::Instance>, Vec<TextArea>) = self
-            .notifications
-            .iter()
-            .enumerate()
-            .filter_map(|(i, notification)| {
-                if i > notification.config.max_visible as usize {
-                    return None;
-                }
+        let mut height = 0.0;
 
-                if self.notification_view.visible.contains(&i) {
-                    let instance = notification.get_instance(scale);
-                    let text = notification.text_area(scale);
-                    Some((instance, text))
-                } else {
-                    None
-                }
-            })
-            .unzip();
+        let mut instances = Vec::new();
+        let mut text_areas = Vec::new();
+        let mut textures = Vec::new();
 
-        if let Some((instance_data, text_area_data)) = self.notification_view.prepare_data(scale) {
-            instance.push(instance_data);
-            text_area.push(text_area_data);
+        for (i, notification) in self.notifications.iter().enumerate() {
+            if i > notification.config.max_visible as usize {
+                continue;
+            }
+
+            if self.notification_view.visible.contains(&i) {
+                let instance = notification.get_instance(height, scale);
+                let text = notification.text_area(height, scale);
+                let texture = notification.texture(height, self.height(), scale);
+
+                height += notification.extents().height;
+
+                instances.push(instance);
+                text_areas.push(text);
+                if let Some(tex) = texture {
+                    textures.push(tex);
+                }
+            }
         }
 
-        let textures = self.textures(scale);
+        if let Some((instance_data, text_area_data)) =
+            self.notification_view.prepare_data(height, scale)
+        {
+            instances.push(instance_data);
+            text_areas.push(text_area_data);
+        }
 
-        (instance, text_area, textures)
-    }
-
-    pub fn textures(&self, scale: f32) -> Vec<TextureArea> {
-        self.notifications
-            .iter()
-            .enumerate()
-            .filter_map(|(i, notification)| {
-                if !self.notification_view.visible.contains(&i) {
-                    return None;
-                }
-
-                if let Some(image) = notification.image() {
-                    let extents = notification.rendered_extents();
-                    let style = notification.style();
-
-                    let urgency = match notification.urgency() {
-                        Urgency::Low => &style.urgency_low,
-                        Urgency::Normal => &style.urgency_normal,
-                        Urgency::Critical => &style.urgency_critical,
-                    };
-
-                    let x = extents.x + style.border.size + style.padding.left;
-                    let y = extents.y + style.border.size + style.padding.top;
-                    let width = extents.width
-                        - 2.0 * style.border.size
-                        - style.padding.left
-                        - style.padding.right;
-                    let height = extents.height
-                        - 2.0 * style.border.size
-                        - style.padding.top
-                        - style.padding.bottom;
-
-                    let image_y = y + (height - image.height as f32) / 2.0;
-
-                    return Some(TextureArea {
-                        left: x,
-                        top: self.height() - image_y - image.height as f32,
-                        width: image.width as f32,
-                        height: image.height as f32,
-                        scale,
-                        border_size: style.border.size,
-                        border_color: urgency.border.into(),
-                        bounds: TextureBounds {
-                            left: x as u32,
-                            top: (self.height() - y - height) as u32,
-                            right: (x + width) as u32,
-                            bottom: (self.height() - y) as u32,
-                        },
-                        data: &image.data,
-                        radius: style.icon.border.radius.into(),
-                    });
-                }
-
-                None
-            })
-            .collect()
+        (instances, text_areas, textures)
     }
 
     pub fn get_by_coordinates(&self, x: f64, y: f64) -> Option<&Notification> {
-        self.notifications
-            .iter()
-            .find(|notification| notification.contains_coordinates(x, y))
+        let mut current_y = 0.0;
+        self.notifications.iter().find(|notification| {
+            let extents = notification.rendered_extents();
+            if x > extents.x as f64
+                && x < (extents.x + extents.width) as f64
+                && y > (current_y)
+                && y < (current_y + extents.height as f64)
+            {
+                true
+            } else {
+                current_y += notification.extents().height as f64;
+                false
+            }
+        })
     }
 
     pub fn get_by_id(&self, id: NotificationId) -> Option<&Notification> {
@@ -249,11 +211,8 @@ impl NotificationManager {
         };
         if let Some(notification) = self.notifications.get(next_notification_index) {
             self.select(notification.id());
-            self.notification_view.next(
-                next_notification_index,
-                self.notifications.len(),
-                self.height(),
-            );
+            self.notification_view
+                .next(next_notification_index, self.notifications.len());
         }
     }
 
@@ -275,11 +234,8 @@ impl NotificationManager {
 
         if let Some(notification) = self.notifications.get(notification_index) {
             self.select(notification.id());
-            self.notification_view.prev(
-                notification_index,
-                self.notifications.len(),
-                self.height(),
-            );
+            self.notification_view
+                .prev(notification_index, self.notifications.len());
         }
     }
 
@@ -333,7 +289,7 @@ impl NotificationManager {
 
         if self.notification_view.visible.end < self.notifications.len() {
             self.notification_view
-                .update_notification_count(self.notifications.len(), self.height());
+                .update_notification_count(self.notifications.len());
         }
 
         Ok(())

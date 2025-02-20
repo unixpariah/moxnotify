@@ -205,8 +205,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                 let hovered_id = state
                     .notifications
-                    .iter()
-                    .find(|n| n.contains_coordinates(surface_x, surface_y))
+                    .get_by_coordinates(surface_x, surface_y)
                     .map(|n| n.id());
 
                 match hovered_id {

@@ -24,7 +24,7 @@ impl NotificationView {
         }
     }
 
-    pub fn prev(&mut self, index: usize, notification_count: usize, total_height: f32) {
+    pub fn prev(&mut self, index: usize, notification_count: usize) {
         if index + 1 == notification_count {
             self.visible = (notification_count
                 .max(self.max_visible)
@@ -38,10 +38,10 @@ impl NotificationView {
                 self.visible = start..end;
             }
         }
-        self.update_notification_count(notification_count, total_height);
+        self.update_notification_count(notification_count);
     }
 
-    pub fn next(&mut self, index: usize, notification_count: usize, total_height: f32) {
+    pub fn next(&mut self, index: usize, notification_count: usize) {
         if index == 0 {
             self.visible = 0..self.max_visible;
         } else {
@@ -52,10 +52,10 @@ impl NotificationView {
                 self.visible = start..end;
             }
         }
-        self.update_notification_count(notification_count, total_height);
+        self.update_notification_count(notification_count);
     }
 
-    pub fn update_notification_count(&mut self, notification_count: usize, total_height: f32) {
+    pub fn update_notification_count(&mut self, notification_count: usize) {
         if notification_count <= self.visible.end {
             self.next = None;
             return;
@@ -70,7 +70,7 @@ impl NotificationView {
         } else {
             self.next = Some(Notification::new(
                 Arc::clone(&self.config),
-                total_height,
+                0.0,
                 &mut self.font_system,
                 NotificationData {
                     id: 0,
@@ -85,9 +85,16 @@ impl NotificationView {
         }
     }
 
-    pub fn prepare_data(&self, scale: f32) -> Option<(buffers::Instance, TextArea)> {
+    pub fn prepare_data(
+        &self,
+        total_height: f32,
+        scale: f32,
+    ) -> Option<(buffers::Instance, TextArea)> {
         if let Some(next) = self.next.as_ref() {
-            return Some((next.get_instance(scale), next.text_area(scale)));
+            return Some((
+                next.get_instance(total_height, scale),
+                next.text_area(total_height, scale),
+            ));
         }
         None
     }

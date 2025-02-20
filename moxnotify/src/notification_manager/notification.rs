@@ -3,7 +3,10 @@ use crate::{
     config::{Size, StyleState},
     image_data::ImageData,
     text::Text,
-    wgpu_state::buffers,
+    wgpu_state::{
+        buffers,
+        texture_renderer::{TextureArea, TextureBounds},
+    },
     Hint, Image, NotificationData, Urgency,
 };
 use calloop::RegistrationToken;
@@ -13,7 +16,6 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub struct Extents {
     pub x: f32,
-    pub y: f32,
     pub width: f32,
     pub height: f32,
 }
@@ -171,7 +173,7 @@ impl Notification {
         self.id
     }
 
-    pub fn get_instance(&self, scale: f32) -> buffers::Instance {
+    pub fn get_instance(&self, y: f32, scale: f32) -> buffers::Instance {
         let extents = self.rendered_extents();
 
         let style = self.style();
@@ -183,7 +185,7 @@ impl Notification {
         };
 
         buffers::Instance {
-            rect_pos: [extents.x, extents.y],
+            rect_pos: [extents.x, y],
             rect_size: [
                 extents.width - style.border.size * 2.0,
                 extents.height - style.border.size * 2.0,
@@ -201,7 +203,6 @@ impl Notification {
 
         Extents {
             x: self.x,
-            y: self.y,
             width: self.width()
                 + style.border.size * 2.
                 + style.padding.left
@@ -231,25 +232,58 @@ impl Notification {
 
         Extents {
             x: extents.x + style.margin.left,
-            y: extents.y + style.margin.top,
             width: extents.width - style.margin.left - style.margin.right,
             height: extents.height - style.margin.top - style.margin.bottom,
         }
     }
 
-    pub fn contains_coordinates(&self, x: f64, y: f64) -> bool {
-        let extents = self.rendered_extents();
-        x > extents.x as f64
-            && x < (extents.x + extents.width) as f64
-            && y > (extents.y) as f64
-            && y < (extents.y + extents.height) as f64
+    pub fn texture(&self, y: f32, total_height: f32, scale: f32) -> Option<TextureArea> {
+        if let Some(image) = self.image() {
+            let extents = self.rendered_extents();
+            let style = self.style();
+
+            let urgency = match self.urgency() {
+                Urgency::Low => &style.urgency_low,
+                Urgency::Normal => &style.urgency_normal,
+                Urgency::Critical => &style.urgency_critical,
+            };
+
+            let x = extents.x + style.border.size + style.padding.left;
+            let y = y + style.border.size + style.padding.top;
+            let width =
+                extents.width - 2.0 * style.border.size - style.padding.left - style.padding.right;
+            let height =
+                extents.height - 2.0 * style.border.size - style.padding.top - style.padding.bottom;
+
+            let image_y = y + (height - image.height as f32) / 2.0;
+
+            return Some(TextureArea {
+                left: x,
+                top: total_height - image_y - image.height as f32,
+                width: image.width as f32,
+                height: image.height as f32,
+                scale,
+                border_size: style.border.size,
+                border_color: urgency.border.into(),
+                bounds: TextureBounds {
+                    left: x as u32,
+                    top: (total_height - y - height) as u32,
+                    right: (x + width) as u32,
+                    bottom: (total_height - y) as u32,
+                },
+                data: &image.data,
+                radius: style.icon.border.radius.into(),
+            });
+        }
+
+        None
     }
 
     pub fn change_spot(&mut self, new_y: f32) {
         self.y = new_y;
     }
 
-    pub fn text_area(&self, scale: f32) -> TextArea {
+    pub fn text_area(&self, y: f32, scale: f32) -> TextArea {
         let extents = self.rendered_extents();
         let (width, height) = self.text.extents();
 
@@ -272,21 +306,19 @@ impl Notification {
         TextArea {
             buffer: &self.text.0,
             left: extents.x + style.border.size + style.padding.left + icon_width_positioning,
-            top: extents.y + style.border.size + style.padding.top,
+            top: y + style.border.size + style.padding.top,
             scale,
             bounds: TextBounds {
                 left: (extents.x + style.border.size + style.padding.left + icon_width_positioning)
                     as i32,
-                top: (extents.y + style.border.size + style.padding.top) as i32,
+                top: (y + style.border.size + style.padding.top) as i32,
                 right: (extents.x
                     + style.border.size
                     + width
                     + style.padding.left
                     + icon_width_positioning) as i32,
-                bottom: (extents.y
-                    + style.border.size
-                    + height.min(self.height())
-                    + style.padding.top) as i32,
+                bottom: (y + style.border.size + height.min(self.height()) + style.padding.top)
+                    as i32,
             },
             default_color: glyphon::Color::rgba(color[0], color[1], color[2], color[3]),
             custom_glyphs: &[],
