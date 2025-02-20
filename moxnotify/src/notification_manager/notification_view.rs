@@ -70,7 +70,6 @@ impl NotificationView {
         } else {
             self.next = Some(Notification::new(
                 Arc::clone(&self.config),
-                0.0,
                 &mut self.font_system,
                 NotificationData {
                     id: 0,

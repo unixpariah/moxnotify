@@ -3,11 +3,8 @@ mod notification_view;
 
 use crate::{
     config::{self, Anchor, Config, Key, Queue},
-    wgpu_state::{
-        buffers,
-        texture_renderer::{TextureArea, TextureBounds},
-    },
-    EmitEvent, Moxnotify, NotificationData, Urgency,
+    wgpu_state::{buffers, texture_renderer::TextureArea},
+    EmitEvent, Moxnotify, NotificationData,
 };
 use calloop::{
     timer::{TimeoutAction, Timer},
@@ -65,31 +62,29 @@ impl NotificationManager {
         &mut self,
         scale: f32,
     ) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
-        let mut height = 0.0;
+        let (height, mut instances, mut text_areas, textures) = self
+            .notifications
+            .iter()
+            .enumerate()
+            .filter(|(i, _)| self.notification_view.visible.contains(i))
+            .fold(
+                (0., Vec::new(), Vec::new(), Vec::new()),
+                |(mut height, mut instances, mut text_areas, mut textures), (_, notification)| {
+                    let instance = notification.get_instance(height, scale);
+                    let text = notification.text_area(height, scale);
+                    let texture = notification.texture(height, self.height(), scale);
 
-        let mut instances = Vec::new();
-        let mut text_areas = Vec::new();
-        let mut textures = Vec::new();
+                    height += notification.extents().height;
 
-        for (i, notification) in self.notifications.iter().enumerate() {
-            if i > notification.config.max_visible as usize {
-                continue;
-            }
+                    instances.push(instance);
+                    text_areas.push(text);
+                    if let Some(tex) = texture {
+                        textures.push(tex);
+                    }
 
-            if self.notification_view.visible.contains(&i) {
-                let instance = notification.get_instance(height, scale);
-                let text = notification.text_area(height, scale);
-                let texture = notification.texture(height, self.height(), scale);
-
-                height += notification.extents().height;
-
-                instances.push(instance);
-                text_areas.push(text);
-                if let Some(tex) = texture {
-                    textures.push(tex);
-                }
-            }
-        }
+                    (height, instances, text_areas, textures)
+                },
+            );
 
         if let Some((instance_data, text_area_data)) =
             self.notification_view.prepare_data(height, scale)
@@ -102,20 +97,29 @@ impl NotificationManager {
     }
 
     pub fn get_by_coordinates(&self, x: f64, y: f64) -> Option<&Notification> {
-        let mut current_y = 0.0;
-        self.notifications.iter().find(|notification| {
-            let extents = notification.rendered_extents();
-            if x > extents.x as f64
-                && x < (extents.x + extents.width) as f64
-                && y > (current_y)
-                && y < (current_y + extents.height as f64)
-            {
-                true
-            } else {
-                current_y += notification.extents().height as f64;
-                false
-            }
-        })
+        let mut cumulative_y_offset: f64 = 0.0;
+
+        self.notification_view
+            .visible
+            .clone()
+            .filter_map(|index| self.notifications.get(index))
+            .scan(&mut cumulative_y_offset, |current_y, notification| {
+                let extents = notification.rendered_extents();
+                let notification_height = extents.height as f64;
+
+                let x_within_bounds =
+                    x >= extents.x as f64 && x < (extents.x + extents.width) as f64;
+                let y_within_bounds = y >= **current_y && y < (**current_y + notification_height);
+
+                if x_within_bounds && y_within_bounds {
+                    Some(Some(notification))
+                } else {
+                    **current_y += notification.extents().height as f64;
+                    Some(None)
+                }
+            })
+            .flatten()
+            .next()
     }
 
     pub fn get_by_id(&self, id: NotificationId) -> Option<&Notification> {
@@ -180,18 +184,6 @@ impl NotificationManager {
                 self.loop_handle.remove(token);
             }
         }
-
-        self.notifications
-            .iter_mut()
-            .fold(0.0, |acc, notification| {
-                notification.change_spot(acc);
-                acc + notification.extents().height
-            });
-
-        if let Some(mut notification_count) = self.notification_view.next.take() {
-            notification_count.change_spot(self.height());
-            self.notification_view.next = Some(notification_count);
-        }
     }
 
     pub fn next(&mut self) {
@@ -248,12 +240,8 @@ impl NotificationManager {
     pub fn add(&mut self, data: NotificationData) -> anyhow::Result<()> {
         let id = data.id;
 
-        let mut notification = Notification::new(
-            Arc::clone(&self.config),
-            self.height(),
-            &mut self.font_system,
-            data,
-        );
+        let mut notification =
+            Notification::new(Arc::clone(&self.config), &mut self.font_system, data);
 
         match self.config.queue {
             Queue::Ordered => {
@@ -315,18 +303,6 @@ impl NotificationManager {
                         })
                         .ok();
                 }
-            }
-
-            self.notifications
-                .iter_mut()
-                .fold(0.0, |acc, notification| {
-                    notification.change_spot(acc);
-                    acc + notification.extents().height
-                });
-
-            if let Some(mut notification_count) = self.notification_view.next.take() {
-                notification_count.change_spot(self.height());
-                self.notification_view.next = Some(notification_count);
             }
         }
     }
@@ -396,13 +372,6 @@ impl Moxnotify {
         if self.notifications.selected == Some(id) {
             self.deselect_notification();
         }
-
-        self.notifications
-            .iter_mut()
-            .fold(0., |height_acc, notification| {
-                notification.change_spot(height_acc);
-                height_acc + notification.extents().height
-            });
 
         if self.config.queue == Queue::Ordered {
             if let Some(notification) = self.notifications.first_mut() {

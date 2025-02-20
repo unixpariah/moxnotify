@@ -26,8 +26,6 @@ pub struct Notification {
     pub id: NotificationId,
     pub app_name: Box<str>,
     pub text: Text,
-    pub x: f32,
-    pub y: f32,
     pub timeout: Option<u64>,
     pub hovered: bool,
     pub config: Arc<Config>,
@@ -44,35 +42,18 @@ impl PartialEq for Notification {
 }
 
 impl Notification {
-    pub fn new(
-        config: Arc<Config>,
-        start_pos: f32,
-        font_system: &mut FontSystem,
-        data: NotificationData,
-    ) -> Self {
-        let mut x = None;
-        let mut y = None;
+    pub fn new(config: Arc<Config>, font_system: &mut FontSystem, data: NotificationData) -> Self {
         let mut icon = None;
         let mut urgency = None;
 
-        for hint in data.hints {
-            match hint {
-                Hint::X(val) if x.is_none() => x = Some(val as f32),
-                Hint::Y(val) if y.is_none() => y = Some(val as f32),
-                Hint::Image(Image::Data(image_data)) => {
-                    icon = Some(image_data.into_rgba(config.max_icon_size));
-                }
-                Hint::Urgency(level) if urgency.is_none() => urgency = Some(level),
-                _ => {}
+        data.hints.into_iter().for_each(|hint| match hint {
+            Hint::Image(Image::Data(image_data)) => {
+                icon = Some(image_data.into_rgba(config.max_icon_size));
             }
-        }
+            Hint::Urgency(level) if urgency.is_none() => urgency = Some(level),
+            _ => {}
+        });
 
-        // Set default values where needed
-        let x = x.unwrap_or(0.0);
-        let y = y.unwrap_or(start_pos);
-        let urgency = urgency.unwrap_or_default();
-
-        // Prepare text content
         let text = Text::new(
             &config.styles.default.font,
             font_system,
@@ -80,7 +61,6 @@ impl Notification {
             &data.body,
         );
 
-        // Calculate timeout
         let timeout = if config.ignore_timeout {
             (config.default_timeout > 0).then(|| (config.default_timeout as u64) * 1000)
         } else {
@@ -95,15 +75,13 @@ impl Notification {
         Self {
             id: data.id,
             app_name: data.app_name,
-            x,
-            y,
             text,
             timeout,
             config,
             hovered: false,
             actions: data.actions,
             icon,
-            urgency,
+            urgency: urgency.unwrap_or_default(),
             registration_token: None,
         }
     }
@@ -202,7 +180,7 @@ impl Notification {
         let style = self.style();
 
         Extents {
-            x: self.x,
+            x: 0.,
             width: self.width()
                 + style.border.size * 2.
                 + style.padding.left
@@ -277,10 +255,6 @@ impl Notification {
         }
 
         None
-    }
-
-    pub fn change_spot(&mut self, new_y: f32) {
-        self.y = new_y;
     }
 
     pub fn text_area(&self, y: f32, scale: f32) -> TextArea {
