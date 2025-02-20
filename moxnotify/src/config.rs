@@ -322,6 +322,8 @@ pub struct NotificationStyleEntry {
 
 #[derive(Deserialize, Default)]
 pub struct Config {
+    #[serde(default = "default_scroll_sensitivity")]
+    pub scroll_sensitivity: f64,
     #[serde(default = "default_max_visible")]
     pub max_visible: u32,
     #[serde(default = "default_max_icon_size")]
@@ -344,6 +346,10 @@ pub struct Config {
     pub notification_styles: Vec<NotificationStyleEntry>,
     #[serde(deserialize_with = "deserialize_keycombination_map")]
     pub keymaps: HashMap<KeyCombination, KeyAction>,
+}
+
+fn default_scroll_sensitivity() -> f64 {
+    20.
 }
 
 fn default_max_icon_size() -> u32 {

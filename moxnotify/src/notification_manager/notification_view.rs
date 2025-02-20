@@ -5,7 +5,7 @@ use std::{ops::Range, sync::Arc};
 
 pub struct NotificationView {
     pub visible: Range<usize>,
-    prev: Option<Notification>,
+    pub prev: Option<Notification>,
     pub next: Option<Notification>,
     max_visible: usize,
     font_system: FontSystem,
@@ -56,35 +56,70 @@ impl NotificationView {
     }
 
     pub fn update_notification_count(&mut self, notification_count: usize) {
-        if notification_count <= self.visible.end {
+        if notification_count > self.visible.end {
+            let summary = format!(
+                "({} more)",
+                notification_count.saturating_sub(self.visible.end)
+            );
+            if let Some(notification) = &mut self.next {
+                notification.set_text(&summary, "", &mut self.font_system);
+            } else {
+                self.next = Some(Notification::new(
+                    Arc::clone(&self.config),
+                    &mut self.font_system,
+                    NotificationData {
+                        id: 0,
+                        actions: [].into(),
+                        app_name: "".into(),
+                        summary: summary.into(),
+                        body: "".into(),
+                        hints: Vec::new(),
+                        timeout: 0,
+                    },
+                ));
+            }
+        } else {
             self.next = None;
-            return;
         }
 
-        let summary = format!(
-            "({} more)",
-            notification_count.saturating_sub(self.visible.end)
-        );
-        if let Some(notification) = &mut self.next {
-            notification.set_text(&summary, "", &mut self.font_system);
+        if self.visible.start > 0 {
+            let summary = format!("({} more)", self.visible.start);
+            if let Some(notification) = &mut self.prev {
+                notification.set_text(&summary, "", &mut self.font_system);
+            } else {
+                self.prev = Some(Notification::new(
+                    Arc::clone(&self.config),
+                    &mut self.font_system,
+                    NotificationData {
+                        id: 0,
+                        actions: [].into(),
+                        app_name: "".into(),
+                        summary: summary.into(),
+                        body: "".into(),
+                        hints: Vec::new(),
+                        timeout: 0,
+                    },
+                ))
+            }
         } else {
-            self.next = Some(Notification::new(
-                Arc::clone(&self.config),
-                &mut self.font_system,
-                NotificationData {
-                    id: 0,
-                    actions: [].into(),
-                    app_name: "".into(),
-                    summary: summary.into(),
-                    body: "".into(),
-                    hints: Vec::new(),
-                    timeout: 0,
-                },
-            ));
+            self.prev = None;
         }
     }
 
-    pub fn prepare_data(
+    pub fn prev_data(
+        &self,
+        total_height: &mut f32,
+        scale: f32,
+    ) -> Option<(buffers::Instance, TextArea)> {
+        if let Some(prev) = self.prev.as_ref() {
+            *total_height += prev.extents().height;
+            return Some((prev.get_instance(0., scale), prev.text_area(0., scale)));
+        }
+
+        None
+    }
+
+    pub fn next_data(
         &self,
         total_height: f32,
         scale: f32,
@@ -95,6 +130,7 @@ impl NotificationView {
                 next.text_area(total_height, scale),
             ));
         }
+
         None
     }
 }

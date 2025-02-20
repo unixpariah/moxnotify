@@ -62,13 +62,16 @@ impl NotificationManager {
         &mut self,
         scale: f32,
     ) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
+        let mut height = 0.0;
+        let prev_data = self.notification_view.prev_data(&mut height, scale);
+
         let (height, mut instances, mut text_areas, textures) = self
             .notifications
             .iter()
             .enumerate()
             .filter(|(i, _)| self.notification_view.visible.contains(i))
             .fold(
-                (0., Vec::new(), Vec::new(), Vec::new()),
+                (height, Vec::new(), Vec::new(), Vec::new()),
                 |(mut height, mut instances, mut text_areas, mut textures), (_, notification)| {
                     let instance = notification.get_instance(height, scale);
                     let text = notification.text_area(height, scale);
@@ -86,18 +89,27 @@ impl NotificationManager {
                 },
             );
 
-        if let Some((instance_data, text_area_data)) =
-            self.notification_view.prepare_data(height, scale)
-        {
-            instances.push(instance_data);
-            text_areas.push(text_area_data);
+        if let Some((instance, text_area)) = prev_data {
+            instances.push(instance);
+            text_areas.push(text_area);
+        }
+
+        if let Some((instance, text_area)) = self.notification_view.next_data(height, scale) {
+            instances.push(instance);
+            text_areas.push(text_area);
         }
 
         (instances, text_areas, textures)
     }
 
     pub fn get_by_coordinates(&self, x: f64, y: f64) -> Option<&Notification> {
-        let mut cumulative_y_offset: f64 = 0.0;
+        let mut cumulative_y_offset: f64 = self
+            .notification_view
+            .prev
+            .as_ref()
+            .map(|n| n.extents().height)
+            .unwrap_or_default()
+            .into();
 
         self.notification_view
             .visible
@@ -129,18 +141,27 @@ impl NotificationManager {
     }
 
     pub fn height(&self) -> f32 {
-        self.notification_view.visible.clone().fold(0.0, |acc, i| {
-            if let Some(notification) = self.notifications.get(i) {
-                let extents = notification.extents();
-                return acc + extents.height;
-            };
-
-            acc
-        }) + self
+        let height = self
             .notification_view
-            .next
+            .prev
             .as_ref()
-            .map_or(0., |n| n.extents().height)
+            .map_or(0., |n| n.extents().height);
+        self.notification_view
+            .visible
+            .clone()
+            .fold(height, |acc, i| {
+                if let Some(notification) = self.notifications.get(i) {
+                    let extents = notification.extents();
+                    return acc + extents.height;
+                };
+
+                acc
+            })
+            + self
+                .notification_view
+                .next
+                .as_ref()
+                .map_or(0., |n| n.extents().height)
     }
 
     pub fn width(&self) -> f32 {
@@ -338,36 +359,9 @@ impl Moxnotify {
             }
         });
 
-        let len = self.notifications.len();
-        if let Some(mut notification_count) = self.notifications.notification_view.next.take() {
-            notification_count.set_text(
-                &format!(
-                    "({} more)",
-                    len - self.notifications.notification_view.visible.end
-                ),
-                "",
-                &mut self.text_ctx.font_system,
-            );
-
-            if len - self.notifications.notification_view.visible.end > 0 {
-                self.notifications.notification_view.next = Some(notification_count);
-            }
-        }
-
-        //if let Some(i) = self
-        //    .notifications
-        //    .iter()
-        //    .position(|n| Some(n.id) == self.notifications.selected())
-        //{
-        //    let range = self.notifications.visible.clone();
-        //    if range.end == i {
-        //        let mut start = range.start;
-        //        let end = range.end;
-        //        start = start.saturating_sub(1);
-
-        //        self.notifications.visible = start..end;
-        //    }
-        //}
+        self.notifications
+            .notification_view
+            .update_notification_count(self.notifications.len());
 
         if self.notifications.selected == Some(id) {
             self.deselect_notification();

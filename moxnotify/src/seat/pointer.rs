@@ -22,6 +22,7 @@ pub struct Pointer {
     wl_pointer: wl_pointer::WlPointer,
     surface: wl_surface::WlSurface,
     theme: CursorTheme,
+    scroll_accumulator: f64,
 }
 
 impl Pointer {
@@ -45,6 +46,7 @@ impl Pointer {
             theme: cursor_theme,
             wl_pointer,
             surface,
+            scroll_accumulator: 0.,
         })
     }
 
@@ -236,6 +238,28 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     0,
                     0,
                 );
+            }
+            wl_pointer::Event::Axis {
+                time: _,
+                axis: WEnum::Value(axis),
+                value,
+            } => {
+                if axis == wl_pointer::Axis::VerticalScroll {
+                    state.seat.pointer.scroll_accumulator += value;
+
+                    if state.seat.pointer.scroll_accumulator.abs()
+                        >= state.config.scroll_sensitivity
+                    {
+                        if state.seat.pointer.scroll_accumulator.is_sign_positive() {
+                            state.notifications.next();
+                        } else {
+                            state.notifications.prev();
+                        }
+                        state.render();
+
+                        state.seat.pointer.scroll_accumulator = 0.0;
+                    }
+                }
             }
             _ => {}
         }
