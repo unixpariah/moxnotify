@@ -318,6 +318,10 @@ pub enum Anchor {
 pub struct NotificationStyleEntry {
     pub app: Box<str>,
     pub styles: Styles,
+    #[serde(default)]
+    pub default_timeout: Option<i32>,
+    #[serde(default)]
+    pub ignore_timeout: Option<bool>,
 }
 
 #[derive(Deserialize, Default)]
@@ -333,17 +337,17 @@ pub struct Config {
     #[serde(default)]
     pub layer: Layer,
     #[serde(default)]
-    pub ignore_timeout: bool,
-    #[serde(default)]
     pub queue: Queue,
     #[serde(default)]
     pub output: Box<str>,
     #[serde(default)]
     pub default_timeout: i32,
     #[serde(default)]
+    pub ignore_timeout: bool,
+    #[serde(default)]
     pub styles: Styles,
     #[serde(default)]
-    pub notification_styles: Vec<NotificationStyleEntry>,
+    pub notification: Vec<NotificationStyleEntry>,
     #[serde(deserialize_with = "deserialize_keycombination_map")]
     pub keymaps: HashMap<KeyCombination, KeyAction>,
 }
@@ -483,9 +487,8 @@ impl Config {
                     )
                 end
 
-                if user_config.notification_styles then
-                    for _, entry in ipairs(user_config.notification_styles) do
-                        -- Change from entry[2] to entry.styles
+                if user_config.notification then
+                    for _, entry in ipairs(user_config.notification) do
                         local styles = entry.styles
                         
                         styles.default = deep_merge(

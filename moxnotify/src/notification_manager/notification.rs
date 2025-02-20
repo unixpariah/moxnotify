@@ -61,12 +61,25 @@ impl Notification {
             &data.body,
         );
 
-        let timeout = if config.ignore_timeout {
-            (config.default_timeout > 0).then(|| (config.default_timeout as u64) * 1000)
+        let notification_style_entry = config
+            .notification
+            .iter()
+            .find(|entry| entry.app == data.app_name);
+
+        let ignore_timeout = notification_style_entry
+            .and_then(|entry| entry.ignore_timeout)
+            .unwrap_or(config.ignore_timeout);
+
+        let default_timeout = notification_style_entry
+            .and_then(|entry| entry.default_timeout)
+            .unwrap_or(config.default_timeout);
+
+        let timeout = if ignore_timeout {
+            (default_timeout > 0).then(|| (default_timeout as u64) * 1000)
         } else {
             match data.timeout {
                 0 => None,
-                -1 => (config.default_timeout > 0).then(|| (config.default_timeout as u64) * 1000),
+                -1 => (default_timeout > 0).then(|| (default_timeout as u64) * 1000),
                 t if t > 0 => Some(t as u64),
                 _ => None,
             }
@@ -199,13 +212,11 @@ impl Notification {
     pub fn style(&self) -> &StyleState {
         let styles = self
             .config
-            .notification_styles
+            .notification
             .iter()
             .find(|n| n.app == self.app_name)
             .map(|c| &c.styles)
             .unwrap_or(&self.config.styles);
-
-        //println!("{}", styles.hover.ur);
 
         if self.hovered {
             &styles.hover

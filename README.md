@@ -9,3 +9,4 @@ Feature-rich hardware-accelerated keyboard driven Wayland notification daemon.
 - GTK free
 - Full mouse support
 - Keyboard driven mode
+- Per notification config
