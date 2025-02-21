@@ -183,8 +183,14 @@ impl Moxnotify {
         };
         if let Some(action) = self.config.keymaps.get(&self.seat.keyboard.key_combination) {
             match action {
-                KeyAction::NextNotification => self.notifications.next(),
-                KeyAction::PreviousNotification => self.notifications.prev(),
+                KeyAction::NextNotification => {
+                    self.notifications.next();
+                    self.update_surface_size();
+                }
+                KeyAction::PreviousNotification => {
+                    self.notifications.prev();
+                    self.update_surface_size();
+                }
                 KeyAction::InvokeAction => {
                     if let Some(id) = self.notifications.selected() {
                         if let Some(index) = self

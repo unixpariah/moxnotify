@@ -133,14 +133,17 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 match (hovered_id, state.notifications.selected()) {
                     (Some(new_id), Some(old_id)) if new_id != old_id => {
                         state.select_notification(new_id);
+                        state.update_surface_size();
                         state.seat.pointer.change_state(Some(PointerState::Hover));
                     }
                     (Some(new_id), None) => {
                         state.select_notification(new_id);
+                        state.update_surface_size();
                         state.seat.pointer.change_state(Some(PointerState::Hover));
                     }
                     (None, Some(_)) => {
                         state.deselect_notification();
+                        state.update_surface_size();
                         state.seat.pointer.change_state(Some(PointerState::Default));
                     }
                     _ => {}

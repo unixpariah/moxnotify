@@ -97,8 +97,6 @@ impl Moxnotify {
     }
 
     fn render(&mut self) {
-        self.update_surface_size();
-
         let Some(surface) = self.surface.as_mut() else {
             return;
         };
