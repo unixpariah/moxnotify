@@ -345,6 +345,12 @@ impl Moxnotify {
             }
         });
 
+        if self.notifications.notification_view.visible.start >= self.notifications.len() {
+            self.notifications.notification_view.visible =
+                self.notifications.len().saturating_sub(1)
+                    ..self.notifications.len().saturating_sub(1) + self.config.max_visible as usize;
+        }
+
         self.notifications
             .notification_view
             .update_notification_count(self.notifications.len());

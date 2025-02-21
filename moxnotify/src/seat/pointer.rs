@@ -16,7 +16,7 @@ enum PointerState {
 }
 
 pub struct Pointer {
-    state: PointerState,
+    state: Option<PointerState>,
     x: f64,
     y: f64,
     wl_pointer: wl_pointer::WlPointer,
@@ -40,7 +40,7 @@ impl Pointer {
         let cursor_theme = CursorTheme::load(conn, shm, 32)?;
 
         Ok(Self {
-            state: PointerState::Default,
+            state: None,
             x: 0.,
             y: 0.,
             theme: cursor_theme,
@@ -50,8 +50,13 @@ impl Pointer {
         })
     }
 
-    fn change_state(&mut self, pointer_state: PointerState) {
-        if self.state == pointer_state {
+    fn change_state(&mut self, pointer_state: Option<PointerState>) {
+        let Some(pointer_state) = pointer_state else {
+            self.state = None;
+            return;
+        };
+
+        if self.state.as_ref() == Some(&pointer_state) {
             return;
         }
 
@@ -80,7 +85,7 @@ impl Pointer {
             }
         }
 
-        self.state = pointer_state;
+        self.state = Some(pointer_state);
     }
 }
 
@@ -114,13 +119,13 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 pointer.x = surface_x;
                 pointer.y = surface_y;
 
-                if let PointerState::Grabbing = pointer.state {
+                if let Some(PointerState::Grabbing) = pointer.state {
                     return;
                 }
 
-                if let PointerState::Pressed = pointer.state {
+                if let Some(PointerState::Pressed) = pointer.state {
                     if state.notifications.selected().is_some() {
-                        pointer.change_state(PointerState::Grabbing);
+                        pointer.change_state(Some(PointerState::Grabbing));
                     }
                     return;
                 }
@@ -128,15 +133,15 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 match (hovered_id, state.notifications.selected()) {
                     (Some(new_id), Some(old_id)) if new_id != old_id => {
                         state.select_notification(new_id);
-                        state.seat.pointer.change_state(PointerState::Hover);
+                        state.seat.pointer.change_state(Some(PointerState::Hover));
                     }
                     (Some(new_id), None) => {
                         state.select_notification(new_id);
-                        state.seat.pointer.change_state(PointerState::Hover);
+                        state.seat.pointer.change_state(Some(PointerState::Hover));
                     }
                     (None, Some(_)) => {
                         state.deselect_notification();
-                        state.seat.pointer.change_state(PointerState::Default);
+                        state.seat.pointer.change_state(Some(PointerState::Default));
                     }
                     _ => {}
                 }
@@ -153,7 +158,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                 match value {
                     wl_pointer::ButtonState::Pressed => {
-                        state.seat.pointer.state = PointerState::Pressed;
+                        state.seat.pointer.state = Some(PointerState::Pressed);
                     }
                     wl_pointer::ButtonState::Released => {
                         if let Some(id) = state.notifications.selected() {
@@ -167,7 +172,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                                     .get_by_coordinates(state.seat.pointer.x, state.seat.pointer.y)
                                 {
                                     state.select_notification(notification.id());
-                                    state.seat.pointer.change_state(PointerState::Hover);
+                                    state.seat.pointer.change_state(Some(PointerState::Hover));
                                     return;
                                 }
                             } else {
@@ -176,25 +181,23 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                                     state.notifications.get_by_coordinates(pointer.x, pointer.y)
                                 {
                                     state.select_notification(notification.id());
-                                    state.seat.pointer.change_state(PointerState::Hover);
+                                    state.seat.pointer.change_state(Some(PointerState::Hover));
                                     return;
                                 }
                             }
                         }
 
-                        state.seat.pointer.change_state(PointerState::Default);
+                        state.seat.pointer.change_state(Some(PointerState::Default));
                     }
                     _ => unreachable!(),
                 }
             }
-            wl_pointer::Event::Leave {
-                serial: _,
-                surface: _,
-            } => {
+            wl_pointer::Event::Leave { serial, surface: _ } => {
+                state.seat.pointer.wl_pointer.set_cursor(serial, None, 0, 0);
+                state.seat.pointer.change_state(None);
                 surface
                     .layer_surface
                     .set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
-                surface.wl_surface.commit();
                 state.deselect_notification();
             }
             wl_pointer::Event::Enter {
@@ -206,7 +209,6 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 surface
                     .layer_surface
                     .set_keyboard_interactivity(KeyboardInteractivity::Exclusive);
-                surface.wl_surface.commit();
 
                 state.seat.pointer.x = surface_x;
                 state.seat.pointer.y = surface_y;
@@ -219,22 +221,10 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 match hovered_id {
                     Some(id) => {
                         state.select_notification(id);
-                        let pointer = &mut state.seat.pointer;
-                        if let Some(buffer) = pointer.theme.get_cursor("hover").as_ref() {
-                            pointer.surface.attach(Some(&buffer[0]), 0, 0);
-                            pointer.surface.damage_buffer(0, 0, 32, 32);
-                            pointer.surface.commit();
-                        }
-                        state.seat.pointer.change_state(PointerState::Hover);
+                        state.seat.pointer.change_state(Some(PointerState::Hover));
                     }
                     None => {
-                        let pointer = &mut state.seat.pointer;
-                        if let Some(buffer) = pointer.theme.get_cursor("default").as_ref() {
-                            pointer.surface.attach(Some(&buffer[0]), 0, 0);
-                            pointer.surface.damage_buffer(0, 0, 32, 32);
-                            pointer.surface.commit();
-                        }
-                        state.seat.pointer.change_state(PointerState::Default);
+                        state.seat.pointer.change_state(Some(PointerState::Default));
                     }
                 }
 
