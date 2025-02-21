@@ -173,19 +173,16 @@ impl NotificationManager {
             self.unhover_notification(old_id);
         }
 
-        let width = self.width();
         if let Some(new_notification) = self.notifications.iter_mut().find(|n| n.id() == id) {
             new_notification.hover();
 
-            let icon_width_layout = new_notification
-                .icon
-                .as_ref()
-                .map(|i| i.width as f32)
-                .unwrap_or(0.);
+            let style = new_notification.style();
+
+            let icon_extents = new_notification.icon_extents();
 
             new_notification.text.0.set_size(
                 &mut self.font_system,
-                Some(width - icon_width_layout),
+                Some(style.width - icon_extents.0),
                 None,
             );
 

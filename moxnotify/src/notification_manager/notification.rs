@@ -54,18 +54,18 @@ impl Notification {
             _ => {}
         });
 
-        let icon_width_layout = icon.as_ref().map(|i| i.width as f32).unwrap_or(0.);
+        let style = &config.styles.default;
+        let icon_width = icon
+            .as_ref()
+            .map(|i| i.width as f32 + style.padding.right)
+            .unwrap_or(0.);
 
         let text = Text::new(
             &config.styles.default.font,
             font_system,
             &data.summary,
             &data.body,
-            config.styles.default.width
-                - config.styles.default.border.size * 2.
-                - config.styles.default.padding.left
-                - config.styles.default.padding.right
-                - icon_width_layout,
+            config.styles.default.width - icon_width,
         );
 
         let notification_style_entry = config
@@ -109,29 +109,21 @@ impl Notification {
     pub fn set_text(&mut self, summary: &str, body: &str, font_system: &mut FontSystem) {
         let style = self.style();
 
-        let icon_width_layout = self.icon.as_ref().map(|i| i.width as f32).unwrap_or(0.);
+        let icon_extents = self.icon_extents();
 
         self.text = Text::new(
             &style.font,
             font_system,
             summary,
             body,
-            self.rendered_extents().width
-                - style.border.size * 2.
-                - style.padding.left
-                - style.padding.right
-                - icon_width_layout,
+            style.width - icon_extents.0,
         )
     }
 
     pub fn height(&self) -> f32 {
         let style = self.style();
 
-        let icon_size = self
-            .icon
-            .as_ref()
-            .map(|i| (i.width, i.height))
-            .unwrap_or((0, 0));
+        let icon_extents = self.icon_extents();
 
         let min_height = match style.min_height {
             Size::Auto => 0.,
@@ -147,7 +139,7 @@ impl Notification {
                 .text
                 .extents()
                 .1
-                .max(icon_size.1 as f32)
+                .max(icon_extents.1)
                 .clamp(min_height, max_height),
         }
     }
@@ -297,6 +289,14 @@ impl Notification {
         None
     }
 
+    pub fn icon_extents(&self) -> (f32, f32) {
+        let style = self.style();
+        self.icon
+            .as_ref()
+            .map(|i| (i.width as f32 + style.padding.right, i.height as f32))
+            .unwrap_or((0., 0.))
+    }
+
     pub fn text_area(&self, y: f32, scale: f32) -> TextArea {
         let extents = self.rendered_extents();
         let (width, height) = self.text.extents();
@@ -314,7 +314,7 @@ impl Notification {
         let icon_width_positioning = self
             .icon
             .as_ref()
-            .map(|i| i.width as f32 + style.padding.right)
+            .map(|i| i.width as f32 + style.padding.left)
             .unwrap_or(0.);
 
         TextArea {
