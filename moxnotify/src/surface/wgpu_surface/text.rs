@@ -8,7 +8,13 @@ use wgpu::{MultisampleState, TextureFormat};
 pub struct Text(pub Buffer);
 
 impl Text {
-    pub fn new(font: &Font, font_system: &mut FontSystem, summary: &str, body: &str) -> Self {
+    pub fn new(
+        font: &Font,
+        font_system: &mut FontSystem,
+        summary: &str,
+        body: &str,
+        width: f32,
+    ) -> Self {
         let attrs = Attrs::new();
         attrs.family(glyphon::Family::Name(&font.family));
 
@@ -29,6 +35,7 @@ impl Text {
 
         buffer.set_rich_text(font_system, spans.iter().copied(), attrs, Shaping::Advanced);
         buffer.shape_until_scroll(font_system, true);
+        buffer.set_size(font_system, Some(width), None);
 
         Self(buffer)
     }
@@ -54,25 +61,16 @@ pub struct TextContext {
 }
 
 impl TextContext {
-    pub fn new(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        texture_format: TextureFormat,
-        width: u32,
-        height: u32,
-    ) -> Self {
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, texture_format: TextureFormat) -> Self {
         let swash_cache = SwashCache::new();
         let cache = Cache::new(device);
-        let mut viewport = Viewport::new(device, &cache);
         let mut atlas = TextAtlas::new(device, queue, &cache, texture_format);
         let renderer = TextRenderer::new(&mut atlas, device, MultisampleState::default(), None);
-
-        viewport.update(queue, glyphon::Resolution { width, height });
 
         Self {
             font_system: FontSystem::new(),
             swash_cache,
-            viewport,
+            viewport: Viewport::new(device, &cache),
             atlas,
             renderer,
         }

@@ -2,8 +2,11 @@ mod notification;
 mod notification_view;
 
 use crate::{
-    config::{self, Anchor, Config, Key, Queue},
-    wgpu_state::{buffers, texture_renderer::TextureArea},
+    config::{self, Config, Key, Queue},
+    surface::{
+        wgpu_surface::{buffers, texture_renderer::TextureArea},
+        Surface,
+    },
     EmitEvent, Moxnotify, NotificationData,
 };
 use calloop::{
@@ -14,10 +17,6 @@ use glyphon::{FontSystem, TextArea};
 use notification::{Notification, NotificationId};
 use notification_view::NotificationView;
 use std::{ops::Deref, sync::Arc, time::Duration};
-use wayland_protocols_wlr::layer_shell::v1::client::{
-    zwlr_layer_shell_v1,
-    zwlr_layer_surface_v1::{self, KeyboardInteractivity},
-};
 
 pub struct NotificationManager {
     notifications: Vec<Notification>,
@@ -378,79 +377,36 @@ impl Moxnotify {
         self.update_surface_size();
     }
 
-    fn create_layer_surface(&mut self) -> zwlr_layer_surface_v1::ZwlrLayerSurfaceV1 {
-        let output = self
-            .outputs
-            .iter()
-            .find(|output| output.name.as_ref() == Some(&self.config.output));
-
-        let layer_surface = self.layer_shell.get_layer_surface(
-            &self.surface.wl_surface,
-            output.map(|o| &o.wl_output),
-            match self.config.layer {
-                config::Layer::Top => zwlr_layer_shell_v1::Layer::Top,
-                config::Layer::Background => zwlr_layer_shell_v1::Layer::Background,
-                config::Layer::Bottom => zwlr_layer_shell_v1::Layer::Bottom,
-                config::Layer::Overlay => zwlr_layer_shell_v1::Layer::Overlay,
-            },
-            "moxnotify".into(),
-            &self.qh,
-            (),
-        );
-
-        self.surface.scale = output.map(|o| o.scale).unwrap_or(1.0);
-
-        layer_surface.set_keyboard_interactivity(KeyboardInteractivity::None);
-        layer_surface
-            .set_anchor(zwlr_layer_surface_v1::Anchor::Right | zwlr_layer_surface_v1::Anchor::Top);
-        layer_surface.set_anchor(match self.config.anchor {
-            Anchor::TopRight => {
-                zwlr_layer_surface_v1::Anchor::Top | zwlr_layer_surface_v1::Anchor::Right
-            }
-            Anchor::TopCenter => zwlr_layer_surface_v1::Anchor::Top,
-            Anchor::TopLeft => {
-                zwlr_layer_surface_v1::Anchor::Top | zwlr_layer_surface_v1::Anchor::Left
-            }
-            Anchor::BottomRight => {
-                zwlr_layer_surface_v1::Anchor::Bottom | zwlr_layer_surface_v1::Anchor::Right
-            }
-            Anchor::BottomCenter => zwlr_layer_surface_v1::Anchor::Bottom,
-            Anchor::BottomLeft => {
-                zwlr_layer_surface_v1::Anchor::Bottom | zwlr_layer_surface_v1::Anchor::Left
-            }
-            Anchor::CenterRight => zwlr_layer_surface_v1::Anchor::Right,
-            Anchor::Center => {
-                zwlr_layer_surface_v1::Anchor::Top
-                    | zwlr_layer_surface_v1::Anchor::Bottom
-                    | zwlr_layer_surface_v1::Anchor::Left
-                    | zwlr_layer_surface_v1::Anchor::Right
-            }
-            Anchor::CenterLeft => zwlr_layer_surface_v1::Anchor::Left,
-        });
-        layer_surface.set_exclusive_zone(-1);
-        layer_surface
-    }
-
     pub fn update_surface_size(&mut self) {
         let total_height = self.notifications.height();
         let total_width = self.notifications.width();
 
-        if self.surface.layer_surface.is_none() {
-            self.surface.layer_surface = Some(self.create_layer_surface());
-        }
-
-        if let Some(layer_surface) = self.surface.layer_surface.as_ref() {
-            layer_surface.set_size(total_width as u32, total_height as u32);
+        if self.surface.is_none() {
+            let wl_surface = self.compositor.create_surface(&self.qh, ());
+            self.surface = Some(Surface::new(
+                &self.wgpu_state,
+                wl_surface,
+                &self.layer_shell,
+                &self.qh,
+                &self.outputs,
+                Arc::clone(&self.config),
+            ));
         }
 
         if total_width == 0. || total_height == 0. {
-            if let Some(layer_surface) = self.surface.layer_surface.take() {
-                layer_surface.destroy();
+            if let Some(surface) = self.surface.take() {
+                drop(surface);
             }
             self.seat.keyboard.key_combination.key = Key::Character('\0');
+            return;
         }
 
-        self.surface.wl_surface.commit();
+        if let Some(surface) = self.surface.as_ref() {
+            surface
+                .layer_surface
+                .set_size(total_width as u32, total_height as u32);
+            surface.wl_surface.commit();
+        }
     }
 
     pub fn deselect_notification(&mut self) {

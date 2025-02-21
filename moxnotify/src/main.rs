@@ -3,8 +3,7 @@ mod dbus;
 mod image_data;
 mod notification_manager;
 mod seat;
-mod surface;
-mod text;
+pub mod surface;
 mod wgpu_state;
 
 use calloop::EventLoop;
@@ -19,7 +18,6 @@ use std::{
     sync::{mpsc, Arc},
 };
 use surface::Surface;
-use text::TextContext;
 use wayland_client::{
     delegate_noop,
     globals::{registry_queue_init, GlobalList, GlobalListContents},
@@ -33,7 +31,7 @@ use wayland_protocols_wlr::layer_shell::v1::client::{
 use wgpu_state::WgpuState;
 
 #[derive(Debug)]
-struct Output {
+pub struct Output {
     id: u32,
     name: Option<Box<str>>,
     scale: f32,
@@ -51,11 +49,10 @@ impl Output {
     }
 }
 
-struct Moxnotify {
+pub struct Moxnotify {
     layer_shell: zwlr_layer_shell_v1::ZwlrLayerShellV1,
-    text_ctx: TextContext,
     seat: Seat,
-    surface: Surface,
+    surface: Option<Surface>,
     outputs: Vec<Output>,
     wgpu_state: wgpu_state::WgpuState,
     notifications: NotificationManager,
@@ -64,6 +61,7 @@ struct Moxnotify {
     globals: GlobalList,
     loop_handle: calloop::LoopHandle<'static, Self>,
     emit_sender: mpsc::Sender<EmitEvent>,
+    compositor: wl_compositor::WlCompositor,
 }
 
 impl Moxnotify {
@@ -77,42 +75,40 @@ impl Moxnotify {
         let layer_shell = globals.bind(&qh, 1..=5, ())?;
         let compositor = globals.bind::<wl_compositor::WlCompositor, _, _>(&qh, 1..=6, ())?;
         let seat = Seat::new(conn, &qh, &globals, &compositor)?;
-        let wl_surface = compositor.create_surface(&qh, ());
 
         let config = Arc::new(Config::load(None)?);
 
-        let (wgpu_state, wgpu_surface, surface_config) =
-            WgpuState::new(conn, &wl_surface, &config)?;
-
-        let text_ctx = text::TextContext::new(
-            &wgpu_state.device,
-            &wgpu_state.queue,
-            surface_config.format,
-            surface_config.width,
-            surface_config.height,
-        );
-
-        let surface = Surface::new(wl_surface, surface_config, wgpu_surface);
+        let wgpu_state = WgpuState::new(conn)?;
 
         Ok(Self {
-            text_ctx,
             globals,
             qh,
-            notifications: NotificationManager::new(config.clone(), loop_handle.clone()),
+            notifications: NotificationManager::new(Arc::clone(&config), loop_handle.clone()),
             config,
             wgpu_state,
             layer_shell,
             seat,
-            surface,
+            surface: None,
             outputs: Vec::new(),
             loop_handle,
             emit_sender,
+            compositor,
         })
     }
 
     fn render(&mut self) {
-        let surface_texture = self
-            .surface
+        self.update_surface_size();
+
+        let Some(surface) = self.surface.as_mut() else {
+            return;
+        };
+
+        if !surface.configured {
+            return;
+        }
+
+        let surface_texture = surface
+            .wgpu_surface
             .wgpu_surface
             .get_current_texture()
             .expect("failed to acquire next swapchain texture");
@@ -139,29 +135,32 @@ impl Moxnotify {
             occlusion_query_set: None,
         });
 
-        let (instances, text_data, textures) = self.notifications.data(self.surface.scale);
+        let (instances, text_data, textures) = self.notifications.data(surface.scale);
 
-        self.wgpu_state.shape_renderer.prepare(
+        surface.wgpu_surface.shape_renderer.prepare(
             &self.wgpu_state.device,
             &self.wgpu_state.queue,
             &instances,
         );
 
-        self.wgpu_state.shape_renderer.render(&mut render_pass);
+        surface.wgpu_surface.shape_renderer.render(&mut render_pass);
 
-        _ = self.text_ctx.render(
+        _ = surface.wgpu_surface.text_ctx.render(
             &self.wgpu_state.device,
             &self.wgpu_state.queue,
             &mut render_pass,
             text_data,
         );
 
-        self.wgpu_state.texture_renderer.prepare(
+        surface.wgpu_surface.texture_renderer.prepare(
             &self.wgpu_state.device,
             &self.wgpu_state.queue,
             textures,
         );
-        self.wgpu_state.texture_renderer.render(&mut render_pass);
+        surface
+            .wgpu_surface
+            .texture_renderer
+            .render(&mut render_pass);
 
         drop(render_pass); // Drop renderpass and release mutable borrow on encoder
 
@@ -180,9 +179,11 @@ impl Moxnotify {
             }
             Event::CloseNotification(id) => self.dismiss_notification(id),
             Event::FocusSurface => {
-                if let Some(layer_surface) = self.surface.layer_surface.as_ref() {
-                    layer_surface.set_keyboard_interactivity(KeyboardInteractivity::Exclusive);
-                    self.surface.wl_surface.commit();
+                if let Some(surface) = self.surface.as_ref() {
+                    surface
+                        .layer_surface
+                        .set_keyboard_interactivity(KeyboardInteractivity::Exclusive);
+                    surface.wl_surface.commit();
                     self.notifications.next();
                     self.render();
                 }
@@ -192,33 +193,42 @@ impl Moxnotify {
     }
 
     fn create_activation_token(&self, serial: u32, id: u32) {
+        let Some(surface) = self.surface.as_ref() else {
+            return;
+        };
         let token = self.seat.xdg_activation.get_activation_token(&self.qh, id);
         token.set_serial(serial, &self.seat.wl_seat);
-        token.set_surface(&self.surface.wl_surface);
+        token.set_surface(&surface.wl_surface);
         token.commit();
     }
 
     pub fn resize(&mut self, width: u32, height: u32) {
-        if width == self.surface.config.height
-            || height == self.surface.config.width
+        let Some(surface) = self.surface.as_mut() else {
+            return;
+        };
+        if width == surface.wgpu_surface.config.height
+            || height == surface.wgpu_surface.config.width
             || width == 0
             || height == 0
         {
             return;
         }
-        self.surface.config.width = width;
-        self.surface.config.height = height;
-        self.surface
+        surface.wgpu_surface.config.width = width;
+        surface.wgpu_surface.config.height = height;
+        surface
             .wgpu_surface
-            .configure(&self.wgpu_state.device, &self.surface.config);
-        self.text_ctx.viewport.update(
+            .wgpu_surface
+            .configure(&self.wgpu_state.device, &surface.wgpu_surface.config);
+        surface.wgpu_surface.text_ctx.viewport.update(
             &self.wgpu_state.queue,
             glyphon::Resolution { width, height },
         );
-        self.wgpu_state
-            .shape_renderer
-            .resize(&self.wgpu_state.queue, width as f32, height as f32);
-        self.wgpu_state.texture_renderer.resize(
+        surface.wgpu_surface.shape_renderer.resize(
+            &self.wgpu_state.queue,
+            width as f32,
+            height as f32,
+        );
+        surface.wgpu_surface.texture_renderer.resize(
             &self.wgpu_state.queue,
             width as f32,
             height as f32,

@@ -178,6 +178,9 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
 
 impl Moxnotify {
     fn handle_key(&mut self, serial: u32) {
+        let Some(surface) = self.surface.as_ref() else {
+            return;
+        };
         if let Some(action) = self.config.keymaps.get(&self.seat.keyboard.key_combination) {
             match action {
                 KeyAction::NextNotification => self.notifications.next(),
@@ -229,12 +232,12 @@ impl Moxnotify {
                     }
                 }
                 KeyAction::Unfocus => {
-                    if let Some(layer_surface) = self.surface.layer_surface.as_ref() {
-                        layer_surface.set_keyboard_interactivity(KeyboardInteractivity::None);
-                        self.surface.wl_surface.commit();
-                        self.seat.keyboard.key_combination.key = Key::Character('\0');
-                        self.notifications.deselect();
-                    }
+                    surface
+                        .layer_surface
+                        .set_keyboard_interactivity(KeyboardInteractivity::None);
+                    surface.wl_surface.commit();
+                    self.seat.keyboard.key_combination.key = Key::Character('\0');
+                    self.notifications.deselect();
                 }
             }
 

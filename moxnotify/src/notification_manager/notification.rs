@@ -2,9 +2,9 @@ use super::config::Config;
 use crate::{
     config::{Size, StyleState},
     image_data::ImageData,
-    text::Text,
-    wgpu_state::{
+    surface::wgpu_surface::{
         buffers,
+        text::Text,
         texture_renderer::{TextureArea, TextureBounds},
     },
     Hint, Image, NotificationData, Urgency,
@@ -54,11 +54,18 @@ impl Notification {
             _ => {}
         });
 
+        let icon_width_layout = icon.as_ref().map(|i| i.width as f32).unwrap_or(0.);
+
         let text = Text::new(
             &config.styles.default.font,
             font_system,
             &data.summary,
             &data.body,
+            config.styles.default.width
+                - config.styles.default.border.size * 2.
+                - config.styles.default.padding.left
+                - config.styles.default.padding.right
+                - icon_width_layout,
         );
 
         let notification_style_entry = config
@@ -102,7 +109,19 @@ impl Notification {
     pub fn set_text(&mut self, summary: &str, body: &str, font_system: &mut FontSystem) {
         let style = self.style();
 
-        self.text = Text::new(&style.font, font_system, summary, body)
+        let icon_width_layout = self.icon.as_ref().map(|i| i.width as f32).unwrap_or(0.);
+
+        self.text = Text::new(
+            &style.font,
+            font_system,
+            summary,
+            body,
+            self.rendered_extents().width
+                - style.border.size * 2.
+                - style.padding.left
+                - style.padding.right
+                - icon_width_layout,
+        )
     }
 
     pub fn height(&self) -> f32 {

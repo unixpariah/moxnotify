@@ -95,6 +95,10 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
         _conn: &Connection,
         _qh: &QueueHandle<Self>,
     ) {
+        let Some(surface) = state.surface.as_mut() else {
+            return;
+        };
+
         match event {
             wl_pointer::Event::Motion {
                 time: _,
@@ -187,10 +191,10 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 serial: _,
                 surface: _,
             } => {
-                if let Some(layer_surface) = state.surface.layer_surface.as_ref() {
-                    layer_surface.set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
-                    state.surface.wl_surface.commit();
-                }
+                surface
+                    .layer_surface
+                    .set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
+                surface.wl_surface.commit();
                 state.deselect_notification();
             }
             wl_pointer::Event::Enter {
@@ -199,10 +203,10 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 surface_x,
                 surface_y,
             } => {
-                if let Some(layer_surface) = state.surface.layer_surface.as_ref() {
-                    layer_surface.set_keyboard_interactivity(KeyboardInteractivity::Exclusive);
-                    state.surface.wl_surface.commit();
-                }
+                surface
+                    .layer_surface
+                    .set_keyboard_interactivity(KeyboardInteractivity::Exclusive);
+                surface.wl_surface.commit();
 
                 state.seat.pointer.x = surface_x;
                 state.seat.pointer.y = surface_y;
