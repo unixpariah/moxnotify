@@ -1,12 +1,6 @@
 use mlua::{Lua, LuaSerdeExt};
 use serde::{Deserialize, Deserializer};
-use std::{
-    collections::HashMap,
-    ffi::OsStr,
-    fs,
-    path::{Path, PathBuf},
-    str::FromStr,
-};
+use std::{collections::HashMap, ffi::OsStr, fs, path::PathBuf, str::FromStr};
 use xkbcommon::xkb::Keysym;
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -109,13 +103,13 @@ impl From<Color> for [f32; 4] {
 #[derive(Deserialize, Default, Clone, Copy)]
 pub struct BorderRadius {
     #[serde(default)]
-    top_left: f32,
+    pub top_left: f32,
     #[serde(default)]
-    top_right: f32,
+    pub top_right: f32,
     #[serde(default)]
-    bottom_left: f32,
+    pub bottom_left: f32,
     #[serde(default)]
-    bottom_right: f32,
+    pub bottom_right: f32,
 }
 
 impl From<BorderRadius> for [f32; 4] {

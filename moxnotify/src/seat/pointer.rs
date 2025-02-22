@@ -1,4 +1,4 @@
-use crate::Moxnotify;
+use crate::{notification_manager::notification::button::Action, Moxnotify};
 use wayland_client::{
     globals::GlobalList,
     protocol::{wl_compositor, wl_pointer, wl_seat, wl_shm, wl_surface},
@@ -119,6 +119,14 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 pointer.x = surface_x;
                 pointer.y = surface_y;
 
+                //println!(
+                //    "{:?}",
+                //    state.notifications[0]
+                //        .text
+                //        .0
+                //        .hit(pointer.x as f32, pointer.y as f32)
+                //);
+
                 if let Some(PointerState::Grabbing) = pointer.state {
                     return;
                 }
@@ -130,27 +138,45 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     return;
                 }
 
+                let pointer = &state.seat.pointer;
+                if let Some(id) = hovered_id {
+                    if let Some(selected_notif) = state.notifications.get_by_id(id) {
+                        let under_pointer =
+                            state.notifications.get_by_coordinates(pointer.x, pointer.y);
+
+                        if Some(selected_notif) == under_pointer
+                            && state
+                                .notifications
+                                .get_button_by_coordinates(pointer.x, pointer.y)
+                                .is_some()
+                        {
+                            state.seat.pointer.change_state(Some(PointerState::Hover));
+                            state.deselect_notification();
+                            return;
+                        }
+                    }
+                }
+
+                state.seat.pointer.change_state(Some(PointerState::Default));
+
                 match (hovered_id, state.notifications.selected()) {
                     (Some(new_id), Some(old_id)) if new_id != old_id => {
                         state.select_notification(new_id);
                         state.update_surface_size();
-                        state.seat.pointer.change_state(Some(PointerState::Hover));
                     }
                     (Some(new_id), None) => {
                         state.select_notification(new_id);
                         state.update_surface_size();
-                        state.seat.pointer.change_state(Some(PointerState::Hover));
                     }
                     (None, Some(_)) => {
                         state.deselect_notification();
                         state.update_surface_size();
-                        state.seat.pointer.change_state(Some(PointerState::Default));
                     }
                     _ => {}
                 }
             }
             wl_pointer::Event::Button {
-                serial,
+                serial: _,
                 time: _,
                 button,
                 state: WEnum::Value(value),
@@ -161,29 +187,41 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                 match value {
                     wl_pointer::ButtonState::Pressed => {
-                        state.seat.pointer.state = Some(PointerState::Pressed);
+                        state.seat.pointer.change_state(Some(PointerState::Pressed));
                     }
                     wl_pointer::ButtonState::Released => {
-                        if let Some(id) = state.notifications.selected() {
-                            let pointer = &state.seat.pointer;
-                            if state.notifications.get_by_id(id)
-                                == state.notifications.get_by_coordinates(pointer.x, pointer.y)
+                        let pointer = &state.seat.pointer;
+                        let (x, y) = (pointer.x, pointer.y);
+
+                        if let Some(selected_id) = state.notifications.selected() {
+                            if let Some(selected_notif) = state.notifications.get_by_id(selected_id)
                             {
-                                state.invoke_action(id, serial);
-                                if let Some(notification) = state
-                                    .notifications
-                                    .get_by_coordinates(state.seat.pointer.x, state.seat.pointer.y)
-                                {
-                                    state.select_notification(notification.id());
-                                    state.seat.pointer.change_state(Some(PointerState::Hover));
-                                    return;
+                                let under_pointer = state.notifications.get_by_coordinates(x, y);
+
+                                if Some(selected_notif) == under_pointer {
+                                    if let Some(button) =
+                                        state.notifications.get_button_by_coordinates(x, y)
+                                    {
+                                        if button.action == Action::DismissNotification {
+                                            state.dismiss_notification(selected_id);
+                                        }
+                                    }
                                 }
-                            } else {
-                                let pointer = &state.seat.pointer;
-                                if let Some(notification) =
-                                    state.notifications.get_by_coordinates(pointer.x, pointer.y)
+                            }
+                        }
+
+                        let pointer = &state.seat.pointer;
+                        if let Some(id) = state.notifications.selected() {
+                            if let Some(selected_notif) = state.notifications.get_by_id(id) {
+                                let under_pointer =
+                                    state.notifications.get_by_coordinates(pointer.x, pointer.y);
+
+                                if Some(selected_notif) == under_pointer
+                                    && state
+                                        .notifications
+                                        .get_button_by_coordinates(pointer.x, pointer.y)
+                                        .is_some()
                                 {
-                                    state.select_notification(notification.id());
                                     state.seat.pointer.change_state(Some(PointerState::Hover));
                                     return;
                                 }
@@ -215,21 +253,6 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                 state.seat.pointer.x = surface_x;
                 state.seat.pointer.y = surface_y;
-
-                let hovered_id = state
-                    .notifications
-                    .get_by_coordinates(surface_x, surface_y)
-                    .map(|n| n.id());
-
-                match hovered_id {
-                    Some(id) => {
-                        state.select_notification(id);
-                        state.seat.pointer.change_state(Some(PointerState::Hover));
-                    }
-                    None => {
-                        state.seat.pointer.change_state(Some(PointerState::Default));
-                    }
-                }
 
                 state.seat.pointer.wl_pointer.set_cursor(
                     serial,

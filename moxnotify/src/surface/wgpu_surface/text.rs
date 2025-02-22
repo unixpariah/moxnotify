@@ -8,6 +8,8 @@ use std::sync::{Arc, LazyLock};
 use wgpu::{MultisampleState, TextureFormat};
 
 static REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<(/?)(b|i|a)\b[^>]*>").unwrap());
+static HREF_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"href\s*=\s*["']([^"']*)["']"#).unwrap());
 
 pub struct Text(pub Buffer);
 
@@ -17,7 +19,6 @@ impl Text {
         font_system: &mut FontSystem,
         summary: &str,
         body: &str,
-        actions: &[(Arc<str>, Arc<str>)],
         width: f32,
     ) -> Self {
         let attrs = Attrs::new();
@@ -37,6 +38,7 @@ impl Text {
             let mut style_stack = Vec::new();
             let mut current_attrs = attrs;
             let mut last_pos = 0;
+            let mut hrefs: Vec<Arc<str>> = Vec::new();
 
             REGEX.captures_iter(body).for_each(|cap| {
                 let full_match = cap.get(0).unwrap();
@@ -52,7 +54,14 @@ impl Text {
                     if let Some(pos) = style_stack.iter().rposition(|t| *t == tag) {
                         style_stack.remove(pos);
                     }
-                } else {
+                }
+
+                if !is_closing {
+                    if tag.as_ref() == "a" {
+                        if let Some(href_cap) = HREF_REGEX.captures(full_match.as_str()) {
+                            hrefs.push(href_cap[1].into());
+                        }
+                    }
                     style_stack.push(tag);
                 }
 
@@ -74,17 +83,6 @@ impl Text {
                 spans.push((text, current_attrs));
             }
         }
-
-        if !actions.is_empty() {
-            spans.push(("\n", attrs));
-        }
-
-        actions.iter().enumerate().for_each(|(i, action)| {
-            if i > 0 {
-                spans.push((" ", attrs));
-            }
-            spans.push((&action.1, attrs));
-        });
 
         // Scale the text to match it more with other apps
         let dpi = 96.0;

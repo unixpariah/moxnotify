@@ -1,3 +1,5 @@
+pub mod button;
+
 use super::config::Config;
 use crate::{
     config::{Size, StyleState},
@@ -9,6 +11,7 @@ use crate::{
     },
     Hint, Image, NotificationData, Urgency,
 };
+use button::{Action, Button, ButtonManager, ButtonType};
 use calloop::RegistrationToken;
 use glyphon::{FontSystem, TextArea, TextBounds};
 use std::{path::Path, sync::Arc};
@@ -33,6 +36,7 @@ pub struct Notification {
     pub icon: Option<ImageData>,
     pub urgency: Urgency,
     pub registration_token: Option<RegistrationToken>,
+    pub buttons: ButtonManager,
 }
 
 impl PartialEq for Notification {
@@ -93,7 +97,6 @@ impl Notification {
             font_system,
             &data.summary,
             &data.body,
-            &data.actions,
             config.styles.default.width - icon_width,
         );
 
@@ -121,7 +124,18 @@ impl Notification {
             }
         };
 
+        let mut buttons = ButtonManager::default();
+        buttons.push(Button::new(
+            style.border.size + style.width - style.padding.right - style.padding.left,
+            style.border.size + style.padding.top,
+            Action::DismissNotification,
+            ButtonType::Dismiss,
+            config.clone(),
+            font_system,
+        ));
+
         Self {
+            buttons,
             id: data.id,
             app_name: data.app_name,
             text,
@@ -145,7 +159,6 @@ impl Notification {
             font_system,
             summary,
             body,
-            &self.actions,
             style.width - icon_extents.0,
         )
     }
@@ -205,7 +218,7 @@ impl Notification {
         self.id
     }
 
-    pub fn get_instance(&self, y: f32, scale: f32) -> buffers::Instance {
+    pub fn get_instance(&self, y: f32, scale: f32) -> Vec<buffers::Instance> {
         let extents = self.rendered_extents();
 
         let style = self.style();
@@ -216,7 +229,7 @@ impl Notification {
             crate::Urgency::Critical => &style.urgency_critical,
         };
 
-        buffers::Instance {
+        let mut instances = vec![buffers::Instance {
             rect_pos: [extents.x, y],
             rect_size: [
                 extents.width - style.border.size * 2.0,
@@ -227,7 +240,13 @@ impl Notification {
             border_size: style.border.size,
             border_color: color.border.into(),
             scale,
-        }
+        }];
+
+        self.buttons.iter().for_each(|button| {
+            instances.push(button.get_instance(extents.x + style.padding.left, y, scale))
+        });
+
+        instances
     }
 
     pub fn extents(&self) -> Extents {

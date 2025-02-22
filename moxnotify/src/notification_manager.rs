@@ -1,4 +1,4 @@
-mod notification;
+pub mod notification;
 mod notification_view;
 
 use crate::{
@@ -14,7 +14,7 @@ use calloop::{
     LoopHandle,
 };
 use glyphon::{FontSystem, TextArea};
-use notification::{Notification, NotificationId};
+use notification::{button::Button, Notification, NotificationId};
 use notification_view::NotificationView;
 use std::{ops::Deref, sync::Arc, time::Duration};
 
@@ -68,7 +68,7 @@ impl NotificationManager {
 
                     height += notification.extents().height;
 
-                    instances.push(instance);
+                    instances.extend_from_slice(&instance);
                     text_areas.push(text);
                     if let Some(tex) = texture {
                         textures.push(tex);
@@ -114,6 +114,42 @@ impl NotificationManager {
 
                 if x_within_bounds && y_within_bounds {
                     Some(Some(notification))
+                } else {
+                    **current_y += notification.extents().height as f64;
+                    Some(None)
+                }
+            })
+            .flatten()
+            .next()
+    }
+
+    pub fn get_button_by_coordinates(&self, x: f64, y: f64) -> Option<&Button> {
+        let mut cumulative_y_offset: f64 = self
+            .notification_view
+            .prev
+            .as_ref()
+            .map(|n| n.extents().height)
+            .unwrap_or_default()
+            .into();
+
+        self.notification_view
+            .visible
+            .clone()
+            .filter_map(|index| self.notifications.get(index))
+            .scan(&mut cumulative_y_offset, |current_y, notification| {
+                let extents = notification.rendered_extents();
+                let notification_height = extents.height as f64;
+                let notification_x = extents.x as f64;
+                let notification_width = extents.width as f64;
+
+                let x_within_bounds =
+                    x >= notification_x && x < (notification_x + notification_width);
+                let y_within_bounds = y >= **current_y && y < (**current_y + notification_height);
+
+                if x_within_bounds && y_within_bounds {
+                    let local_x = x - notification_x;
+                    let local_y = y - **current_y;
+                    Some(notification.buttons.get_by_coordinates(local_x, local_y))
                 } else {
                     **current_y += notification.extents().height as f64;
                     Some(None)

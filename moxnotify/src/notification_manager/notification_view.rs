@@ -113,7 +113,7 @@ impl NotificationView {
     ) -> Option<(buffers::Instance, TextArea)> {
         if let Some(prev) = self.prev.as_ref() {
             *total_height += prev.extents().height;
-            return Some((prev.get_instance(0., scale), prev.text_area(0., scale)));
+            return Some((prev.get_instance(0., scale)[0], prev.text_area(0., scale)));
         }
 
         None
@@ -126,7 +126,7 @@ impl NotificationView {
     ) -> Option<(buffers::Instance, TextArea)> {
         if let Some(next) = self.next.as_ref() {
             return Some((
-                next.get_instance(total_height, scale),
+                next.get_instance(total_height, scale)[0],
                 next.text_area(total_height, scale),
             ));
         }
