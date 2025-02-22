@@ -1398,6 +1398,7 @@ dependencies = [
  "mlua",
  "pollster",
  "raw-window-handle",
+ "regex",
  "serde",
  "tokio",
  "url",

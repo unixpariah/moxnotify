@@ -11,7 +11,7 @@ use crate::{
 };
 use calloop::RegistrationToken;
 use glyphon::{FontSystem, TextArea, TextBounds};
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 #[derive(Debug)]
 pub struct Extents {
@@ -47,9 +47,37 @@ impl Notification {
         let mut urgency = None;
 
         data.hints.into_iter().for_each(|hint| match hint {
-            Hint::Image(Image::Data(image_data)) => {
-                icon = Some(image_data.into_rgba(config.max_icon_size));
-            }
+            Hint::Image(image) => match image {
+                Image::Data(image_data) => {
+                    icon = Some(image_data.into_rgba(config.max_icon_size));
+                }
+                Image::File(file) => {
+                    if let Ok(image) = image::open(file) {
+                        let image_data = ImageData::try_from(image);
+                        icon = image_data.ok().map(|i| i.into_rgba(config.max_icon_size));
+                    }
+                }
+                Image::Name(name) => {
+                    if let Some(path) = config
+                        .icon_paths
+                        .iter()
+                        .filter_map(|icon_path| {
+                            let path = Path::new(icon_path).join(&name);
+                            if path.exists() {
+                                Some(path)
+                            } else {
+                                None
+                            }
+                        })
+                        .next()
+                    {
+                        if let Ok(image) = image::open(path) {
+                            let image_data = ImageData::try_from(image);
+                            icon = image_data.ok().map(|i| i.into_rgba(config.max_icon_size));
+                        }
+                    }
+                }
+            },
             Hint::Urgency(level) if urgency.is_none() => urgency = Some(level),
             _ => {}
         });
@@ -65,6 +93,7 @@ impl Notification {
             font_system,
             &data.summary,
             &data.body,
+            &data.actions,
             config.styles.default.width - icon_width,
         );
 
@@ -116,6 +145,7 @@ impl Notification {
             font_system,
             summary,
             body,
+            &self.actions,
             style.width - icon_extents.0,
         )
     }

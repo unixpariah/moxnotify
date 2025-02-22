@@ -1,9 +1,13 @@
 use crate::config::Font;
 use glyphon::{
-    Attrs, Buffer, Cache, FontSystem, Shaping, SwashCache, TextArea, TextAtlas, TextRenderer,
-    Viewport, Weight,
+    Attrs, Buffer, Cache, Color, FontSystem, Shaping, Style, SwashCache, TextArea, TextAtlas,
+    TextRenderer, Viewport, Weight,
 };
+use regex::Regex;
+use std::sync::{Arc, LazyLock};
 use wgpu::{MultisampleState, TextureFormat};
+
+static REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<(/?)(b|i|a)\b[^>]*>").unwrap());
 
 pub struct Text(pub Buffer);
 
@@ -13,16 +17,74 @@ impl Text {
         font_system: &mut FontSystem,
         summary: &str,
         body: &str,
+        actions: &[(Arc<str>, Arc<str>)],
         width: f32,
     ) -> Self {
         let attrs = Attrs::new();
         attrs.family(glyphon::Family::Name(&font.family));
 
-        let spans: &[(&str, Attrs)] = &[
-            (summary, attrs.weight(Weight::BOLD)),
-            ("\n", attrs),
-            (body, attrs),
-        ];
+        let mut spans: Vec<(&str, Attrs)> = vec![];
+
+        if !summary.is_empty() {
+            spans.push((summary, attrs.weight(Weight::BOLD)));
+        }
+
+        if !summary.is_empty() && !body.is_empty() {
+            spans.push(("\n", attrs));
+        }
+
+        if !body.is_empty() {
+            let mut style_stack = Vec::new();
+            let mut current_attrs = attrs;
+            let mut last_pos = 0;
+
+            REGEX.captures_iter(body).for_each(|cap| {
+                let full_match = cap.get(0).unwrap();
+                let is_closing = !cap[1].is_empty();
+                let tag: Box<str> = cap[2].into();
+
+                if full_match.start() > last_pos {
+                    let text = &body[last_pos..full_match.start()];
+                    spans.push((text, current_attrs));
+                }
+
+                if is_closing {
+                    if let Some(pos) = style_stack.iter().rposition(|t| *t == tag) {
+                        style_stack.remove(pos);
+                    }
+                } else {
+                    style_stack.push(tag);
+                }
+
+                current_attrs = attrs;
+                style_stack.iter().for_each(|tag| {
+                    current_attrs = match &**tag {
+                        "b" => current_attrs.weight(Weight::BOLD),
+                        "i" => current_attrs.style(Style::Italic),
+                        "a" => current_attrs.color(Color::rgb(0, 0, 255)),
+                        _ => current_attrs,
+                    };
+                });
+
+                last_pos = full_match.end();
+            });
+
+            if last_pos < body.len() {
+                let text = &body[last_pos..];
+                spans.push((text, current_attrs));
+            }
+        }
+
+        if !actions.is_empty() {
+            spans.push(("\n", attrs));
+        }
+
+        actions.iter().enumerate().for_each(|(i, action)| {
+            if i > 0 {
+                spans.push((" ", attrs));
+            }
+            spans.push((&action.1, attrs));
+        });
 
         // Scale the text to match it more with other apps
         let dpi = 96.0;

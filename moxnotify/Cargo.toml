@@ -29,3 +29,4 @@ fast_image_resize = "5.1.1"
 url = "2.5.4"
 wgpu = { version = "24.0.1", default-features = false, features = [ "wgsl" ] }
 glyphon = "0.8.0"
+regex = "1.11.1"

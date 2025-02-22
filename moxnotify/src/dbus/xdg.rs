@@ -13,13 +13,15 @@ struct NotificationsImpl {
 impl NotificationsImpl {
     async fn get_capabilities(&self) -> Vec<&'static str> {
         vec![
+            // "action-icons",
+            // "actions",
             "body",
-            "persistence",
+            "body-hyperlinks",
+            // "body-images",
+            "body-markup",
+            // "icon-multi",
             "icon-static",
-            //"actions",
-            //"action-icons",
-            //"body-markup",
-            //"body-hyperlinks",
+            "persistence",
             //"sound",
         ]
     }
@@ -129,7 +131,7 @@ impl NotificationsImpl {
     async fn get_server_information(
         &self,
     ) -> zbus::fdo::Result<(&'static str, &'static str, &'static str, &'static str)> {
-        Ok(("moxnotify", "unixpariah", VERSION, "1.2"))
+        Ok(("moxnotify", "mox", VERSION, "1.2"))
     }
 
     #[zbus(signal)]

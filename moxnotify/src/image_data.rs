@@ -1,4 +1,5 @@
 use fast_image_resize::{self as fr, ResizeOptions};
+use image::DynamicImage;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use zbus::zvariant::{Signature, Structure};
@@ -55,6 +56,33 @@ impl ImageData {
             data: dst.into_vec(),
             ..rgba
         }
+    }
+}
+
+impl TryFrom<DynamicImage> for ImageData {
+    type Error = anyhow::Error;
+
+    fn try_from(value: DynamicImage) -> Result<Self, Self::Error> {
+        let rgba_image = value.to_rgba8();
+
+        let width = rgba_image.width();
+        let height = rgba_image.height();
+        let data = rgba_image.as_raw().to_vec();
+
+        let channels = 4;
+        let bits_per_sample = 8;
+        let has_alpha = true;
+        let rowstride = (width * channels as u32) as i32;
+
+        Ok(Self {
+            width,
+            height,
+            rowstride,
+            has_alpha,
+            bits_per_sample,
+            channels,
+            data,
+        })
     }
 }
 
