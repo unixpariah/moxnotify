@@ -20,18 +20,21 @@ in
           background = base00 + moxnotifyOpacity;
           foreground = base05;
           border = base0B;
+          icon_border = base0B;
         };
 
         urgency_normal = {
           background = base01 + moxnotifyOpacity;
           foreground = base05;
           border = base0E;
+          icon_border = base0E;
         };
 
         urgency_critical = {
           background = base01 + moxnotifyOpacity;
           foreground = base05;
           border = base08;
+          icon_border = base08;
         };
 
         font = {

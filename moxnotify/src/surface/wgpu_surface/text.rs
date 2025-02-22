@@ -31,7 +31,7 @@ impl Text {
         }
 
         if !summary.is_empty() && !body.is_empty() {
-            spans.push(("\n", attrs));
+            spans.push(("\n\n", attrs));
         }
 
         if !body.is_empty() {

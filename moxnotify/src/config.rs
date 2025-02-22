@@ -199,6 +199,8 @@ pub struct Urgency {
     pub foreground: Color,
     #[serde(default)]
     pub border: Color,
+    #[serde(default)]
+    pub icon_border: Color,
 }
 
 #[derive(Deserialize, Default)]
@@ -573,16 +575,19 @@ impl Config {
                             ["urgency_low"] = {
                               ["background"] = "#1A1412",
                               ["border"] = "#3C7B82",
+                              ["icon_border"] = "#3C7B82",
                               ["foreground"] = "#3C7B82"
                             },
                             ["urgency_normal"] = {
                               ["background"] = "#1A1412",
                               ["border"] = "#567734",
+                              ["icon_border"] = "#567734",
                               ["foreground"] = "#567734"
                             },
                             ["urgency_critical"] = {
                               ["background"] = "#1A1412",
                               ["border"] = "#B04027",
+                              ["icon_border"] = "#B04027",
                               ["foreground"] = "#B04027"
                             },
                           },

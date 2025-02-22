@@ -119,14 +119,6 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 pointer.x = surface_x;
                 pointer.y = surface_y;
 
-                //println!(
-                //    "{:?}",
-                //    state.notifications[0]
-                //        .text
-                //        .0
-                //        .hit(pointer.x as f32, pointer.y as f32)
-                //);
-
                 if let Some(PointerState::Grabbing) = pointer.state {
                     return;
                 }
@@ -139,24 +131,16 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 }
 
                 let pointer = &state.seat.pointer;
-                if let Some(id) = hovered_id {
-                    if let Some(selected_notif) = state.notifications.get_by_id(id) {
-                        let under_pointer =
-                            state.notifications.get_by_coordinates(pointer.x, pointer.y);
 
-                        if Some(selected_notif) == under_pointer
-                            && state
-                                .notifications
-                                .get_button_by_coordinates(pointer.x, pointer.y)
-                                .is_some()
-                        {
-                            state.seat.pointer.change_state(Some(PointerState::Hover));
-                            state.deselect_notification();
-                            return;
-                        }
-                    }
+                if state
+                    .notifications
+                    .get_button_by_coordinates(pointer.x, pointer.y)
+                    .is_some()
+                {
+                    state.seat.pointer.change_state(Some(PointerState::Hover));
+                    state.deselect_notification();
+                    return;
                 }
-
                 state.seat.pointer.change_state(Some(PointerState::Default));
 
                 match (hovered_id, state.notifications.selected()) {
@@ -193,42 +177,25 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                         let pointer = &state.seat.pointer;
                         let (x, y) = (pointer.x, pointer.y);
 
-                        if let Some(selected_id) = state.notifications.selected() {
-                            if let Some(selected_notif) = state.notifications.get_by_id(selected_id)
+                        if let Some(under_pointer) = state.notifications.get_by_coordinates(x, y) {
+                            if let Some(button) =
+                                state.notifications.get_button_by_coordinates(x, y)
                             {
-                                let under_pointer = state.notifications.get_by_coordinates(x, y);
-
-                                if Some(selected_notif) == under_pointer {
-                                    if let Some(button) =
-                                        state.notifications.get_button_by_coordinates(x, y)
-                                    {
-                                        if button.action == Action::DismissNotification {
-                                            state.dismiss_notification(selected_id);
-                                        }
-                                    }
+                                if button.action == Action::DismissNotification {
+                                    state.dismiss_notification(under_pointer.id());
+                                    state.render();
+                                    state.seat.pointer.change_state(Some(PointerState::Default))
                                 }
                             }
                         }
 
-                        let pointer = &state.seat.pointer;
-                        if let Some(id) = state.notifications.selected() {
-                            if let Some(selected_notif) = state.notifications.get_by_id(id) {
-                                let under_pointer =
-                                    state.notifications.get_by_coordinates(pointer.x, pointer.y);
-
-                                if Some(selected_notif) == under_pointer
-                                    && state
-                                        .notifications
-                                        .get_button_by_coordinates(pointer.x, pointer.y)
-                                        .is_some()
-                                {
-                                    state.seat.pointer.change_state(Some(PointerState::Hover));
-                                    return;
-                                }
-                            }
+                        if state
+                            .notifications
+                            .get_button_by_coordinates(x, y)
+                            .is_some()
+                        {
+                            state.seat.pointer.change_state(Some(PointerState::Hover));
                         }
-
-                        state.seat.pointer.change_state(Some(PointerState::Default));
                     }
                     _ => unreachable!(),
                 }
@@ -236,10 +203,6 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
             wl_pointer::Event::Leave { serial, surface: _ } => {
                 state.seat.pointer.wl_pointer.set_cursor(serial, None, 0, 0);
                 state.seat.pointer.change_state(None);
-                surface
-                    .layer_surface
-                    .set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
-                state.deselect_notification();
             }
             wl_pointer::Event::Enter {
                 serial,
@@ -249,7 +212,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
             } => {
                 surface
                     .layer_surface
-                    .set_keyboard_interactivity(KeyboardInteractivity::Exclusive);
+                    .set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
 
                 state.seat.pointer.x = surface_x;
                 state.seat.pointer.y = surface_y;
