@@ -427,6 +427,7 @@ impl Moxnotify {
                 wl_surface,
                 &self.layer_shell,
                 &self.qh,
+                &self.globals,
                 &self.outputs,
                 Arc::clone(&self.config),
             ));

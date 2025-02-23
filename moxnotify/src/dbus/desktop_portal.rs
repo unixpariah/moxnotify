@@ -21,12 +21,15 @@ pub async fn serve(receiver: mpmc::Receiver<EmitEvent>) -> zbus::Result<()> {
 
     tokio::spawn(async move {
         loop {
-            if let Ok(EmitEvent::OpenURI { uri, token }) = receiver.recv() {
+            if let Ok(EmitEvent::OpenURI { uri, token, handle }) = receiver.recv() {
                 let mut options = HashMap::new();
                 if let Some(token) = token.as_ref() {
-                    options.insert("activation_token", zbus::zvariant::Value::new(token));
+                    options.insert("activation_token", zbus::zvariant::Value::new(&**token));
                 }
-                _ = open_uri.open_URI("", &uri, options).await;
+
+                _ = open_uri
+                    .open_URI(&handle.unwrap_or("".into()), &uri, options)
+                    .await;
             }
         }
     });

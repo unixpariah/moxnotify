@@ -64,7 +64,7 @@ pub struct Moxnotify {
     loop_handle: calloop::LoopHandle<'static, Self>,
     emit_sender: mpmc::Sender<EmitEvent>,
     compositor: wl_compositor::WlCompositor,
-    token: Option<String>,
+    token: Option<Box<str>>,
 }
 
 impl Moxnotify {
@@ -294,7 +294,8 @@ pub enum EmitEvent {
     },
     OpenURI {
         uri: Arc<str>,
-        token: Option<String>,
+        token: Option<Box<str>>,
+        handle: Option<Box<str>>,
     },
 }
 
@@ -369,7 +370,7 @@ impl Dispatch<xdg_activation_token_v1::XdgActivationTokenV1, ()> for Moxnotify {
         _: &QueueHandle<Self>,
     ) {
         if let xdg_activation_token_v1::Event::Done { token } = event {
-            state.token = Some(token);
+            state.token = Some(token.into());
         }
     }
 }

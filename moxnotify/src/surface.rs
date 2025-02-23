@@ -5,7 +5,10 @@ use crate::{
     wgpu_state, Moxnotify, Output,
 };
 use std::sync::Arc;
-use wayland_client::{delegate_noop, protocol::wl_surface, Connection, Dispatch, QueueHandle};
+use wayland_client::{
+    delegate_noop, globals::GlobalList, protocol::wl_surface, Connection, Dispatch, QueueHandle,
+};
+use wayland_protocols::xdg::foreign::zv2::client::{zxdg_exported_v2, zxdg_exporter_v2};
 use wayland_protocols_wlr::layer_shell::v1::client::{
     zwlr_layer_shell_v1,
     zwlr_layer_surface_v1::{self, KeyboardInteractivity},
@@ -17,6 +20,27 @@ pub struct Surface {
     pub layer_surface: zwlr_layer_surface_v1::ZwlrLayerSurfaceV1,
     pub scale: f32,
     pub configured: bool,
+    pub exporter: zxdg_exporter_v2::ZxdgExporterV2,
+    pub handle: Option<Box<str>>,
+}
+
+impl Dispatch<zxdg_exported_v2::ZxdgExportedV2, ()> for Moxnotify {
+    fn event(
+        state: &mut Self,
+        _: &zxdg_exported_v2::ZxdgExportedV2,
+        event: <zxdg_exported_v2::ZxdgExportedV2 as wayland_client::Proxy>::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        let Some(surface) = state.surface.as_mut() else {
+            return;
+        };
+
+        if let zxdg_exported_v2::Event::Handle { handle } = event {
+            surface.handle = Some(handle.into());
+        }
+    }
 }
 
 impl Surface {
@@ -25,6 +49,7 @@ impl Surface {
         wl_surface: wl_surface::WlSurface,
         layer_shell: &zwlr_layer_shell_v1::ZwlrLayerShellV1,
         qh: &QueueHandle<Moxnotify>,
+        globals: &GlobalList,
         outputs: &[Output],
         config: Arc<Config>,
     ) -> Self {
@@ -35,7 +60,15 @@ impl Surface {
             qh,
             layer_shell,
         );
+
+        let exporter = globals
+            .bind::<zxdg_exporter_v2::ZxdgExporterV2, _, _>(qh, 1..=1, ())
+            .unwrap();
+        exporter.export_toplevel(&wl_surface, qh, ());
+
         Self {
+            exporter,
+            handle: None,
             configured: false,
             scale,
             wgpu_surface: wgpu_surface::WgpuSurface::new(wgpu_state, &wl_surface, config).unwrap(),
@@ -136,4 +169,5 @@ impl Dispatch<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1, ()> for Moxnotify {
     }
 }
 
+delegate_noop!(Moxnotify: zxdg_exporter_v2::ZxdgExporterV2);
 delegate_noop!(Moxnotify: ignore wl_surface::WlSurface);

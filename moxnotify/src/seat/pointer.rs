@@ -206,8 +206,14 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                                     .send(EmitEvent::OpenURI {
                                         uri: Arc::clone(&anchor.href),
                                         token: state.token.take(),
+                                        handle: surface.handle.take(),
                                     })
                                     .unwrap();
+                                surface.exporter.export_toplevel(
+                                    &surface.wl_surface,
+                                    &state.qh,
+                                    (),
+                                );
                                 state.create_activation_token(serial);
                             }
                             if let Some(button) =

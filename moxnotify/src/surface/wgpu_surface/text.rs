@@ -14,6 +14,7 @@ static HREF_REGEX: LazyLock<Regex> =
 #[derive(Debug)]
 pub struct Anchor {
     text: Arc<str>,
+    char_num: usize,
     pub href: Arc<str>,
     pub line: usize,
     pub start: usize,
@@ -78,6 +79,7 @@ impl Text {
                         if let Some(href_cap) = HREF_REGEX.captures(full_match.as_str()) {
                             let href = Arc::from(&href_cap[1]);
                             anchor_stack.push(Anchor {
+                                char_num: start_pos,
                                 text: "".into(),
                                 href,
                                 line: 0,
@@ -121,19 +123,22 @@ impl Text {
 
         let mut total = 0;
         anchors.iter_mut().for_each(|anchor| {
+            total = 0;
             buffer.lines.iter().enumerate().for_each(|(i, line)| {
                 line.text()
                     .match_indices(&*anchor.text)
-                    .for_each(|(start, text)| {
-                        if total + start - text.len() == start_pos - 1 {
-                            anchor.start = start - text.len() - 1;
-                            anchor.end = start - text.len() + anchor.text.len();
+                    .for_each(|(start, _)| {
+                        if total + start == anchor.char_num {
+                            anchor.start = start - 1;
+                            anchor.end = start + anchor.text.len();
                             anchor.line = i;
                         }
                     });
                 total += line.text().len();
             });
         });
+
+        println!("{:?}", anchors);
 
         Self { buffer, anchors }
     }
