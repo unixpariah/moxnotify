@@ -138,6 +138,13 @@ impl Text {
         Self { buffer, anchors }
     }
 
+    pub fn hit(&self, x: f32, y: f32) -> Option<&Anchor> {
+        let cursor = self.buffer.hit(x, y)?;
+        self.anchors.iter().find(|anchor| {
+            anchor.line == cursor.line && anchor.start < cursor.index && anchor.end >= cursor.index
+        })
+    }
+
     pub fn extents(&self) -> (f32, f32) {
         let (width, total_lines) = self
             .buffer

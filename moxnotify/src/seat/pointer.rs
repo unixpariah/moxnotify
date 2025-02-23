@@ -147,19 +147,13 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     state.notifications.get_by_coordinates(pointer.x, pointer.y)
                 {
                     let style = under_pointer.style();
-                    if let Some(cursor) = under_pointer
+                    if under_pointer
                         .text
-                        .buffer
                         .hit(pointer.x as f32, pointer.y as f32 - style.margin.top)
+                        .is_some()
                     {
-                        if under_pointer.text.anchors.iter().any(|anchor| {
-                            anchor.line == cursor.line
-                                && anchor.start < cursor.index
-                                && anchor.end >= cursor.index
-                        }) {
-                            state.seat.pointer.change_state(Some(PointerState::Hover));
-                            return;
-                        }
+                        state.seat.pointer.change_state(Some(PointerState::Hover));
+                        return;
                     }
                 }
 
@@ -182,7 +176,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 }
             }
             wl_pointer::Event::Button {
-                serial: _,
+                serial,
                 time: _,
                 button,
                 state: WEnum::Value(value),
@@ -201,23 +195,20 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                         if let Some(under_pointer) = state.notifications.get_by_coordinates(x, y) {
                             // Get y position of this notification and subtract from y
+
                             let style = under_pointer.style();
-                            if let Some(cursor) = under_pointer
+                            if let Some(anchor) = under_pointer
                                 .text
-                                .buffer
                                 .hit(pointer.x as f32, pointer.y as f32 - style.margin.top)
                             {
-                                if let Some(anchor) =
-                                    under_pointer.text.anchors.iter().find(|anchor| {
-                                        anchor.line == cursor.line
-                                            && anchor.start < cursor.index
-                                            && anchor.end >= cursor.index
-                                    })
-                                {
-                                    state.emit_sender.send(EmitEvent::OpenURI {
+                                state
+                                    .emit_sender
+                                    .send(EmitEvent::OpenURI {
                                         uri: Arc::clone(&anchor.href),
-                                    });
-                                }
+                                        token: state.token.take(),
+                                    })
+                                    .unwrap();
+                                state.create_activation_token(serial);
                             }
                             if let Some(button) =
                                 state.notifications.get_button_by_coordinates(x, y)

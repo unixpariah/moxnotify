@@ -64,6 +64,7 @@ pub struct Moxnotify {
     loop_handle: calloop::LoopHandle<'static, Self>,
     emit_sender: mpmc::Sender<EmitEvent>,
     compositor: wl_compositor::WlCompositor,
+    token: Option<String>,
 }
 
 impl Moxnotify {
@@ -83,6 +84,7 @@ impl Moxnotify {
         let wgpu_state = WgpuState::new(conn)?;
 
         Ok(Self {
+            token: None,
             globals,
             qh,
             notifications: NotificationManager::new(Arc::clone(&config), loop_handle.clone()),
@@ -194,11 +196,11 @@ impl Moxnotify {
         Ok(())
     }
 
-    fn create_activation_token(&self, serial: u32, id: u32) {
+    fn create_activation_token(&self, serial: u32) {
         let Some(surface) = self.surface.as_ref() else {
             return;
         };
-        let token = self.seat.xdg_activation.get_activation_token(&self.qh, id);
+        let token = self.seat.xdg_activation.get_activation_token(&self.qh, ());
         token.set_serial(serial, &self.seat.wl_seat);
         token.set_surface(&surface.wl_surface);
         token.commit();
@@ -292,6 +294,7 @@ pub enum EmitEvent {
     },
     OpenURI {
         uri: Arc<str>,
+        token: Option<String>,
     },
 }
 
@@ -356,33 +359,17 @@ impl Dispatch<wl_output::WlOutput, ()> for Moxnotify {
     }
 }
 
-impl Dispatch<xdg_activation_token_v1::XdgActivationTokenV1, u32> for Moxnotify {
+impl Dispatch<xdg_activation_token_v1::XdgActivationTokenV1, ()> for Moxnotify {
     fn event(
         state: &mut Self,
         _: &xdg_activation_token_v1::XdgActivationTokenV1,
         event: <xdg_activation_token_v1::XdgActivationTokenV1 as Proxy>::Event,
-        id: &u32,
+        _: &(),
         _: &Connection,
         _: &QueueHandle<Self>,
     ) {
-        let Some(notification) = state
-            .notifications
-            .iter()
-            .find(|notification| notification.id() == *id)
-        else {
-            return;
-        };
-
         if let xdg_activation_token_v1::Event::Done { token } = event {
-            if let Some(action) = notification.actions.first() {
-                if let Err(e) = state.emit_sender.send(EmitEvent::ActionInvoked {
-                    id: *id,
-                    action_key: Arc::clone(&action.0),
-                    token: token.into(),
-                }) {
-                    log::error!("Failed to send ActionInvoked event: {e}");
-                }
-            }
+            state.token = Some(token);
         }
     }
 }

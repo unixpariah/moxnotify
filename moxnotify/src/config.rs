@@ -368,7 +368,6 @@ pub enum KeyAction {
     NextNotification,
     PreviousNotification,
     DismissNotification,
-    InvokeAction,
     Unfocus,
 }
 
@@ -488,10 +487,6 @@ fn default_keymaps() -> HashMap<KeyCombination, KeyAction> {
     insert_default(Key::Character('j'), KeyAction::NextNotification);
     insert_default(Key::Character('k'), KeyAction::PreviousNotification);
     insert_default(Key::Character('x'), KeyAction::DismissNotification);
-    insert_default(
-        Key::SpecialKey(SpecialKeyCode::Enter),
-        KeyAction::InvokeAction,
-    );
     insert_default(Key::SpecialKey(SpecialKeyCode::Escape), KeyAction::Unfocus);
 
     keymaps
@@ -546,10 +541,6 @@ where
     insert_default(Key::Character('j'), KeyAction::NextNotification);
     insert_default(Key::Character('k'), KeyAction::PreviousNotification);
     insert_default(Key::Character('x'), KeyAction::DismissNotification);
-    insert_default(
-        Key::SpecialKey(SpecialKeyCode::Enter),
-        KeyAction::InvokeAction,
-    );
     insert_default(Key::SpecialKey(SpecialKeyCode::Escape), KeyAction::Unfocus);
 
     Ok(keymaps)

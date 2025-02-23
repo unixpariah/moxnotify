@@ -191,30 +191,6 @@ impl Moxnotify {
                     self.notifications.prev();
                     self.update_surface_size();
                 }
-                KeyAction::InvokeAction => {
-                    if let Some(id) = self.notifications.selected() {
-                        if let Some(index) = self
-                            .notifications
-                            .iter()
-                            .position(|notification| notification.id() == id)
-                        {
-                            self.invoke_action(id, serial);
-                            let adjusted_index = if index == self.notifications.len()
-                                && !self.notifications.is_empty()
-                            {
-                                index.saturating_sub(1)
-                            } else {
-                                index
-                            };
-
-                            if let Some(notification) =
-                                self.notifications.get(adjusted_index).map(|n| n.id())
-                            {
-                                self.select_notification(notification);
-                            }
-                        }
-                    }
-                }
                 KeyAction::DismissNotification => {
                     if let Some(id) = self.notifications.selected() {
                         if let Some(index) = self

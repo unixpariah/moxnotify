@@ -119,19 +119,19 @@ impl Dispatch<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1, ()> for Moxnotify {
         _: &Connection,
         _: &QueueHandle<Self>,
     ) {
-        let Some(surface) = state.surface.as_mut() else {
-            return;
-        };
         if let zwlr_layer_surface_v1::Event::Configure {
             serial,
             width,
             height,
         } = event
         {
-            surface.layer_surface.ack_configure(serial);
-            surface.configured = true;
-            state.resize(width, height);
-            state.render();
+            state.create_activation_token(serial);
+            if let Some(surface) = state.surface.as_mut() {
+                surface.layer_surface.ack_configure(serial);
+                surface.configured = true;
+                state.resize(width, height);
+                state.render();
+            }
         }
     }
 }

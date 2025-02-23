@@ -353,7 +353,7 @@ impl NotificationManager {
 
 impl Moxnotify {
     pub fn invoke_action(&mut self, id: NotificationId, serial: u32) {
-        self.create_activation_token(serial, id);
+        self.create_activation_token(serial);
         self.dismiss_notification(id);
     }
 
