@@ -216,7 +216,7 @@ impl NotificationManager {
 
             let icon_extents = new_notification.icon_extents();
 
-            new_notification.text.0.set_size(
+            new_notification.text.buffer.set_size(
                 &mut self.font_system,
                 Some(style.width - icon_extents.0),
                 None,

@@ -11,7 +11,19 @@ static REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<(/?)(b|i|a)\b[^>]
 static HREF_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"href\s*=\s*["']([^"']*)["']"#).unwrap());
 
-pub struct Text(pub Buffer);
+#[derive(Debug)]
+pub struct Anchor {
+    text: Arc<str>,
+    pub href: Arc<str>,
+    pub line: usize,
+    pub start: usize,
+    pub end: usize,
+}
+
+pub struct Text {
+    pub buffer: Buffer,
+    pub anchors: Vec<Anchor>,
+}
 
 impl Text {
     pub fn new(
@@ -21,10 +33,10 @@ impl Text {
         body: &str,
         width: f32,
     ) -> Self {
-        let attrs = Attrs::new();
-        attrs.family(glyphon::Family::Name(&font.family));
-
-        let mut spans: Vec<(&str, Attrs)> = vec![];
+        let attrs = Attrs::new().family(glyphon::Family::Name(&font.family));
+        let mut spans = vec![];
+        let mut anchors = Vec::new();
+        let mut anchor_stack: Vec<Anchor> = Vec::new();
 
         if !summary.is_empty() {
             spans.push((summary, attrs.weight(Weight::BOLD)));
@@ -34,11 +46,11 @@ impl Text {
             spans.push(("\n\n", attrs));
         }
 
+        let mut start_pos = summary.len();
         if !body.is_empty() {
             let mut style_stack = Vec::new();
             let mut current_attrs = attrs;
             let mut last_pos = 0;
-            let mut hrefs: Vec<Arc<str>> = Vec::new();
 
             REGEX.captures_iter(body).for_each(|cap| {
                 let full_match = cap.get(0).unwrap();
@@ -47,6 +59,7 @@ impl Text {
 
                 if full_match.start() > last_pos {
                     let text = &body[last_pos..full_match.start()];
+                    start_pos += text.trim().chars().filter(|char| *char != '\n').count();
                     spans.push((text, current_attrs));
                 }
 
@@ -54,12 +67,23 @@ impl Text {
                     if let Some(pos) = style_stack.iter().rposition(|t| *t == tag) {
                         style_stack.remove(pos);
                     }
-                }
-
-                if !is_closing {
+                    if tag.as_ref() == "a" {
+                        if let Some(mut anchor) = anchor_stack.pop() {
+                            anchor.text = (&body[last_pos..full_match.start()]).into();
+                            anchors.push(anchor);
+                        }
+                    }
+                } else {
                     if tag.as_ref() == "a" {
                         if let Some(href_cap) = HREF_REGEX.captures(full_match.as_str()) {
-                            hrefs.push(href_cap[1].into());
+                            let href = Arc::from(&href_cap[1]);
+                            anchor_stack.push(Anchor {
+                                text: "".into(),
+                                href,
+                                line: 0,
+                                start: 0,
+                                end: 0,
+                            });
                         }
                     }
                     style_stack.push(tag);
@@ -84,31 +108,45 @@ impl Text {
             }
         }
 
-        // Scale the text to match it more with other apps
         let dpi = 96.0;
         let font_size = font.size * dpi / 72.0;
 
-        let mut buffer = glyphon::Buffer::new(
+        let mut buffer = Buffer::new(
             font_system,
             glyphon::Metrics::new(font_size, font_size * 1.2),
         );
-
         buffer.set_rich_text(font_system, spans.iter().copied(), attrs, Shaping::Advanced);
         buffer.shape_until_scroll(font_system, true);
         buffer.set_size(font_system, Some(width), None);
 
-        Self(buffer)
+        let mut total = 0;
+        anchors.iter_mut().for_each(|anchor| {
+            buffer.lines.iter().enumerate().for_each(|(i, line)| {
+                line.text()
+                    .match_indices(&*anchor.text)
+                    .for_each(|(start, text)| {
+                        if total + start - text.len() == start_pos - 1 {
+                            anchor.start = start - text.len() - 1;
+                            anchor.end = start - text.len() + anchor.text.len();
+                            anchor.line = i;
+                        }
+                    });
+                total += line.text().len();
+            });
+        });
+
+        Self { buffer, anchors }
     }
 
     pub fn extents(&self) -> (f32, f32) {
         let (width, total_lines) = self
-            .0
+            .buffer
             .layout_runs()
             .fold((0.0, 0.0), |(width, total_lines), run| {
                 (run.line_w.max(width), total_lines + 1.0)
             });
 
-        (width, total_lines * self.0.metrics().line_height)
+        (width, total_lines * self.buffer.metrics().line_height)
     }
 }
 

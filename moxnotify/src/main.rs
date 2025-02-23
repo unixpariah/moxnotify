@@ -1,3 +1,5 @@
+#![feature(mpmc_channel)]
+
 mod config;
 mod dbus;
 mod image_data;
@@ -15,7 +17,7 @@ use seat::Seat;
 use serde::{Deserialize, Serialize};
 use std::{
     path::PathBuf,
-    sync::{mpsc, Arc},
+    sync::{mpmc, Arc},
 };
 use surface::Surface;
 use wayland_client::{
@@ -60,7 +62,7 @@ pub struct Moxnotify {
     qh: QueueHandle<Self>,
     globals: GlobalList,
     loop_handle: calloop::LoopHandle<'static, Self>,
-    emit_sender: mpsc::Sender<EmitEvent>,
+    emit_sender: mpmc::Sender<EmitEvent>,
     compositor: wl_compositor::WlCompositor,
 }
 
@@ -70,7 +72,7 @@ impl Moxnotify {
         qh: QueueHandle<Moxnotify>,
         globals: GlobalList,
         loop_handle: calloop::LoopHandle<'static, Self>,
-        emit_sender: mpsc::Sender<EmitEvent>,
+        emit_sender: mpmc::Sender<EmitEvent>,
     ) -> anyhow::Result<Self> {
         let layer_shell = globals.bind(&qh, 1..=5, ())?;
         let compositor = globals.bind::<wl_compositor::WlCompositor, _, _>(&qh, 1..=6, ())?;
@@ -182,7 +184,9 @@ impl Moxnotify {
                         .layer_surface
                         .set_keyboard_interactivity(KeyboardInteractivity::Exclusive);
                     surface.wl_surface.commit();
-                    self.notifications.next();
+                    if self.notifications.selected().is_none() {
+                        self.notifications.next();
+                    }
                     self.render();
                 }
             }
@@ -285,6 +289,9 @@ pub enum EmitEvent {
     NotificationClosed {
         id: u32,
         reason: u32,
+    },
+    OpenURI {
+        uri: Arc<str>,
     },
 }
 
@@ -390,7 +397,7 @@ async fn main() -> anyhow::Result<()> {
     let (globals, event_queue) = registry_queue_init(&conn)?;
     let qh = event_queue.handle();
 
-    let (emit_sender, emit_receiver) = mpsc::channel();
+    let (emit_sender, emit_receiver) = mpmc::channel();
     let mut event_loop = EventLoop::try_new()?;
     let mut moxnotify = Moxnotify::new(&conn, qh, globals, event_loop.handle(), emit_sender)?;
 
@@ -418,17 +425,19 @@ async fn main() -> anyhow::Result<()> {
 
     {
         let event_sender = event_sender.clone();
+        let emit_receiver = emit_receiver.clone();
         scheduler.schedule(async move {
             _ = dbus::xdg::serve(event_sender, emit_receiver).await;
         })?;
     }
 
-    {
-        let event_sender = event_sender.clone();
-        scheduler.schedule(async move {
-            _ = dbus::moxnotify::serve(event_sender).await;
-        })?;
-    }
+    scheduler.schedule(async move {
+        _ = dbus::moxnotify::serve(event_sender).await;
+    })?;
+
+    scheduler.schedule(async move {
+        _ = dbus::desktop_portal::serve(emit_receiver).await;
+    })?;
 
     event_loop
         .handle()

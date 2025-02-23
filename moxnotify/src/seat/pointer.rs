@@ -1,4 +1,5 @@
-use crate::{notification_manager::notification::button::Action, Moxnotify};
+use crate::{notification_manager::notification::button::Action, EmitEvent, Moxnotify};
+use std::sync::Arc;
 use wayland_client::{
     globals::GlobalList,
     protocol::{wl_compositor, wl_pointer, wl_seat, wl_shm, wl_surface},
@@ -141,6 +142,27 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     state.deselect_notification();
                     return;
                 }
+
+                if let Some(under_pointer) =
+                    state.notifications.get_by_coordinates(pointer.x, pointer.y)
+                {
+                    let style = under_pointer.style();
+                    if let Some(cursor) = under_pointer
+                        .text
+                        .buffer
+                        .hit(pointer.x as f32, pointer.y as f32 - style.margin.top)
+                    {
+                        if under_pointer.text.anchors.iter().any(|anchor| {
+                            anchor.line == cursor.line
+                                && anchor.start < cursor.index
+                                && anchor.end >= cursor.index
+                        }) {
+                            state.seat.pointer.change_state(Some(PointerState::Hover));
+                            return;
+                        }
+                    }
+                }
+
                 state.seat.pointer.change_state(Some(PointerState::Default));
 
                 match (hovered_id, state.notifications.selected()) {
@@ -178,6 +200,25 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                         let (x, y) = (pointer.x, pointer.y);
 
                         if let Some(under_pointer) = state.notifications.get_by_coordinates(x, y) {
+                            // Get y position of this notification and subtract from y
+                            let style = under_pointer.style();
+                            if let Some(cursor) = under_pointer
+                                .text
+                                .buffer
+                                .hit(pointer.x as f32, pointer.y as f32 - style.margin.top)
+                            {
+                                if let Some(anchor) =
+                                    under_pointer.text.anchors.iter().find(|anchor| {
+                                        anchor.line == cursor.line
+                                            && anchor.start < cursor.index
+                                            && anchor.end >= cursor.index
+                                    })
+                                {
+                                    state.emit_sender.send(EmitEvent::OpenURI {
+                                        uri: Arc::clone(&anchor.href),
+                                    });
+                                }
+                            }
                             if let Some(button) =
                                 state.notifications.get_button_by_coordinates(x, y)
                             {
@@ -195,6 +236,8 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                             .is_some()
                         {
                             state.seat.pointer.change_state(Some(PointerState::Hover));
+                        } else {
+                            state.seat.pointer.change_state(Some(PointerState::Default))
                         }
                     }
                     _ => unreachable!(),

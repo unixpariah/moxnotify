@@ -367,7 +367,7 @@ impl Notification {
             .unwrap_or(0.);
 
         TextArea {
-            buffer: &self.text.0,
+            buffer: &self.text.buffer,
             left: extents.x + style.border.size + style.padding.left + icon_width_positioning,
             top: y + style.border.size + style.padding.top,
             scale,

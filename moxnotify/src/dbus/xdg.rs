@@ -1,5 +1,5 @@
 use crate::{image_data::ImageData, EmitEvent, Event, Hint, Image, NotificationData, Urgency};
-use std::{collections::HashMap, path::PathBuf, sync::mpsc};
+use std::{collections::HashMap, path::PathBuf, sync::mpmc};
 use zbus::{fdo::RequestNameFlags, object_server::SignalEmitter};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -158,7 +158,7 @@ impl NotificationsImpl {
 
 pub async fn serve(
     event_sender: calloop::channel::Sender<Event>,
-    emit_receiver: mpsc::Receiver<EmitEvent>,
+    emit_receiver: mpmc::Receiver<EmitEvent>,
 ) -> zbus::Result<()> {
     let server = NotificationsImpl {
         next_id: 1,
@@ -216,6 +216,7 @@ pub async fn serve(
                     }
                 }
                 Err(e) => log::error!("Failed to receive emit event: {e}"),
+                _ => {}
             };
         }
     });

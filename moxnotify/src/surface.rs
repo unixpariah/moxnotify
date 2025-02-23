@@ -56,7 +56,7 @@ impl Surface {
             .find(|output| output.name.as_ref() == Some(&config.output));
 
         let layer_surface = layer_shell.get_layer_surface(
-            &wl_surface,
+            wl_surface,
             output.map(|o| &o.wl_output),
             match config.layer {
                 config::Layer::Top => zwlr_layer_shell_v1::Layer::Top,
