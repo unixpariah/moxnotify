@@ -6,19 +6,12 @@
   libxkbcommon,
   wayland,
   vulkan-loader,
-  rust-bin,
-  makeRustPlatform,
 }:
 
 let
   cargoToml = builtins.fromTOML (builtins.readFile ../moxnotify/Cargo.toml);
-  nightlyRust = rust-bin.nightly.latest.default;
-  nightlyRustPlatform = makeRustPlatform {
-    cargo = nightlyRust;
-    rustc = nightlyRust;
-  };
 in
-nightlyRustPlatform.buildRustPackage rec {
+rustPlatform.buildRustPackage rec {
   pname = "moxnotify";
   version = cargoToml.package.version;
 

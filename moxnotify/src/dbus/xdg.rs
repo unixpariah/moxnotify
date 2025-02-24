@@ -1,5 +1,6 @@
 use crate::{image_data::ImageData, EmitEvent, Event, Hint, Image, NotificationData, Urgency};
-use std::{collections::HashMap, path::PathBuf, sync::mpmc};
+use std::{collections::HashMap, path::PathBuf};
+use tokio::sync::broadcast;
 use zbus::{fdo::RequestNameFlags, object_server::SignalEmitter};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -158,7 +159,7 @@ impl NotificationsImpl {
 
 pub async fn serve(
     event_sender: calloop::channel::Sender<Event>,
-    emit_receiver: mpmc::Receiver<EmitEvent>,
+    mut emit_receiver: broadcast::Receiver<EmitEvent>,
 ) -> zbus::Result<()> {
     let server = NotificationsImpl {
         next_id: 1,
@@ -183,7 +184,7 @@ pub async fn serve(
 
     tokio::spawn(async move {
         loop {
-            match emit_receiver.recv() {
+            match emit_receiver.recv().await {
                 Ok(EmitEvent::ActionInvoked {
                     id,
                     action_key,

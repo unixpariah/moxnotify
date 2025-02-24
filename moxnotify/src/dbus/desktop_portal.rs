@@ -1,9 +1,10 @@
+use tokio::sync::broadcast;
+
 use crate::EmitEvent;
 use std::{
     collections::HashMap,
     fs::File,
     os::fd::{AsRawFd, FromRawFd},
-    sync::mpmc,
 };
 
 #[zbus::proxy(
@@ -34,13 +35,13 @@ trait OpenURI {
     ) -> zbus::Result<zbus::zvariant::OwnedObjectPath>;
 }
 
-pub async fn serve(receiver: mpmc::Receiver<EmitEvent>) -> zbus::Result<()> {
+pub async fn serve(mut receiver: broadcast::Receiver<EmitEvent>) -> zbus::Result<()> {
     let conn = zbus::Connection::session().await?;
     let open_uri = OpenURIProxy::new(&conn).await?;
 
     tokio::spawn(async move {
         loop {
-            match receiver.recv() {
+            match receiver.recv().await {
                 Ok(EmitEvent::OpenURI { uri, token, handle }) => {
                     let mut options = HashMap::new();
                     if let Some(token) = token.as_ref() {

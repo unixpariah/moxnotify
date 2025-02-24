@@ -1,8 +1,5 @@
-#![feature(mpmc_channel)]
-
 mod config;
 mod dbus;
-mod duplex;
 mod image_data;
 mod notification_manager;
 mod seat;
@@ -16,11 +13,9 @@ use image_data::ImageData;
 use notification_manager::NotificationManager;
 use seat::Seat;
 use serde::{Deserialize, Serialize};
-use std::{
-    path::PathBuf,
-    sync::{mpmc, Arc},
-};
+use std::{path::PathBuf, sync::Arc};
 use surface::Surface;
+use tokio::sync::broadcast;
 use wayland_client::{
     delegate_noop,
     globals::{registry_queue_init, GlobalList, GlobalListContents},
@@ -63,7 +58,7 @@ pub struct Moxnotify {
     qh: QueueHandle<Self>,
     globals: GlobalList,
     loop_handle: calloop::LoopHandle<'static, Self>,
-    emit_sender: mpmc::Sender<EmitEvent>,
+    emit_sender: broadcast::Sender<EmitEvent>,
     compositor: wl_compositor::WlCompositor,
 }
 
@@ -73,7 +68,7 @@ impl Moxnotify {
         qh: QueueHandle<Moxnotify>,
         globals: GlobalList,
         loop_handle: calloop::LoopHandle<'static, Self>,
-        emit_sender: mpmc::Sender<EmitEvent>,
+        emit_sender: broadcast::Sender<EmitEvent>,
     ) -> anyhow::Result<Self> {
         let layer_shell = globals.bind(&qh, 1..=5, ())?;
         let compositor = globals.bind::<wl_compositor::WlCompositor, _, _>(&qh, 1..=6, ())?;
@@ -303,6 +298,7 @@ pub struct NotificationData {
     hints: Vec<Hint>,
 }
 
+#[derive(Clone)]
 pub enum EmitEvent {
     ActionInvoked {
         id: u32,
@@ -425,9 +421,10 @@ async fn main() -> anyhow::Result<()> {
     let (globals, event_queue) = registry_queue_init(&conn)?;
     let qh = event_queue.handle();
 
-    let (emit_sender, emit_receiver) = mpmc::channel();
+    let (emit_sender, emit_receiver) = broadcast::channel(std::mem::size_of::<EmitEvent>());
     let mut event_loop = EventLoop::try_new()?;
-    let mut moxnotify = Moxnotify::new(&conn, qh, globals, event_loop.handle(), emit_sender)?;
+    let mut moxnotify =
+        Moxnotify::new(&conn, qh, globals, event_loop.handle(), emit_sender.clone())?;
 
     WaylandSource::new(conn, event_queue)
         .insert(event_loop.handle())
@@ -453,7 +450,7 @@ async fn main() -> anyhow::Result<()> {
 
     {
         let event_sender = event_sender.clone();
-        let emit_receiver = emit_receiver.clone();
+        let emit_receiver = emit_sender.subscribe();
         scheduler.schedule(async move {
             if let Err(e) = dbus::xdg::serve(event_sender, emit_receiver).await {
                 log::error!("{e}");
