@@ -1,4 +1,7 @@
-use crate::{notification_manager::notification::button::Action, EmitEvent, Moxnotify};
+use crate::{
+    notification_manager::notification::{self, button::Action},
+    EmitEvent, Moxnotify,
+};
 use std::sync::Arc;
 use wayland_client::{
     globals::GlobalList,
@@ -147,9 +150,15 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     state.notifications.get_by_coordinates(pointer.x, pointer.y)
                 {
                     let style = under_pointer.style();
+                    let mut acc = 0.;
+                    state.notifications.iter().find(|notification| {
+                        acc += notification.extents().height;
+                        notification == &under_pointer
+                    });
+                    acc -= under_pointer.rendered_extents().height;
                     if under_pointer
                         .text
-                        .hit(pointer.x as f32, pointer.y as f32 - style.margin.top)
+                        .hit(pointer.x as f32, pointer.y as f32 - acc)
                         .is_some()
                     {
                         state.seat.pointer.change_state(Some(PointerState::Hover));
@@ -190,25 +199,29 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                         state.seat.pointer.change_state(Some(PointerState::Pressed));
                     }
                     wl_pointer::ButtonState::Released => {
-                        let pointer = &state.seat.pointer;
-                        let (x, y) = (pointer.x, pointer.y);
+                        let (x, y) = (state.seat.pointer.x, state.seat.pointer.y);
 
                         if let Some(under_pointer) = state.notifications.get_by_coordinates(x, y) {
                             // Get y position of this notification and subtract from y
+                            let mut acc = 0.;
+                            state.notifications.iter().find(|notification| {
+                                acc += notification.extents().height;
+                                notification == &under_pointer
+                            });
+                            acc -= under_pointer.rendered_extents().height;
 
                             let style = under_pointer.style();
-                            if let Some(anchor) = under_pointer
-                                .text
-                                .hit(pointer.x as f32, pointer.y as f32 - style.margin.top)
-                            {
-                                state
-                                    .emit_sender
-                                    .send(EmitEvent::OpenURI {
-                                        uri: Arc::clone(&anchor.href),
-                                        token: state.token.take(),
-                                        handle: surface.handle.take(),
-                                    })
-                                    .unwrap();
+                            if let Some(anchor) = under_pointer.text.hit(x as f32, y as f32 - acc) {
+                                let handle = surface
+                                    .handle
+                                    .as_ref()
+                                    .map_or("".into(), |h| Arc::clone(&h));
+                                if let Ok(_) = state.emit_sender.send(EmitEvent::OpenURI {
+                                    uri: Arc::clone(&anchor.href),
+                                    token: state.token.take(),
+                                    handle: Arc::clone(&handle),
+                                }) {}
+
                                 surface.exporter.export_toplevel(
                                     &surface.wl_surface,
                                     &state.qh,

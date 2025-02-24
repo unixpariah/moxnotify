@@ -159,12 +159,6 @@ impl NotificationManager {
             .next()
     }
 
-    pub fn get_by_id(&self, id: NotificationId) -> Option<&Notification> {
-        self.notifications
-            .iter()
-            .find(|notification| notification.id() == id)
-    }
-
     pub fn height(&self) -> f32 {
         let height = self
             .notification_view

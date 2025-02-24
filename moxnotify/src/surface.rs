@@ -21,7 +21,7 @@ pub struct Surface {
     pub scale: f32,
     pub configured: bool,
     pub exporter: zxdg_exporter_v2::ZxdgExporterV2,
-    pub handle: Option<Box<str>>,
+    pub handle: Option<Arc<str>>,
 }
 
 impl Dispatch<zxdg_exported_v2::ZxdgExportedV2, ()> for Moxnotify {

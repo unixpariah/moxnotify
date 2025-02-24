@@ -294,6 +294,16 @@ pub enum EmitEvent {
     },
     OpenURI {
         uri: Arc<str>,
+        handle: Arc<str>,
+        token: Option<Box<str>>,
+    },
+    OpenFile {
+        path: Arc<str>,
+        token: Option<Box<str>>,
+        handle: Option<Box<str>>,
+    },
+    OpenDirectory {
+        path: Arc<str>,
         token: Option<Box<str>>,
         handle: Option<Box<str>>,
     },

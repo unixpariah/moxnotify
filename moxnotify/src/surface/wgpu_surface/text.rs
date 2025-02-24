@@ -138,8 +138,6 @@ impl Text {
             });
         });
 
-        println!("{:?}", anchors);
-
         Self { buffer, anchors }
     }
 

@@ -1,5 +1,10 @@
 use crate::EmitEvent;
-use std::{collections::HashMap, sync::mpmc};
+use std::{
+    collections::HashMap,
+    fs::File,
+    os::fd::{AsRawFd, FromRawFd},
+    sync::mpmc,
+};
 
 #[zbus::proxy(
     interface = "org.freedesktop.portal.OpenURI",
@@ -13,6 +18,20 @@ trait OpenURI {
         uri: &str,
         options: HashMap<&str, zbus::zvariant::Value<'_>>,
     ) -> zbus::Result<()>;
+
+    fn open_file(
+        &self,
+        parent_window: &str,
+        fd: zbus::zvariant::Fd<'_>,
+        options: HashMap<&str, zbus::zvariant::Value<'_>>,
+    ) -> zbus::Result<()>;
+
+    fn open_directory(
+        &self,
+        parent_window: &str,
+        fd: zbus::zvariant::Fd<'_>,
+        options: HashMap<&str, zbus::zvariant::Value<'_>>,
+    ) -> zbus::Result<()>;
 }
 
 pub async fn serve(receiver: mpmc::Receiver<EmitEvent>) -> zbus::Result<()> {
@@ -21,15 +40,58 @@ pub async fn serve(receiver: mpmc::Receiver<EmitEvent>) -> zbus::Result<()> {
 
     tokio::spawn(async move {
         loop {
-            if let Ok(EmitEvent::OpenURI { uri, token, handle }) = receiver.recv() {
-                let mut options = HashMap::new();
-                if let Some(token) = token.as_ref() {
-                    options.insert("activation_token", zbus::zvariant::Value::new(&**token));
-                }
+            match receiver.recv() {
+                Ok(EmitEvent::OpenURI { uri, token, handle }) => {
+                    let mut options = HashMap::new();
+                    if let Some(token) = token.as_ref() {
+                        options.insert("activation_token", zbus::zvariant::Value::new(&**token));
+                    }
 
-                _ = open_uri
-                    .open_URI(&handle.unwrap_or("".into()), &uri, options)
-                    .await;
+                    _ = open_uri.open_URI(&handle, &uri, options).await
+                }
+                Ok(EmitEvent::OpenFile {
+                    token,
+                    handle,
+                    path,
+                }) => {
+                    let mut options = HashMap::new();
+                    if let Some(token) = token.as_ref() {
+                        options.insert("activation_token", zbus::zvariant::Value::new(&**token));
+                    }
+
+                    if let Ok(file) = File::open(&*path) {
+                        let fd = unsafe { std::os::fd::OwnedFd::from_raw_fd(file.as_raw_fd()) };
+                        _ = open_uri
+                            .open_file(
+                                &handle.unwrap_or("".into()),
+                                zbus::zvariant::Fd::from(fd),
+                                options,
+                            )
+                            .await
+                    }
+                }
+                Ok(EmitEvent::OpenDirectory {
+                    token,
+                    handle,
+                    path,
+                }) => {
+                    let mut options = HashMap::new();
+                    if let Some(token) = token.as_ref() {
+                        options.insert("activation_token", zbus::zvariant::Value::new(&**token));
+                    }
+
+                    if let Ok(file) = File::open(&*path) {
+                        let fd = unsafe { std::os::fd::OwnedFd::from_raw_fd(file.as_raw_fd()) };
+                        _ = open_uri
+                            .open_directory(
+                                &handle.unwrap_or("".into()),
+                                zbus::zvariant::Fd::from(fd),
+                                options,
+                            )
+                            .await
+                    }
+                }
+                _ => {}
             }
         }
     });
