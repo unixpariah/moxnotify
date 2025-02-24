@@ -12,29 +12,35 @@
   };
 
   outputs =
-    { nixpkgs, ... }@inputs:
+    { nixpkgs, rust-overlay, ... }@inputs:
     let
       systems = [
         "x86_64-linux"
         "aarch64-linux"
       ];
+      overlays = [ (import rust-overlay) ];
       forAllSystems =
-        function: nixpkgs.lib.genAttrs systems (system: function nixpkgs.legacyPackages.${system});
+        function:
+        nixpkgs.lib.genAttrs systems (
+          system:
+          let
+            pkgs = import nixpkgs {
+              system = system;
+              overlays = overlays;
+            };
+          in
+          function pkgs
+        );
     in
     {
-      overlays.default = final: prev: {
-        rustToolchain = prev.rust-bin.rust.fromRustupToolchainFile ./rust-toolchain.toml;
-      };
 
       devShells = forAllSystems (pkgs: {
         default =
           with pkgs;
           mkShell rec {
             buildInputs = [
-              rustup
-              cargo
-              rustfmt
-              clippy
+              (rust-bin.selectLatestNightlyWith (toolchain: toolchain.default))
+              rust-analyzer-unwrapped
               nixd
               pkg-config
               lua5_4

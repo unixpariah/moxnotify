@@ -5,17 +5,22 @@
   rustPlatform,
   libxkbcommon,
   wayland,
-  vulkan-headers,
   vulkan-loader,
-  vulkan-validation-layers,
+  rust-bin,
+  makeRustPlatform,
 }:
 
 let
-  daemonCargoToml = builtins.fromTOML (builtins.readFile ../moxnotify/Cargo.toml);
+  cargoToml = builtins.fromTOML (builtins.readFile ../moxnotify/Cargo.toml);
+  nightlyRust = rust-bin.nightly.latest.default;
+  nightlyRustPlatform = makeRustPlatform {
+    cargo = nightlyRust;
+    rustc = nightlyRust;
+  };
 in
-rustPlatform.buildRustPackage rec {
+nightlyRustPlatform.buildRustPackage rec {
   pname = "moxnotify";
-  version = daemonCargoToml.package.version;
+  version = cargoToml.package.version;
 
   cargoLock = {
     lockFile = ../Cargo.lock;
