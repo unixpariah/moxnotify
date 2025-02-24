@@ -102,20 +102,20 @@ impl NotificationsImpl {
             })
             .collect();
 
-        self.event_sender
-            .send(Event::Notify(NotificationData {
-                id,
-                app_name: app_name.into(),
-                summary: summary.into(),
-                body: body.into(),
-                timeout: expire_timeout,
-                actions: actions
-                    .chunks_exact(2)
-                    .map(|action| (action[0].into(), action[1].into()))
-                    .collect(),
-                hints,
-            }))
-            .unwrap();
+        if let Err(e) = self.event_sender.send(Event::Notify(NotificationData {
+            id,
+            app_name: app_name.into(),
+            summary: summary.into(),
+            body: body.into(),
+            timeout: expire_timeout,
+            actions: actions
+                .chunks_exact(2)
+                .map(|action| (action[0].into(), action[1].into()))
+                .collect(),
+            hints,
+        })) {
+            log::error!("{e}");
+        }
 
         id
     }
@@ -170,15 +170,11 @@ pub async fn serve(
         .build()
         .await?;
 
-    if let Err(e) = conn
-        .request_name_with_flags(
-            "org.freedesktop.Notifications",
-            RequestNameFlags::DoNotQueue.into(),
-        )
-        .await
-    {
-        log::error!("{e}");
-    }
+    conn.request_name_with_flags(
+        "org.freedesktop.Notifications",
+        RequestNameFlags::DoNotQueue.into(),
+    )
+    .await?;
 
     let iface = conn
         .object_server()

@@ -2,6 +2,7 @@
 
 mod config;
 mod dbus;
+mod duplex;
 mod image_data;
 mod notification_manager;
 mod seat;
@@ -64,7 +65,6 @@ pub struct Moxnotify {
     loop_handle: calloop::LoopHandle<'static, Self>,
     emit_sender: mpmc::Sender<EmitEvent>,
     compositor: wl_compositor::WlCompositor,
-    token: Option<Box<str>>,
 }
 
 impl Moxnotify {
@@ -84,7 +84,6 @@ impl Moxnotify {
         let wgpu_state = WgpuState::new(conn)?;
 
         Ok(Self {
-            token: None,
             globals,
             qh,
             notifications: NotificationManager::new(Arc::clone(&config), loop_handle.clone()),
@@ -172,6 +171,28 @@ impl Moxnotify {
 
     fn handle_app_event(&mut self, event: Event) -> anyhow::Result<()> {
         match event {
+            Event::Dismiss { all, id } => {
+                if all {
+                    let ids: Vec<_> = self
+                        .notifications
+                        .notifications
+                        .iter()
+                        .map(|notification| notification.id())
+                        .collect();
+
+                    ids.iter().for_each(|id| self.dismiss_notification(*id));
+                    return Ok(());
+                }
+
+                if id == 0 {
+                    if let Some(notification) = self.notifications.notifications.first() {
+                        self.dismiss_notification(notification.id());
+                    }
+                    return Ok(());
+                }
+
+                self.dismiss_notification(id);
+            }
             Event::Notify(data) => {
                 self.notifications.add(data)?;
                 self.update_surface_size();
@@ -295,7 +316,7 @@ pub enum EmitEvent {
     OpenURI {
         uri: Arc<str>,
         handle: Arc<str>,
-        token: Option<Box<str>>,
+        token: Option<Arc<str>>,
     },
     OpenFile {
         path: Arc<str>,
@@ -310,6 +331,7 @@ pub enum EmitEvent {
 }
 
 pub enum Event {
+    Dismiss { all: bool, id: u32 },
     Notify(NotificationData),
     CloseNotification(u32),
     FocusSurface,
@@ -380,7 +402,9 @@ impl Dispatch<xdg_activation_token_v1::XdgActivationTokenV1, ()> for Moxnotify {
         _: &QueueHandle<Self>,
     ) {
         if let xdg_activation_token_v1::Event::Done { token } = event {
-            state.token = Some(token.into());
+            if let Some(surface) = state.surface.as_mut() {
+                surface.token = Some(token.into());
+            }
         }
     }
 }
@@ -391,6 +415,12 @@ delegate_noop!(Moxnotify: zwlr_layer_shell_v1::ZwlrLayerShellV1);
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    env_logger::Builder::new()
+        .filter_level(log::LevelFilter::Warn)
+        .init();
+
+    log::info!("hello");
+
     let conn = Connection::connect_to_env().expect("Failed to connect to wayland");
     let (globals, event_queue) = registry_queue_init(&conn)?;
     let qh = event_queue.handle();
@@ -425,16 +455,22 @@ async fn main() -> anyhow::Result<()> {
         let event_sender = event_sender.clone();
         let emit_receiver = emit_receiver.clone();
         scheduler.schedule(async move {
-            _ = dbus::xdg::serve(event_sender, emit_receiver).await;
+            if let Err(e) = dbus::xdg::serve(event_sender, emit_receiver).await {
+                log::error!("{e}");
+            }
         })?;
     }
 
     scheduler.schedule(async move {
-        _ = dbus::moxnotify::serve(event_sender).await;
+        if let Err(e) = dbus::moxnotify::serve(event_sender).await {
+            log::error!("{e}");
+        }
     })?;
 
     scheduler.schedule(async move {
-        _ = dbus::desktop_portal::serve(emit_receiver).await;
+        if let Err(e) = dbus::desktop_portal::serve(emit_receiver).await {
+            log::error!("{e}");
+        }
     })?;
 
     event_loop

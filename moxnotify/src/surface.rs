@@ -13,6 +13,7 @@ use wayland_protocols_wlr::layer_shell::v1::client::{
     zwlr_layer_shell_v1,
     zwlr_layer_surface_v1::{self, KeyboardInteractivity},
 };
+use wgpu::naga::back::pipeline_constants::process_overrides;
 
 pub struct Surface {
     pub wgpu_surface: wgpu_surface::WgpuSurface,
@@ -22,6 +23,7 @@ pub struct Surface {
     pub configured: bool,
     pub exporter: zxdg_exporter_v2::ZxdgExporterV2,
     pub handle: Option<Arc<str>>,
+    pub token: Option<Arc<str>>,
 }
 
 impl Dispatch<zxdg_exported_v2::ZxdgExportedV2, ()> for Moxnotify {
@@ -67,6 +69,7 @@ impl Surface {
         exporter.export_toplevel(&wl_surface, qh, ());
 
         Self {
+            token: None,
             exporter,
             handle: None,
             configured: false,

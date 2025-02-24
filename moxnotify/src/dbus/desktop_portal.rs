@@ -17,21 +17,21 @@ trait OpenURI {
         parent_window: &str,
         uri: &str,
         options: HashMap<&str, zbus::zvariant::Value<'_>>,
-    ) -> zbus::Result<()>;
+    ) -> zbus::Result<zbus::zvariant::OwnedObjectPath>;
 
     fn open_file(
         &self,
         parent_window: &str,
         fd: zbus::zvariant::Fd<'_>,
         options: HashMap<&str, zbus::zvariant::Value<'_>>,
-    ) -> zbus::Result<()>;
+    ) -> zbus::Result<zbus::zvariant::OwnedObjectPath>;
 
     fn open_directory(
         &self,
         parent_window: &str,
         fd: zbus::zvariant::Fd<'_>,
         options: HashMap<&str, zbus::zvariant::Value<'_>>,
-    ) -> zbus::Result<()>;
+    ) -> zbus::Result<zbus::zvariant::OwnedObjectPath>;
 }
 
 pub async fn serve(receiver: mpmc::Receiver<EmitEvent>) -> zbus::Result<()> {
@@ -47,7 +47,7 @@ pub async fn serve(receiver: mpmc::Receiver<EmitEvent>) -> zbus::Result<()> {
                         options.insert("activation_token", zbus::zvariant::Value::new(&**token));
                     }
 
-                    _ = open_uri.open_URI(&handle, &uri, options).await
+                    _ = open_uri.open_URI(&handle, &uri, options).await;
                 }
                 Ok(EmitEvent::OpenFile {
                     token,

@@ -19,7 +19,7 @@ use notification_view::NotificationView;
 use std::{ops::Deref, sync::Arc, time::Duration};
 
 pub struct NotificationManager {
-    notifications: Vec<Notification>,
+    pub notifications: Vec<Notification>,
     config: Arc<Config>,
     loop_handle: LoopHandle<'static, Moxnotify>,
     selected: Option<u32>,
@@ -346,11 +346,6 @@ impl NotificationManager {
 }
 
 impl Moxnotify {
-    pub fn invoke_action(&mut self, id: NotificationId, serial: u32) {
-        self.create_activation_token(serial);
-        self.dismiss_notification(id);
-    }
-
     pub fn dismiss_notification(&mut self, id: NotificationId) {
         if let Some(i) = self.notifications.iter().position(|n| n.id() == id) {
             if !self.notifications.notification_view.visible.contains(&i) {

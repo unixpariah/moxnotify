@@ -40,7 +40,7 @@
           mkShell rec {
             buildInputs = [
               (rust-bin.selectLatestNightlyWith (toolchain: toolchain.default))
-              rust-analyzer-unwrapped
+              (rust-bin.selectLatestNightlyWith (toolchain: toolchain.rust-analyzer))
               nixd
               pkg-config
               lua5_4

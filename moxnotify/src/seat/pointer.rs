@@ -1,7 +1,4 @@
-use crate::{
-    notification_manager::notification::{self, button::Action},
-    EmitEvent, Moxnotify,
-};
+use crate::{notification_manager::notification::button::Action, EmitEvent, Moxnotify};
 use std::sync::Arc;
 use wayland_client::{
     globals::GlobalList,
@@ -185,7 +182,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 }
             }
             wl_pointer::Event::Button {
-                serial,
+                serial: _,
                 time: _,
                 button,
                 state: WEnum::Value(value),
@@ -210,24 +207,14 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                             });
                             acc -= under_pointer.rendered_extents().height;
 
-                            let style = under_pointer.style();
                             if let Some(anchor) = under_pointer.text.hit(x as f32, y as f32 - acc) {
-                                let handle = surface
-                                    .handle
-                                    .as_ref()
-                                    .map_or("".into(), |h| Arc::clone(&h));
-                                if let Ok(_) = state.emit_sender.send(EmitEvent::OpenURI {
+                                let handle = surface.handle.as_ref().map_or("".into(), Arc::clone);
+                                let token = surface.token.as_ref().map(Arc::clone);
+                                state.emit_sender.send(EmitEvent::OpenURI {
                                     uri: Arc::clone(&anchor.href),
-                                    token: state.token.take(),
-                                    handle: Arc::clone(&handle),
-                                }) {}
-
-                                surface.exporter.export_toplevel(
-                                    &surface.wl_surface,
-                                    &state.qh,
-                                    (),
-                                );
-                                state.create_activation_token(serial);
+                                    token,
+                                    handle,
+                                });
                             }
                             if let Some(button) =
                                 state.notifications.get_button_by_coordinates(x, y)

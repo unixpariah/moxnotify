@@ -12,6 +12,14 @@ impl MoxnotifyInterface {
             log::warn!("{}", e);
         }
     }
+
+    async fn dismiss(&self, all: bool, id: u32) {
+        if let Err(e) = self.event_sender.send(Event::Dismiss { all, id }) {
+            log::warn!("{}", e);
+        }
+    }
+
+    async fn list(&self) {}
 }
 
 pub async fn serve(event_sender: calloop::channel::Sender<Event>) -> zbus::Result<()> {
