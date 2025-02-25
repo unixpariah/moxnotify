@@ -12,6 +12,7 @@ use crate::{
 };
 use calloop::RegistrationToken;
 use glyphon::{FontSystem, TextArea, TextBounds};
+use std::path::PathBuf;
 use std::{path::Path, sync::Arc};
 
 #[derive(Debug)]
@@ -43,6 +44,38 @@ impl PartialEq for Notification {
     }
 }
 
+fn svg_to_rgba(file: PathBuf, max_icon_size: u32) -> Option<ImageData> {
+    let svg_data = std::fs::read_to_string(&file).ok()?;
+
+    let mut options = usvg::Options::default();
+    options.fontdb_mut().load_system_fonts();
+
+    let tree = usvg::Tree::from_str(&svg_data, &options).ok()?;
+
+    let (width, height) = {
+        let size = tree.size();
+        let ratio = size.width() / size.height();
+        if size.width() > size.height() {
+            (max_icon_size, (max_icon_size as f32 / ratio) as u32)
+        } else {
+            ((max_icon_size as f32 * ratio) as u32, max_icon_size)
+        }
+    };
+
+    let mut pixmap = tiny_skia::Pixmap::new(width, height)?;
+    resvg::render(
+        &tree,
+        tiny_skia::Transform::identity(),
+        &mut pixmap.as_mut(),
+    );
+
+    let rgba_image = image::RgbaImage::from_raw(width, height, pixmap.data().to_vec())?;
+
+    ImageData::try_from(image::DynamicImage::ImageRgba8(rgba_image))
+        .ok()
+        .map(|d| d.into_rgba(max_icon_size))
+}
+
 impl Notification {
     pub fn new(config: Arc<Config>, font_system: &mut FontSystem, data: NotificationData) -> Self {
         let mut icon = None;
@@ -54,26 +87,21 @@ impl Notification {
                     icon = Some(image_data.into_rgba(config.max_icon_size));
                 }
                 Image::File(file) => {
-                    if let Ok(image) = image::open(file) {
+                    if file.extension().and_then(|s| s.to_str()) == Some("svg") {
+                        icon = svg_to_rgba(file, config.max_icon_size);
+                    } else if let Ok(image) = image::open(&file) {
                         let image_data = ImageData::try_from(image);
                         icon = image_data.ok().map(|i| i.into_rgba(config.max_icon_size));
                     }
                 }
                 Image::Name(name) => {
-                    if let Some(path) = config
-                        .icon_paths
-                        .iter()
-                        .filter_map(|icon_path| {
-                            let path = Path::new(icon_path).join(&name);
-                            if path.exists() {
-                                Some(path)
-                            } else {
-                                None
-                            }
-                        })
-                        .next()
+                    if let Some(icon_path) = freedesktop_icons::lookup(&name)
+                        .with_size(config.max_icon_size as u16)
+                        .find()
                     {
-                        if let Ok(image) = image::open(path) {
+                        if icon_path.extension().and_then(|s| s.to_str()) == Some("svg") {
+                            icon = svg_to_rgba(icon_path, config.max_icon_size);
+                        } else if let Ok(image) = image::open(icon_path) {
                             let image_data = ImageData::try_from(image);
                             icon = image_data.ok().map(|i| i.into_rgba(config.max_icon_size));
                         }
