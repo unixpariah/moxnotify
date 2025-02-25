@@ -24,7 +24,7 @@ pub struct NotificationManager {
     notifications: Vec<Notification>,
     config: Arc<Config>,
     loop_handle: LoopHandle<'static, Moxnotify>,
-    selected: Option<u32>,
+    selected: Option<NotificationId>,
     font_system: FontSystem,
     notification_view: NotificationView,
 }
@@ -434,7 +434,7 @@ impl Moxnotify {
 
         if self.surface.is_none() {
             let wl_surface = self.compositor.create_surface(&self.qh, ());
-            self.surface = Some(Surface::new(
+            self.surface = Surface::new(
                 &self.wgpu_state,
                 wl_surface,
                 &self.layer_shell,
@@ -442,7 +442,8 @@ impl Moxnotify {
                 &self.globals,
                 &self.outputs,
                 Arc::clone(&self.config),
-            ));
+            )
+            .ok();
         }
 
         if total_width == 0. || total_height == 0. {

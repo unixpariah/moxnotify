@@ -1,7 +1,7 @@
 use super::config::Config;
-use crate::button::{Action, Button, ButtonManager};
+use crate::button::{Action, Button, ButtonManager, ButtonType};
 use crate::{
-    config::{ButtonType, Size, StyleState},
+    config::{Size, StyleState},
     image_data::ImageData,
     surface::wgpu_surface::{
         buffers,

@@ -15,7 +15,7 @@ pub struct WgpuSurface {
     pub texture_renderer: texture_renderer::TextureRenderer,
     pub shape_renderer: shape_renderer::ShapeRenderer,
     pub text_ctx: text::TextContext,
-    pub wgpu_surface: wgpu::Surface<'static>,
+    pub surface: wgpu::Surface<'static>,
     pub config: wgpu::SurfaceConfiguration,
 }
 
@@ -78,7 +78,7 @@ impl WgpuSurface {
             shape_renderer,
             texture_renderer,
             text_ctx,
-            wgpu_surface,
+            surface: wgpu_surface,
             config: surface_config,
         })
     }

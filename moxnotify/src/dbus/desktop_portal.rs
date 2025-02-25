@@ -1,7 +1,13 @@
 use tokio::sync::broadcast;
+use zbus::zvariant::Fd;
 
 use crate::EmitEvent;
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    fs::File,
+    os::fd::{FromRawFd, IntoRawFd, OwnedFd},
+    path::Path,
+};
 
 #[zbus::proxy(
     interface = "org.freedesktop.portal.OpenURI",
@@ -31,22 +37,77 @@ trait OpenURI {
     ) -> zbus::Result<zbus::zvariant::OwnedObjectPath>;
 }
 
+enum TargetType {
+    Uri,
+    File,
+    Directory,
+}
+
+fn detect_target_type(target: &str) -> Option<TargetType> {
+    if target.starts_with("http://")
+        || target.starts_with("https://")
+        || target.starts_with("ftp://")
+    {
+        return Some(TargetType::Uri);
+    }
+
+    let path = if target.starts_with("file://") {
+        Path::new(target.trim_start_matches("file://"))
+    } else {
+        Path::new(target)
+    };
+
+    if !path.exists() {
+        return None;
+    }
+
+    if path.is_dir() {
+        Some(TargetType::Directory)
+    } else {
+        Some(TargetType::File)
+    }
+}
+
+fn path_to_fd(path: &str) -> zbus::Result<Fd> {
+    let clean_path = path.trim_start_matches("file://");
+    let file = File::open(clean_path)?;
+
+    let raw_fd = file.into_raw_fd();
+
+    let owned_fd = unsafe { OwnedFd::from_raw_fd(raw_fd) };
+
+    Ok(Fd::from(owned_fd))
+}
+
 pub async fn serve(mut receiver: broadcast::Receiver<EmitEvent>) -> zbus::Result<()> {
     let conn = zbus::Connection::session().await?;
     let open_uri = OpenURIProxy::new(&conn).await?;
 
     tokio::spawn(async move {
         loop {
-            match receiver.recv().await {
-                Ok(EmitEvent::OpenURI { uri, token, handle }) => {
-                    let mut options = HashMap::new();
-                    if let Some(token) = token.as_ref() {
-                        options.insert("activation_token", zbus::zvariant::Value::new(&**token));
-                    }
-
-                    _ = open_uri.open_URI(&handle, &uri, options).await;
+            if let Ok(EmitEvent::Open { uri, handle, token }) = receiver.recv().await {
+                let mut options = HashMap::new();
+                if let Some(token) = &token {
+                    options.insert("activation_token", zbus::zvariant::Value::new(&**token));
                 }
-                _ => {}
+
+                if let Some(uri_type) = detect_target_type(&uri) {
+                    match uri_type {
+                        TargetType::Uri => {
+                            let _ = open_uri.open_URI(&handle, &uri, options).await;
+                        }
+                        TargetType::File => {
+                            if let Ok(fd) = path_to_fd(&uri) {
+                                let _ = open_uri.open_file(&handle, fd, options).await;
+                            }
+                        }
+                        TargetType::Directory => {
+                            if let Ok(fd) = path_to_fd(&uri) {
+                                let _ = open_uri.open_directory(&handle, fd, options).await;
+                            }
+                        }
+                    }
+                }
             }
         }
     });

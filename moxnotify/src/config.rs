@@ -415,16 +415,17 @@ pub struct NotificationStyleEntry {
     pub ignore_timeout: Option<bool>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub struct Button {
     pub width: f32,
     pub height: f32,
     pub border: Border,
 }
 
-#[derive(Deserialize, Hash, PartialEq, Eq)]
-pub enum ButtonType {
-    Dismiss,
+#[derive(Deserialize, Default)]
+pub struct Buttons {
+    pub dismiss: Button,
+    pub action: Button,
 }
 
 #[derive(Deserialize, Default)]
@@ -455,19 +456,17 @@ pub struct Config {
     #[serde(default)]
     pub notification: Vec<NotificationStyleEntry>,
     #[serde(default = "default_buttons")]
-    pub buttons: HashMap<ButtonType, Button>,
+    pub button: Buttons,
     #[serde(default = "default_keymaps")]
     #[serde(deserialize_with = "deserialize_keycombination_map")]
     pub keymaps: HashMap<KeyCombination, KeyAction>,
 }
 
-fn default_buttons() -> HashMap<ButtonType, Button> {
-    let mut buttons = HashMap::new();
-    buttons.insert(
-        ButtonType::Dismiss,
-        Button {
-            width: 20.,
+fn default_buttons() -> Buttons {
+    Buttons {
+        dismiss: Button {
             height: 20.,
+            width: 20.,
             border: Border {
                 size: 0.,
                 radius: BorderRadius {
@@ -478,8 +477,20 @@ fn default_buttons() -> HashMap<ButtonType, Button> {
                 },
             },
         },
-    );
-    buttons
+        action: Button {
+            height: 20.,
+            width: 20.,
+            border: Border {
+                size: 0.,
+                radius: BorderRadius {
+                    top_left: 50.,
+                    top_right: 50.,
+                    bottom_left: 50.,
+                    bottom_right: 50.,
+                },
+            },
+        },
+    }
 }
 
 fn default_icon_paths() -> Vec<Box<OsStr>> {

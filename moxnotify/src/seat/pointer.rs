@@ -231,7 +231,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                             let token = surface.token.as_ref().map(Arc::clone);
                             if state
                                 .emit_sender
-                                .send(EmitEvent::OpenURI {
+                                .send(EmitEvent::Open {
                                     uri: href,
                                     token,
                                     handle,

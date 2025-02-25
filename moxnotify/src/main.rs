@@ -202,7 +202,7 @@ pub enum EmitEvent {
         id: u32,
         reason: u32,
     },
-    OpenURI {
+    Open {
         uri: Arc<str>,
         handle: Arc<str>,
         token: Option<Arc<str>>,

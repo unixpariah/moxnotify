@@ -41,12 +41,10 @@ impl Dispatch<zxdg_exported_v2::ZxdgExportedV2, ()> for Moxnotify {
         _: &Connection,
         _: &QueueHandle<Self>,
     ) {
-        let Some(surface) = state.surface.as_mut() else {
-            return;
-        };
-
         if let zxdg_exported_v2::Event::Handle { handle } = event {
-            surface.handle = Some(handle.into());
+            if let Some(surface) = state.surface.as_mut() {
+                surface.handle = Some(handle.into());
+            }
         }
     }
 }
@@ -60,7 +58,7 @@ impl Surface {
         globals: &GlobalList,
         outputs: &[Output],
         config: Arc<Config>,
-    ) -> Self {
+    ) -> anyhow::Result<Self> {
         let (layer_surface, scale) = Surface::create_layer_surface(
             Arc::clone(&config),
             outputs,
@@ -69,21 +67,19 @@ impl Surface {
             layer_shell,
         );
 
-        let exporter = globals
-            .bind::<zxdg_exporter_v2::ZxdgExporterV2, _, _>(qh, 1..=1, ())
-            .unwrap();
+        let exporter = globals.bind::<zxdg_exporter_v2::ZxdgExporterV2, _, _>(qh, 1..=1, ())?;
         exporter.export_toplevel(&wl_surface, qh, ());
 
-        Self {
+        Ok(Self {
             focus_reason: None,
             token: None,
             handle: None,
             configured: false,
             scale,
-            wgpu_surface: wgpu_surface::WgpuSurface::new(wgpu_state, &wl_surface, config).unwrap(),
+            wgpu_surface: wgpu_surface::WgpuSurface::new(wgpu_state, &wl_surface, config)?,
             wl_surface,
             layer_surface,
-        }
+        })
     }
 
     pub fn render(
@@ -98,7 +94,7 @@ impl Surface {
 
         let surface_texture = self
             .wgpu_surface
-            .wgpu_surface
+            .surface
             .get_current_texture()
             .expect("failed to acquire next swapchain texture");
         let texture_view = surface_texture
@@ -156,7 +152,7 @@ impl Surface {
         self.wgpu_surface.config.width = width;
         self.wgpu_surface.config.height = height;
         self.wgpu_surface
-            .wgpu_surface
+            .surface
             .configure(device, &self.wgpu_surface.config);
         self.wgpu_surface
             .text_ctx

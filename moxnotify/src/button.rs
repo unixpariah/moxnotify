@@ -1,15 +1,19 @@
 mod text;
 
 use crate::{
-    config::{ButtonType, Config},
-    notification_manager::notification::Extents,
-    surface::wgpu_surface::buffers,
+    config::Config, notification_manager::notification::Extents, surface::wgpu_surface::buffers,
 };
 use glyphon::FontSystem;
 use std::{
     ops::{Deref, DerefMut},
     sync::Arc,
 };
+
+#[derive(PartialEq)]
+pub enum ButtonType {
+    Dismiss,
+    Action,
+}
 
 #[derive(PartialEq)]
 pub enum Action {
@@ -65,7 +69,10 @@ impl Button {
         config: Arc<Config>,
         font_system: &mut FontSystem,
     ) -> Self {
-        let button = config.buttons.get(&button_type).unwrap();
+        let button = match button_type {
+            ButtonType::Dismiss => &config.button.dismiss,
+            ButtonType::Action => &config.button.action,
+        };
 
         Self {
             x,
@@ -87,13 +94,17 @@ impl Button {
     }
 
     pub fn get_instance(&self, x: f32, y: f32, scale: f32) -> buffers::Instance {
-        let style = self.config.buttons.get(&self.button_type).unwrap();
+        let button = match self.button_type {
+            ButtonType::Dismiss => &self.config.button.dismiss,
+            ButtonType::Action => &self.config.button.action,
+        };
+
         buffers::Instance {
             rect_pos: [x + self.x, y + self.y],
             rect_size: [self.width, self.height],
             rect_color: [1., 0., 0., 1.],
-            border_radius: style.border.radius.into(),
-            border_size: style.border.size,
+            border_radius: button.border.radius.into(),
+            border_size: button.border.size,
             border_color: [0., 0., 0., 0.],
             scale,
         }
