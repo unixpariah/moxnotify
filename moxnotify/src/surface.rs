@@ -2,6 +2,7 @@ pub mod wgpu_surface;
 
 use crate::{
     config::{self, Anchor, Config},
+    notification_manager::NotificationManager,
     wgpu_state, Moxnotify, Output,
 };
 use std::sync::Arc;
@@ -13,17 +14,22 @@ use wayland_protocols_wlr::layer_shell::v1::client::{
     zwlr_layer_shell_v1,
     zwlr_layer_surface_v1::{self, KeyboardInteractivity},
 };
-use wgpu::naga::back::pipeline_constants::process_overrides;
+
+#[derive(PartialEq, Debug)]
+pub enum FocusReason {
+    Ctl,
+    MouseEnter,
+}
 
 pub struct Surface {
     pub wgpu_surface: wgpu_surface::WgpuSurface,
     pub wl_surface: wl_surface::WlSurface,
     pub layer_surface: zwlr_layer_surface_v1::ZwlrLayerSurfaceV1,
-    pub scale: f32,
-    pub configured: bool,
-    pub exporter: zxdg_exporter_v2::ZxdgExporterV2,
+    scale: f32,
+    configured: bool,
     pub handle: Option<Arc<str>>,
     pub token: Option<Arc<str>>,
+    pub focus_reason: Option<FocusReason>,
 }
 
 impl Dispatch<zxdg_exported_v2::ZxdgExportedV2, ()> for Moxnotify {
@@ -69,14 +75,123 @@ impl Surface {
         exporter.export_toplevel(&wl_surface, qh, ());
 
         Self {
+            focus_reason: None,
             token: None,
-            exporter,
             handle: None,
             configured: false,
             scale,
             wgpu_surface: wgpu_surface::WgpuSurface::new(wgpu_state, &wl_surface, config).unwrap(),
             wl_surface,
             layer_surface,
+        }
+    }
+
+    pub fn render(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        notifications: &NotificationManager,
+    ) -> anyhow::Result<()> {
+        if !self.configured {
+            return Ok(());
+        }
+
+        let surface_texture = self
+            .wgpu_surface
+            .wgpu_surface
+            .get_current_texture()
+            .expect("failed to acquire next swapchain texture");
+        let texture_view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut encoder = device.create_command_encoder(&Default::default());
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("Render pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &texture_view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                    store: wgpu::StoreOp::Store,
+                },
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+        });
+
+        let (instances, text_data, textures) = notifications.data(self.scale);
+
+        self.wgpu_surface
+            .shape_renderer
+            .prepare(device, queue, &instances);
+        self.wgpu_surface
+            .texture_renderer
+            .prepare(device, queue, &textures);
+        self.wgpu_surface
+            .text_ctx
+            .prepare(device, queue, text_data)?;
+
+        self.wgpu_surface.shape_renderer.render(&mut render_pass);
+        self.wgpu_surface.texture_renderer.render(&mut render_pass);
+        self.wgpu_surface.text_ctx.render(&mut render_pass)?;
+
+        drop(render_pass); // Drop renderpass and release mutable borrow on encoder
+
+        queue.submit(Some(encoder.finish()));
+        surface_texture.present();
+
+        Ok(())
+    }
+
+    pub fn resize(&mut self, queue: &wgpu::Queue, device: &wgpu::Device, width: u32, height: u32) {
+        if width == self.wgpu_surface.config.height
+            || height == self.wgpu_surface.config.width
+            || width == 0
+            || height == 0
+        {
+            return;
+        }
+        self.wgpu_surface.config.width = width;
+        self.wgpu_surface.config.height = height;
+        self.wgpu_surface
+            .wgpu_surface
+            .configure(device, &self.wgpu_surface.config);
+        self.wgpu_surface
+            .text_ctx
+            .viewport
+            .update(queue, glyphon::Resolution { width, height });
+        self.wgpu_surface
+            .shape_renderer
+            .resize(queue, width as f32, height as f32);
+        self.wgpu_surface
+            .texture_renderer
+            .resize(queue, width as f32, height as f32);
+    }
+
+    pub fn focus(&mut self, focus_reason: FocusReason) {
+        if self.focus_reason.is_some() {
+            return;
+        }
+
+        match focus_reason {
+            FocusReason::Ctl => self
+                .layer_surface
+                .set_keyboard_interactivity(KeyboardInteractivity::Exclusive),
+            FocusReason::MouseEnter => self
+                .layer_surface
+                .set_keyboard_interactivity(KeyboardInteractivity::OnDemand),
+        }
+
+        self.focus_reason = Some(focus_reason);
+    }
+
+    pub fn unfocus(&mut self) {
+        if let Some(FocusReason::Ctl) = self.focus_reason {
+            self.layer_surface
+                .set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
+            self.focus_reason = None;
         }
     }
 
@@ -153,7 +268,7 @@ impl Dispatch<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1, ()> for Moxnotify {
         event: <zwlr_layer_surface_v1::ZwlrLayerSurfaceV1 as wayland_client::Proxy>::Event,
         _: &(),
         _: &Connection,
-        _: &QueueHandle<Self>,
+        qh: &QueueHandle<Self>,
     ) {
         if let zwlr_layer_surface_v1::Event::Configure {
             serial,
@@ -161,12 +276,27 @@ impl Dispatch<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1, ()> for Moxnotify {
             height,
         } = event
         {
-            state.create_activation_token(serial);
+            if let Some(surface) = state.surface.as_ref() {
+                let token = state.seat.xdg_activation.get_activation_token(qh, ());
+                token.set_serial(serial, &state.seat.wl_seat);
+                token.set_surface(&surface.wl_surface);
+                token.commit();
+            }
+
             if let Some(surface) = state.surface.as_mut() {
+                surface.resize(
+                    &state.wgpu_state.queue,
+                    &state.wgpu_state.device,
+                    width,
+                    height,
+                );
                 surface.layer_surface.ack_configure(serial);
                 surface.configured = true;
-                state.resize(width, height);
-                state.render();
+                _ = surface.render(
+                    &state.wgpu_state.device,
+                    &state.wgpu_state.queue,
+                    &state.notifications,
+                );
             }
         }
     }

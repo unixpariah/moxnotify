@@ -2,6 +2,7 @@ pub mod notification;
 mod notification_view;
 
 use crate::{
+    button::Button,
     config::{self, Config, Key, Queue},
     surface::{
         wgpu_surface::{buffers, texture_renderer::TextureArea},
@@ -14,17 +15,18 @@ use calloop::{
     LoopHandle,
 };
 use glyphon::{FontSystem, TextArea};
-use notification::{button::Button, Notification, NotificationId};
+use notification::{Notification, NotificationId};
 use notification_view::NotificationView;
+use std::ops::Range;
 use std::{ops::Deref, sync::Arc, time::Duration};
 
 pub struct NotificationManager {
-    pub notifications: Vec<Notification>,
+    notifications: Vec<Notification>,
     config: Arc<Config>,
     loop_handle: LoopHandle<'static, Moxnotify>,
     selected: Option<u32>,
     font_system: FontSystem,
-    pub notification_view: NotificationView,
+    notification_view: NotificationView,
 }
 
 impl Deref for NotificationManager {
@@ -47,10 +49,15 @@ impl NotificationManager {
         }
     }
 
-    pub fn data(
-        &mut self,
-        scale: f32,
-    ) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
+    pub fn view(&self) -> &Range<usize> {
+        &self.notification_view.visible
+    }
+
+    pub fn notifications(&self) -> &[Notification] {
+        &self.notifications
+    }
+
+    pub fn data(&self, scale: f32) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
         let mut height = 0.0;
         let prev_data = self.notification_view.prev_data(&mut height, scale);
 
@@ -283,7 +290,7 @@ impl NotificationManager {
         match self.config.queue {
             Queue::Ordered => {
                 if self.notifications.is_empty() {
-                    if let Some(timeout) = notification.timeout {
+                    if let Some(timeout) = notification.timeout() {
                         let timer = Timer::from_duration(Duration::from_millis(timeout));
 
                         notification.registration_token = self
@@ -297,7 +304,7 @@ impl NotificationManager {
                 }
             }
             Queue::Unordered => {
-                if let Some(timeout) = notification.timeout {
+                if let Some(timeout) = notification.timeout() {
                     let timer = Timer::from_duration(Duration::from_millis(timeout));
                     notification.registration_token = self
                         .loop_handle
@@ -325,8 +332,8 @@ impl NotificationManager {
             if let Some(notification) = self.notifications.get_mut(index) {
                 notification.unhover();
                 let timer = match self.config.queue {
-                    Queue::Ordered if index == 0 => notification.timeout,
-                    Queue::Unordered => notification.timeout,
+                    Queue::Ordered if index == 0 => notification.timeout(),
+                    Queue::Unordered => notification.timeout(),
                     _ => None,
                 }
                 .map(|t| Timer::from_duration(Duration::from_millis(t)));
@@ -360,7 +367,7 @@ impl Moxnotify {
             log::error!("Failed to emit NotificationClosed event: {e}");
         }
         self.notifications.notifications.retain(|n| {
-            if n.id == id {
+            if n.id() == id {
                 if let Some(token) = n.registration_token {
                     self.loop_handle.remove(token);
                 }
@@ -387,9 +394,9 @@ impl Moxnotify {
         if self.config.queue == Queue::Ordered {
             if let Some(notification) = self.notifications.notifications.first_mut() {
                 if !notification.hovered() {
-                    if let Some(timeout) = notification.timeout {
+                    if let Some(timeout) = notification.timeout() {
                         let timer = Timer::from_duration(Duration::from_millis(timeout));
-                        let id = notification.id;
+                        let id = notification.id();
                         notification.registration_token = self
                             .loop_handle
                             .insert_source(timer, move |_, _, moxnotify| {
@@ -402,6 +409,22 @@ impl Moxnotify {
             }
         }
 
+        if self.notifications.height()
+            == self
+                .surface
+                .as_ref()
+                .map(|s| s.wgpu_surface.config.height)
+                .unwrap_or(0) as f32
+        {
+            if let Some(surface) = self.surface.as_mut() {
+                _ = surface.render(
+                    &self.wgpu_state.device,
+                    &self.wgpu_state.queue,
+                    &self.notifications,
+                );
+            }
+            return;
+        }
         self.update_surface_size();
     }
 
@@ -440,15 +463,23 @@ impl Moxnotify {
 
     pub fn deselect_notification(&mut self) {
         self.notifications.deselect();
-        if !self.notifications.is_empty() {
-            self.render();
+        if let Some(surface) = self.surface.as_mut() {
+            _ = surface.render(
+                &self.wgpu_state.device,
+                &self.wgpu_state.queue,
+                &self.notifications,
+            );
         }
     }
 
     pub fn select_notification(&mut self, id: NotificationId) {
         self.notifications.select(id);
-        if !self.notifications.is_empty() {
-            self.render();
+        if let Some(surface) = self.surface.as_mut() {
+            _ = surface.render(
+                &self.wgpu_state.device,
+                &self.wgpu_state.queue,
+                &self.notifications,
+            );
         }
     }
 }

@@ -61,16 +61,18 @@ pub struct TextureInstance {
     pub container_rect: [f32; 4],
     pub border_width: f32,
     pub border_color: [f32; 4],
+    pub scale: f32,
 }
 
 impl TextureInstance {
-    const ATTRIBS: [wgpu::VertexAttribute; 6] = wgpu::vertex_attr_array![
+    const ATTRIBS: [wgpu::VertexAttribute; 7] = wgpu::vertex_attr_array![
         2 => Float32x2,
         3 => Float32x2,
         4 => Float32x4,
         5 => Float32x4,
         6 => Float32,
         7 => Float32x4,
+        8 => Float32,
     ];
 
     pub fn desc() -> wgpu::VertexBufferLayout<'static> {

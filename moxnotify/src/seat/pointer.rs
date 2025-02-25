@@ -1,4 +1,4 @@
-use crate::{notification_manager::notification::button::Action, EmitEvent, Moxnotify};
+use crate::{button::Action, surface::FocusReason, EmitEvent, Moxnotify};
 use std::sync::Arc;
 use wayland_client::{
     globals::GlobalList,
@@ -6,7 +6,6 @@ use wayland_client::{
     Connection, Dispatch, QueueHandle, WEnum,
 };
 use wayland_cursor::CursorTheme;
-use wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_surface_v1::KeyboardInteractivity;
 
 #[derive(PartialEq, Debug)]
 enum PointerState {
@@ -146,7 +145,6 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 if let Some(under_pointer) =
                     state.notifications.get_by_coordinates(pointer.x, pointer.y)
                 {
-                    let style = under_pointer.style();
                     let mut acc = 0.;
                     state.notifications.iter().find(|notification| {
                         acc += notification.extents().height;
@@ -198,51 +196,80 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     wl_pointer::ButtonState::Released => {
                         let (x, y) = (state.seat.pointer.x, state.seat.pointer.y);
 
-                        if let Some(under_pointer) = state.notifications.get_by_coordinates(x, y) {
-                            // Get y position of this notification and subtract from y
-                            let mut acc = 0.;
-                            state.notifications.iter().find(|notification| {
-                                acc += notification.extents().height;
-                                notification == &under_pointer
-                            });
-                            acc -= under_pointer.rendered_extents().height;
+                        let (href, notification_id, dismiss_button) = {
+                            if let Some(under_pointer) =
+                                state.notifications.get_by_coordinates(x, y)
+                            {
+                                let notification_id = under_pointer.id();
 
-                            if let Some(anchor) = under_pointer.text.hit(x as f32, y as f32 - acc) {
-                                let handle = surface.handle.as_ref().map_or("".into(), Arc::clone);
-                                let token = surface.token.as_ref().map(Arc::clone);
-                                state.emit_sender.send(EmitEvent::OpenURI {
-                                    uri: Arc::clone(&anchor.href),
+                                let mut acc = 0.0;
+                                let _ = state.notifications.iter().find(|n| {
+                                    acc += n.extents().height;
+                                    n == &under_pointer
+                                });
+                                acc -= under_pointer.rendered_extents().height;
+
+                                let href = under_pointer
+                                    .text
+                                    .hit(x as f32, y as f32 - acc)
+                                    .map(|anchor| Arc::clone(&anchor.href));
+
+                                let dismiss_button = state
+                                    .notifications
+                                    .get_button_by_coordinates(x, y)
+                                    .map(|button| button.action == Action::DismissNotification)
+                                    .unwrap_or(false);
+
+                                (href, Some(notification_id), dismiss_button)
+                            } else {
+                                (None, None, false)
+                            }
+                        };
+
+                        if let Some(href) = href {
+                            let handle = surface.handle.as_ref().map_or("".into(), Arc::clone);
+                            let token = surface.token.as_ref().map(Arc::clone);
+                            if state
+                                .emit_sender
+                                .send(EmitEvent::OpenURI {
+                                    uri: href,
                                     token,
                                     handle,
-                                });
-                            }
-                            if let Some(button) =
-                                state.notifications.get_button_by_coordinates(x, y)
+                                })
+                                .is_ok()
                             {
-                                if button.action == Action::DismissNotification {
-                                    state.dismiss_notification(under_pointer.id());
-                                    state.render();
-                                    state.seat.pointer.change_state(Some(PointerState::Default))
-                                }
+                                state.deselect_notification();
                             }
                         }
 
-                        if state
+                        if let Some(notification_id) = notification_id {
+                            if dismiss_button {
+                                state.dismiss_notification(notification_id);
+                                state.seat.pointer.change_state(Some(PointerState::Default));
+                            }
+                        }
+
+                        let pointer_state = if state
                             .notifications
                             .get_button_by_coordinates(x, y)
                             .is_some()
                         {
-                            state.seat.pointer.change_state(Some(PointerState::Hover));
+                            PointerState::Hover
                         } else {
-                            state.seat.pointer.change_state(Some(PointerState::Default))
-                        }
+                            PointerState::Default
+                        };
+                        state.seat.pointer.change_state(Some(pointer_state));
                     }
                     _ => unreachable!(),
                 }
             }
             wl_pointer::Event::Leave { serial, surface: _ } => {
-                state.seat.pointer.wl_pointer.set_cursor(serial, None, 0, 0);
-                state.seat.pointer.change_state(None);
+                if surface.focus_reason == Some(FocusReason::MouseEnter) {
+                    surface.unfocus();
+                    state.deselect_notification();
+                    state.seat.pointer.wl_pointer.set_cursor(serial, None, 0, 0);
+                    state.seat.pointer.change_state(None);
+                }
             }
             wl_pointer::Event::Enter {
                 serial,
@@ -250,9 +277,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 surface_x,
                 surface_y,
             } => {
-                surface
-                    .layer_surface
-                    .set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
+                surface.focus(FocusReason::MouseEnter);
 
                 state.seat.pointer.x = surface_x;
                 state.seat.pointer.y = surface_y;
@@ -280,10 +305,16 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                         } else {
                             state.notifications.prev();
                         }
-                        state.render();
+                        _ = surface.render(
+                            &state.wgpu_state.device,
+                            &state.wgpu_state.queue,
+                            &state.notifications,
+                        );
 
                         state.seat.pointer.scroll_accumulator = 0.0;
                     }
+
+                    state.update_surface_size();
                 }
             }
             _ => {}

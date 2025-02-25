@@ -12,7 +12,6 @@ use wayland_client::{
     protocol::{wl_keyboard, wl_seat},
     Connection, Dispatch, QueueHandle, WEnum,
 };
-use wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_surface_v1::KeyboardInteractivity;
 use xkbcommon::xkb::{Keymap, State};
 
 struct Xkb {
@@ -109,7 +108,7 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
                 }
             }
             wl_keyboard::Event::Key {
-                serial,
+                serial: _,
                 time: _,
                 key,
                 state: WEnum::Value(value),
@@ -151,7 +150,9 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
                                 state.seat.keyboard.repeat.registration_token = state
                                     .loop_handle
                                     .insert_source(timer, move |_, _, moxnotify| {
-                                        moxnotify.handle_key(serial);
+                                        if moxnotify.handle_key().is_err() {
+                                            return TimeoutAction::Drop;
+                                        }
                                         TimeoutAction::ToDuration(Duration::from_millis(rate))
                                     })
                                     .ok();
@@ -162,7 +163,7 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
                             }
                         }
 
-                        state.handle_key(serial);
+                        _ = state.handle_key();
                     }
                     _ => unreachable!(),
                 }
@@ -177,10 +178,7 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
 }
 
 impl Moxnotify {
-    fn handle_key(&mut self, serial: u32) {
-        let Some(surface) = self.surface.as_ref() else {
-            return;
-        };
+    fn handle_key(&mut self) -> anyhow::Result<()> {
         if let Some(action) = self.config.keymaps.get(&self.seat.keyboard.key_combination) {
             match action {
                 KeyAction::NextNotification => {
@@ -214,16 +212,23 @@ impl Moxnotify {
                     }
                 }
                 KeyAction::Unfocus => {
-                    surface
-                        .layer_surface
-                        .set_keyboard_interactivity(KeyboardInteractivity::None);
-                    surface.wl_surface.commit();
-                    self.seat.keyboard.key_combination.key = Key::Character('\0');
-                    self.notifications.deselect();
+                    if let Some(surface) = self.surface.as_mut() {
+                        surface.unfocus();
+                        self.seat.keyboard.key_combination.key = Key::Character('\0');
+                        self.notifications.deselect();
+                    }
                 }
             }
 
-            self.render();
+            if let Some(surface) = self.surface.as_mut() {
+                surface.render(
+                    &self.wgpu_state.device,
+                    &self.wgpu_state.queue,
+                    &self.notifications,
+                )?;
+            }
         }
+
+        Ok(())
     }
 }

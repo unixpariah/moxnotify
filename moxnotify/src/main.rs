@@ -1,9 +1,10 @@
+pub mod button;
 mod config;
 mod dbus;
 mod image_data;
 mod notification_manager;
 mod seat;
-pub mod surface;
+mod surface;
 mod wgpu_state;
 
 use calloop::EventLoop;
@@ -14,7 +15,7 @@ use notification_manager::NotificationManager;
 use seat::Seat;
 use serde::{Deserialize, Serialize};
 use std::{path::PathBuf, sync::Arc};
-use surface::Surface;
+use surface::{FocusReason, Surface};
 use tokio::sync::broadcast;
 use wayland_client::{
     delegate_noop,
@@ -23,9 +24,7 @@ use wayland_client::{
     Connection, Dispatch, Proxy, QueueHandle,
 };
 use wayland_protocols::xdg::activation::v1::client::{xdg_activation_token_v1, xdg_activation_v1};
-use wayland_protocols_wlr::layer_shell::v1::client::{
-    zwlr_layer_shell_v1, zwlr_layer_surface_v1::KeyboardInteractivity,
-};
+use wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_shell_v1;
 use wgpu_state::WgpuState;
 
 #[derive(Debug)]
@@ -94,83 +93,13 @@ impl Moxnotify {
         })
     }
 
-    fn render(&mut self) {
-        let Some(surface) = self.surface.as_mut() else {
-            return;
-        };
-
-        if !surface.configured {
-            return;
-        }
-
-        let surface_texture = surface
-            .wgpu_surface
-            .wgpu_surface
-            .get_current_texture()
-            .expect("failed to acquire next swapchain texture");
-        let texture_view = surface_texture
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        let mut encoder = self
-            .wgpu_state
-            .device
-            .create_command_encoder(&Default::default());
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Render pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &texture_view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-        });
-
-        let (instances, text_data, textures) = self.notifications.data(surface.scale);
-
-        surface.wgpu_surface.shape_renderer.prepare(
-            &self.wgpu_state.device,
-            &self.wgpu_state.queue,
-            &instances,
-        );
-
-        surface.wgpu_surface.shape_renderer.render(&mut render_pass);
-
-        _ = surface.wgpu_surface.text_ctx.render(
-            &self.wgpu_state.device,
-            &self.wgpu_state.queue,
-            &mut render_pass,
-            text_data,
-        );
-
-        surface.wgpu_surface.texture_renderer.prepare(
-            &self.wgpu_state.device,
-            &self.wgpu_state.queue,
-            textures,
-        );
-        surface
-            .wgpu_surface
-            .texture_renderer
-            .render(&mut render_pass);
-
-        drop(render_pass); // Drop renderpass and release mutable borrow on encoder
-
-        self.wgpu_state.queue.submit(Some(encoder.finish()));
-        surface_texture.present();
-    }
-
     fn handle_app_event(&mut self, event: Event) -> anyhow::Result<()> {
         match event {
             Event::Dismiss { all, id } => {
                 if all {
                     let ids: Vec<_> = self
                         .notifications
-                        .notifications
+                        .notifications()
                         .iter()
                         .map(|notification| notification.id())
                         .collect();
@@ -180,7 +109,7 @@ impl Moxnotify {
                 }
 
                 if id == 0 {
-                    if let Some(notification) = self.notifications.notifications.first() {
+                    if let Some(notification) = self.notifications.notifications().first() {
                         self.dismiss_notification(notification.id());
                     }
                     return Ok(());
@@ -191,68 +120,32 @@ impl Moxnotify {
             Event::Notify(data) => {
                 self.notifications.add(data)?;
                 self.update_surface_size();
-                if self.notifications.notification_view.visible.end <= self.notifications.len() {
-                    self.render();
+                if self.notifications.view().end <= self.notifications.len() {
+                    if let Some(surface) = self.surface.as_mut() {
+                        surface.render(
+                            &self.wgpu_state.device,
+                            &self.wgpu_state.queue,
+                            &self.notifications,
+                        )?;
+                    }
                 }
             }
             Event::CloseNotification(id) => self.dismiss_notification(id),
             Event::FocusSurface => {
-                if let Some(surface) = self.surface.as_ref() {
-                    surface
-                        .layer_surface
-                        .set_keyboard_interactivity(KeyboardInteractivity::Exclusive);
-                    surface.wl_surface.commit();
+                if let Some(surface) = self.surface.as_mut() {
+                    surface.focus(FocusReason::Ctl);
                     if self.notifications.selected().is_none() {
                         self.notifications.next();
                     }
-                    self.render();
+                    surface.render(
+                        &self.wgpu_state.device,
+                        &self.wgpu_state.queue,
+                        &self.notifications,
+                    )?;
                 }
             }
         };
         Ok(())
-    }
-
-    fn create_activation_token(&self, serial: u32) {
-        let Some(surface) = self.surface.as_ref() else {
-            return;
-        };
-        let token = self.seat.xdg_activation.get_activation_token(&self.qh, ());
-        token.set_serial(serial, &self.seat.wl_seat);
-        token.set_surface(&surface.wl_surface);
-        token.commit();
-    }
-
-    pub fn resize(&mut self, width: u32, height: u32) {
-        let Some(surface) = self.surface.as_mut() else {
-            return;
-        };
-        if width == surface.wgpu_surface.config.height
-            || height == surface.wgpu_surface.config.width
-            || width == 0
-            || height == 0
-        {
-            return;
-        }
-        surface.wgpu_surface.config.width = width;
-        surface.wgpu_surface.config.height = height;
-        surface
-            .wgpu_surface
-            .wgpu_surface
-            .configure(&self.wgpu_state.device, &surface.wgpu_surface.config);
-        surface.wgpu_surface.text_ctx.viewport.update(
-            &self.wgpu_state.queue,
-            glyphon::Resolution { width, height },
-        );
-        surface.wgpu_surface.shape_renderer.resize(
-            &self.wgpu_state.queue,
-            width as f32,
-            height as f32,
-        );
-        surface.wgpu_surface.texture_renderer.resize(
-            &self.wgpu_state.queue,
-            width as f32,
-            height as f32,
-        );
     }
 }
 
@@ -313,16 +206,6 @@ pub enum EmitEvent {
         uri: Arc<str>,
         handle: Arc<str>,
         token: Option<Arc<str>>,
-    },
-    OpenFile {
-        path: Arc<str>,
-        token: Option<Box<str>>,
-        handle: Option<Box<str>>,
-    },
-    OpenDirectory {
-        path: Arc<str>,
-        token: Option<Box<str>>,
-        handle: Option<Box<str>>,
     },
 }
 
@@ -414,8 +297,6 @@ async fn main() -> anyhow::Result<()> {
     env_logger::Builder::new()
         .filter_level(log::LevelFilter::Warn)
         .init();
-
-    log::info!("hello");
 
     let conn = Connection::connect_to_env().expect("Failed to connect to wayland");
     let (globals, event_queue) = registry_queue_init(&conn)?;

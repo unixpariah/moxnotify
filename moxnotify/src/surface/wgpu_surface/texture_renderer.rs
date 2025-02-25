@@ -207,12 +207,13 @@ impl TextureRenderer {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        textures: Vec<TextureArea>,
+        textures: &[TextureArea],
     ) {
         let mut instances = Vec::new();
 
         textures.iter().enumerate().for_each(|(i, texture)| {
             instances.push(buffers::TextureInstance {
+                scale: texture.scale,
                 pos: [texture.left, texture.top],
                 size: [texture.width, texture.height],
                 radius: texture.radius,

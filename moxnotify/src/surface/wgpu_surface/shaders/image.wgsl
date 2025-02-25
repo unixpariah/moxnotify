@@ -5,6 +5,7 @@ struct InstanceInput {
     @location(5) container_rect: vec4<f32>,
     @location(6) border_width: f32,
     @location(7) border_color: vec4<f32>,
+    @location(8) scale: f32,
 };
 
 struct VertexInput {
@@ -37,24 +38,26 @@ fn vs_main(
 ) -> VertexOutput {
     var out: VertexOutput;
     
-    let position = model.position * instance.size + instance.pos;
+    let scaled_size = instance.size * instance.scale;
+    let position = model.position * scaled_size + instance.pos;
     
     out.clip_position = projection.view_proj * vec4<f32>(position, 0.0, 1.0);
     out.tex_coords = model.position;
     out.layer = instance_idx;
     
-    let max_radius = min(instance.size.x, instance.size.y) * 0.5;
+    let scaled_radius = instance.radius * instance.scale;
+    let max_radius = min(scaled_size.x, scaled_size.y) * 0.5;
     out.radius = vec4<f32>(
-        min(instance.radius.x, max_radius),
-        min(instance.radius.y, max_radius),
-        min(instance.radius.z, max_radius),
-        min(instance.radius.w, max_radius)
+        min(scaled_radius.x, max_radius),
+        min(scaled_radius.y, max_radius),
+        min(scaled_radius.z, max_radius),
+        min(scaled_radius.w, max_radius)
     );
     
-    out.size = instance.size; 
+    out.size = scaled_size; 
     out.container_rect = instance.container_rect;
     out.surface_position = position;
-    out.border_width = instance.border_width;
+    out.border_width = instance.border_width * instance.scale;
     out.border_color = instance.border_color;
     
     return out;
@@ -88,11 +91,10 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let p = (in.tex_coords - 0.5) * in.size;
     let d = sdf_rounded_rect(p, half_extent, in.radius);
 
-    let aa = fwidth(d) * 0.75;
-    let border_aa = aa * 2.0;
+    let aa = fwidth(d) * 0.6;
 
     let outer = smoothstep(-aa, aa, -d);
-    let inner = smoothstep(-border_aa, border_aa, -(d + in.border_width));
+    let inner = smoothstep(-aa, aa, -(d + in.border_width));
     let border_alpha = clamp(outer - inner, 0.0, 1.0);
     
     let color = mix(tex_color, in.border_color, border_alpha);

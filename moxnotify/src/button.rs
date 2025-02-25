@@ -1,6 +1,10 @@
 mod text;
 
-use crate::{config::Config, surface::wgpu_surface::buffers};
+use crate::{
+    config::{ButtonType, Config},
+    notification_manager::notification::Extents,
+    surface::wgpu_surface::buffers,
+};
 use glyphon::FontSystem;
 use std::{
     ops::{Deref, DerefMut},
@@ -10,10 +14,6 @@ use std::{
 #[derive(PartialEq)]
 pub enum Action {
     DismissNotification,
-}
-
-pub enum ButtonType {
-    Dismiss,
 }
 
 #[derive(Default)]
@@ -53,7 +53,7 @@ pub struct Button {
     height: f32,
     config: Arc<Config>,
     pub action: Action,
-    button_type: ButtonType,
+    pub button_type: ButtonType,
 }
 
 impl Button {
@@ -65,30 +65,37 @@ impl Button {
         config: Arc<Config>,
         font_system: &mut FontSystem,
     ) -> Self {
+        let button = config.buttons.get(&button_type).unwrap();
+
         Self {
             x,
             y,
-            width: 20.,
-            height: 20.,
+            width: button.width,
+            height: button.height,
             config,
             action,
             button_type,
         }
     }
 
+    pub fn extents(&self) -> Extents {
+        Extents {
+            x: self.x,
+            width: self.width,
+            height: self.height,
+        }
+    }
+
     pub fn get_instance(&self, x: f32, y: f32, scale: f32) -> buffers::Instance {
+        let style = self.config.buttons.get(&self.button_type).unwrap();
         buffers::Instance {
             rect_pos: [x + self.x, y + self.y],
             rect_size: [self.width, self.height],
             rect_color: [1., 0., 0., 1.],
-            border_radius: [50., 50., 50., 50.],
-            border_size: 0.,
+            border_radius: style.border.radius.into(),
+            border_size: style.border.size,
             border_color: [0., 0., 0., 0.],
             scale,
         }
     }
-
-    //pub fn text_area(&self) -> TextArea {
-    //    TextArea
-    //}
 }

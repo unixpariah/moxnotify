@@ -171,11 +171,16 @@ pub async fn serve(
         .build()
         .await?;
 
-    conn.request_name_with_flags(
-        "org.freedesktop.Notifications",
-        RequestNameFlags::DoNotQueue.into(),
-    )
-    .await?;
+    if let Err(e) = conn
+        .request_name_with_flags(
+            "org.freedesktop.Notifications",
+            RequestNameFlags::DoNotQueue.into(),
+        )
+        .await
+    {
+        log::error!("{e}, is another daemon running?");
+        std::process::exit(0);
+    }
 
     let iface = conn
         .object_server()

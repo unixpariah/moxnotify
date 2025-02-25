@@ -1,8 +1,7 @@
-pub mod button;
-
 use super::config::Config;
+use crate::button::{Action, Button, ButtonManager};
 use crate::{
-    config::{Size, StyleState},
+    config::{ButtonType, Size, StyleState},
     image_data::ImageData,
     surface::wgpu_surface::{
         buffers,
@@ -11,7 +10,6 @@ use crate::{
     },
     Hint, Image, NotificationData, Urgency,
 };
-use button::{Action, Button, ButtonManager, ButtonType};
 use calloop::RegistrationToken;
 use glyphon::{FontSystem, TextArea, TextBounds};
 use std::{path::Path, sync::Arc};
@@ -26,15 +24,15 @@ pub struct Extents {
 pub type NotificationId = u32;
 
 pub struct Notification {
-    pub id: NotificationId,
-    pub app_name: Box<str>,
+    id: NotificationId,
+    app_name: Box<str>,
     pub text: Text,
-    pub timeout: Option<u64>,
-    pub hovered: bool,
-    pub config: Arc<Config>,
-    pub actions: Box<[(Arc<str>, Arc<str>)]>,
-    pub icon: Option<ImageData>,
-    pub urgency: Urgency,
+    timeout: Option<u64>,
+    hovered: bool,
+    config: Arc<Config>,
+    actions: Box<[(Arc<str>, Arc<str>)]>,
+    icon: Option<ImageData>,
+    urgency: Urgency,
     pub registration_token: Option<RegistrationToken>,
     pub buttons: ButtonManager,
 }
@@ -130,7 +128,7 @@ impl Notification {
             style.border.size + style.padding.top,
             Action::DismissNotification,
             ButtonType::Dismiss,
-            config.clone(),
+            Arc::clone(&config),
             font_system,
         ));
 
@@ -147,6 +145,10 @@ impl Notification {
             urgency: urgency.unwrap_or_default(),
             registration_token: None,
         }
+    }
+
+    pub fn timeout(&self) -> Option<u64> {
+        self.timeout
     }
 
     pub fn set_text(&mut self, summary: &str, body: &str, font_system: &mut FontSystem) {
@@ -168,6 +170,13 @@ impl Notification {
 
         let icon_extents = self.icon_extents();
 
+        let dismiss_button = self
+            .buttons
+            .iter()
+            .find(|button| button.button_type == ButtonType::Dismiss)
+            .map(|b| b.extents().height)
+            .unwrap_or(0.);
+
         let min_height = match style.min_height {
             Size::Auto => 0.,
             Size::Value(value) => value,
@@ -183,6 +192,7 @@ impl Notification {
                 .extents()
                 .1
                 .max(icon_extents.1)
+                .max(dismiss_button)
                 .clamp(min_height, max_height),
         }
     }

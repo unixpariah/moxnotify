@@ -415,6 +415,18 @@ pub struct NotificationStyleEntry {
     pub ignore_timeout: Option<bool>,
 }
 
+#[derive(Deserialize)]
+pub struct Button {
+    pub width: f32,
+    pub height: f32,
+    pub border: Border,
+}
+
+#[derive(Deserialize, Hash, PartialEq, Eq)]
+pub enum ButtonType {
+    Dismiss,
+}
+
 #[derive(Deserialize, Default)]
 pub struct Config {
     #[serde(default = "default_icon_paths")]
@@ -442,9 +454,32 @@ pub struct Config {
     pub styles: Styles,
     #[serde(default)]
     pub notification: Vec<NotificationStyleEntry>,
+    #[serde(default = "default_buttons")]
+    pub buttons: HashMap<ButtonType, Button>,
     #[serde(default = "default_keymaps")]
     #[serde(deserialize_with = "deserialize_keycombination_map")]
     pub keymaps: HashMap<KeyCombination, KeyAction>,
+}
+
+fn default_buttons() -> HashMap<ButtonType, Button> {
+    let mut buttons = HashMap::new();
+    buttons.insert(
+        ButtonType::Dismiss,
+        Button {
+            width: 20.,
+            height: 20.,
+            border: Border {
+                size: 0.,
+                radius: BorderRadius {
+                    top_left: 50.,
+                    top_right: 50.,
+                    bottom_left: 50.,
+                    bottom_right: 50.,
+                },
+            },
+        },
+    );
+    buttons
 }
 
 fn default_icon_paths() -> Vec<Box<OsStr>> {
@@ -561,31 +596,31 @@ impl Config {
             Ok(content) => content,
             Err(_) => r##"
                       return {
-                        ["styles"] = {
-                          ["default"] = {
-                            ["urgency_low"] = {
-                              ["background"] = "#1A1412",
-                              ["border"] = "#3C7B82",
-                              ["icon_border"] = "#3C7B82",
-                              ["foreground"] = "#3C7B82"
+                        styles = {
+                          default = {
+                            urgency_low = {
+                              background = "#1A1412",
+                              border = "#3C7B82",
+                              icon_border = "#3C7B82",
+                              foreground = "#3C7B82"
                             },
-                            ["urgency_normal"] = {
-                              ["background"] = "#1A1412",
-                              ["border"] = "#567734",
-                              ["icon_border"] = "#567734",
-                              ["foreground"] = "#567734"
+                            urgency_normal = {
+                              background = "#1A1412",
+                              border = "#567734",
+                              icon_border = "#567734",
+                              foreground = "#567734"
                             },
-                            ["urgency_critical"] = {
-                              ["background"] = "#1A1412",
-                              ["border"] = "#B04027",
-                              ["icon_border"] = "#B04027",
-                              ["foreground"] = "#B04027"
+                            urgency_critical = {
+                              background = "#1A1412",
+                              border = "#B04027",
+                              icon_border = "#B04027",
+                              foreground = "#B04027"
                             },
                           },
-                          ["hover"] = {
-                            ["urgency_low"] = { ["background"] = "#2f3549FF" },
-                            ["urgency_normal"] = { ["background"] = "#2f3549FF" },
-                            ["urgency_critical"] = { ["background"] = "#2f3549FF" },
+                          hover = {
+                            urgency_low = { background = "#2f3549FF" },
+                            urgency_normal = { background = "#2f3549FF" },
+                            urgency_critical = { background = "#2f3549FF" },
                           }
                         }
                       }

@@ -184,11 +184,10 @@ impl TextContext {
         }
     }
 
-    pub fn render(
+    pub fn prepare(
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        render_pass: &mut wgpu::RenderPass,
         text: Vec<TextArea>,
     ) -> anyhow::Result<()> {
         self.renderer.prepare(
@@ -201,6 +200,10 @@ impl TextContext {
             &mut self.swash_cache,
         )?;
 
+        Ok(())
+    }
+
+    pub fn render(&mut self, render_pass: &mut wgpu::RenderPass) -> anyhow::Result<()> {
         self.renderer
             .render(&self.atlas, &self.viewport, render_pass)?;
 
