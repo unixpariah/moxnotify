@@ -71,7 +71,13 @@ impl NotificationManager {
                 |(mut height, mut instances, mut text_areas, mut textures), (_, notification)| {
                     let instance = notification.get_instance(height, scale);
                     let text = notification.text_area(height, scale);
-                    let texture = notification.texture(height, self.height(), scale);
+                    let texture = notification.texture(
+                        height,
+                        notification.image().map(|i| i.width).unwrap_or_default() as f32,
+                        notification.image().map(|i| i.height).unwrap_or_default() as f32,
+                        self.height(),
+                        scale,
+                    );
 
                     height += notification.extents().height;
 

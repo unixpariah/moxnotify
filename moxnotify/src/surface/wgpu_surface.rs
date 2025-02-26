@@ -62,12 +62,8 @@ impl WgpuSurface {
             desired_maximum_frame_latency: 2,
         };
 
-        let texture_renderer = TextureRenderer::new(
-            &wgpu_state.device,
-            *surface_format,
-            config.max_icon_size,
-            config.max_visible,
-        );
+        let texture_renderer =
+            TextureRenderer::new(&wgpu_state.device, *surface_format, config.max_icon_size);
 
         let shape_renderer = ShapeRenderer::new(&wgpu_state.device, *surface_format);
 

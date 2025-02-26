@@ -81,23 +81,6 @@ impl Notification {
     pub fn new(config: Arc<Config>, font_system: &mut FontSystem, data: NotificationData) -> Self {
         let mut icon = None;
         let mut urgency = None;
-        let app_icon = freedesktop_icons::lookup(&data.app_icon)
-            .with_size(config.max_icon_size as u16)
-            .find()
-            .and_then(|icon_path| {
-                if icon_path
-                    .extension()
-                    .and_then(|ext| ext.to_str())
-                    .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"))
-                {
-                    return svg_to_rgba(&icon_path, config.max_icon_size);
-                }
-
-                image::open(&icon_path)
-                    .ok()
-                    .and_then(|image| ImageData::try_from(image).ok())
-                    .map(|image_data| image_data.into_rgba(config.max_icon_size))
-            });
 
         data.hints.into_iter().for_each(|hint| match hint {
             Hint::Image(image) => match image {
@@ -130,8 +113,53 @@ impl Notification {
             _ => {}
         });
 
+        let app_icon_option = freedesktop_icons::lookup(&data.app_icon)
+            .with_size(config.max_icon_size as u16)
+            .find()
+            .and_then(|icon_path| {
+                if icon_path
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"))
+                {
+                    return svg_to_rgba(&icon_path, config.max_icon_size);
+                }
+
+                image::open(&icon_path)
+                    .ok()
+                    .and_then(|image| ImageData::try_from(image).ok())
+                    .map(|image_data| image_data.into_rgba(config.max_icon_size))
+            });
+
+        let final_app_icon = if icon.is_some() {
+            app_icon_option
+        } else {
+            None
+        };
+        let final_image = if icon.is_some() {
+            icon
+        } else {
+            freedesktop_icons::lookup(&data.app_icon)
+                .with_size(config.max_icon_size as u16)
+                .find()
+                .and_then(|icon_path| {
+                    if icon_path
+                        .extension()
+                        .and_then(|ext| ext.to_str())
+                        .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"))
+                    {
+                        return svg_to_rgba(&icon_path, config.max_icon_size);
+                    }
+
+                    image::open(&icon_path)
+                        .ok()
+                        .and_then(|image| ImageData::try_from(image).ok())
+                        .map(|image_data| image_data.into_rgba(config.max_icon_size))
+                })
+        };
+
         let style = &config.styles.default;
-        let icon_width = icon
+        let icon_width = final_image
             .as_ref()
             .map(|i| i.width as f32 + style.padding.right)
             .unwrap_or(0.);
@@ -179,7 +207,8 @@ impl Notification {
         ));
 
         Self {
-            app_icon,
+            app_icon: final_app_icon,
+            image: final_image,
             buttons,
             id: data.id,
             app_name: data.app_name,
@@ -188,7 +217,6 @@ impl Notification {
             config,
             hovered: false,
             actions: data.actions,
-            image: icon,
             urgency: urgency.unwrap_or_default(),
             registration_token: None,
         }
@@ -353,7 +381,14 @@ impl Notification {
         }
     }
 
-    pub fn texture(&self, y: f32, total_height: f32, scale: f32) -> Option<TextureArea> {
+    pub fn texture(
+        &self,
+        y: f32,
+        texture_width: f32,
+        texture_height: f32,
+        total_height: f32,
+        scale: f32,
+    ) -> Option<TextureArea> {
         if let Some(image) = self.image() {
             let extents = self.rendered_extents();
             let style = self.style();
@@ -371,13 +406,13 @@ impl Notification {
             let height =
                 extents.height - 2.0 * style.border.size - style.padding.top - style.padding.bottom;
 
-            let image_y = y + (height - image.height as f32) / 2.0;
+            let image_y = y + (height - texture_height) / 2.0;
 
             return Some(TextureArea {
                 left: x,
-                top: total_height - image_y - image.height as f32,
-                width: image.width as f32,
-                height: image.height as f32,
+                top: total_height - image_y - texture_height,
+                width: texture_width,
+                height: texture_height,
                 scale,
                 border_size: style.border.size,
                 border_color: urgency.icon_border.into(),

@@ -9,6 +9,7 @@ pub struct TextureRenderer {
     projection_uniform: buffers::ProjectionUniform,
     instance_buffer: buffers::InstanceBuffer<buffers::TextureInstance>,
     height: f32,
+    max_icon_size: u32,
 }
 
 pub struct TextureArea<'a> {
@@ -36,7 +37,6 @@ impl TextureRenderer {
         device: &wgpu::Device,
         texture_format: wgpu::TextureFormat,
         max_icon_size: u32,
-        max_visible: u32,
     ) -> Self {
         let projection_uniform = buffers::ProjectionUniform::new(device, 0.0, 0.0, 0.0, 0.0);
 
@@ -66,7 +66,7 @@ impl TextureRenderer {
         let texture_size = wgpu::Extent3d {
             width: max_icon_size,
             height: max_icon_size,
-            depth_or_array_layers: max_visible,
+            depth_or_array_layers: 256,
         };
 
         let texture = device.create_texture(&wgpu::TextureDescriptor {
@@ -83,7 +83,7 @@ impl TextureRenderer {
         let texture_view = texture.create_view(&wgpu::TextureViewDescriptor {
             dimension: Some(wgpu::TextureViewDimension::D2Array),
             base_array_layer: 0,
-            array_layer_count: Some(max_visible),
+            array_layer_count: Some(256),
             ..Default::default()
         });
 
@@ -178,6 +178,7 @@ impl TextureRenderer {
         let instance_buffer = buffers::InstanceBuffer::new(device, &[]);
 
         Self {
+            max_icon_size,
             instance_buffer,
             projection_uniform,
             render_pipeline,
@@ -241,12 +242,12 @@ impl TextureRenderer {
                 texture.data,
                 wgpu::TexelCopyBufferLayout {
                     offset: 0,
-                    bytes_per_row: Some((4. * texture.width) as u32),
+                    bytes_per_row: Some(4 * self.max_icon_size),
                     rows_per_image: None,
                 },
                 wgpu::Extent3d {
-                    width: texture.width as u32,
-                    height: texture.height as u32,
+                    width: self.max_icon_size,
+                    height: self.max_icon_size,
                     depth_or_array_layers: 1,
                 },
             );
