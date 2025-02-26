@@ -1,9 +1,20 @@
-use crate::{image_data::ImageData, EmitEvent, Event, Hint, Image, NotificationData, Urgency};
-use std::{collections::HashMap, path::PathBuf};
+use crate::{image_data::ImageData, EmitEvent, Event, Hint, Image, Urgency};
+use std::{collections::HashMap, path::Path, sync::Arc};
 use tokio::sync::broadcast;
-use zbus::{fdo::RequestNameFlags, object_server::SignalEmitter};
+use zbus::{fdo::RequestNameFlags, object_server::SignalEmitter, zvariant::Str};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+pub struct NotificationData {
+    pub id: u32,
+    pub app_name: Box<str>,
+    pub app_icon: Box<str>,
+    pub summary: Box<str>,
+    pub body: Box<str>,
+    pub timeout: i32,
+    pub actions: Box<[(Arc<str>, Arc<str>)]>,
+    pub hints: Vec<Hint>,
+}
 
 struct NotificationsImpl {
     next_id: u32,
@@ -27,6 +38,7 @@ impl NotificationsImpl {
         ]
     }
 
+    #[allow(clippy::too_many_arguments)]
     async fn notify(
         &mut self,
         app_name: &str,
@@ -51,13 +63,19 @@ impl NotificationsImpl {
             .into_iter()
             .filter_map(|(k, v)| match k {
                 "action-icons" => bool::try_from(v).map(Hint::ActionIcons).ok(),
-                "category" => String::try_from(v).map(Hint::Category).ok(),
-                "desktop-entry" => String::try_from(v).map(Hint::DesktopEntry).ok(),
-                "resident" => bool::try_from(v).map(Hint::Resident).ok(),
-                "sound-file" => String::try_from(v)
-                    .map(|s| Hint::SoundFile(PathBuf::from(s)))
+                "category" => Str::try_from(v)
+                    .map(|s| Hint::Category(s.as_str().into()))
                     .ok(),
-                "sound-name" => String::try_from(v).map(Hint::SoundName).ok(),
+                "desktop-entry" => Str::try_from(v)
+                    .map(|s| Hint::DesktopEntry(s.as_str().into()))
+                    .ok(),
+                "resident" => bool::try_from(v).map(Hint::Resident).ok(),
+                "sound-file" => Str::try_from(v)
+                    .map(|s| Hint::SoundFile(Path::new(s.as_str()).into()))
+                    .ok(),
+                "sound-name" => Str::try_from(v)
+                    .map(|v| Hint::SoundName(v.as_str().into()))
+                    .ok(),
                 "suppress-sound" => bool::try_from(v).map(Hint::SuppressSound).ok(),
                 "transient" => bool::try_from(v).map(Hint::Transient).ok(),
                 "x" => i32::try_from(v).map(Hint::X).ok(),
@@ -75,12 +93,11 @@ impl NotificationsImpl {
                         Some(Hint::Urgency(Urgency::Low))
                     }
                 },
-                "image-path" | "image_path" => String::try_from(v).ok().map(|s| {
-                    if let Some(path) = url::Url::parse(&s).ok().and_then(|u| u.to_file_path().ok())
-                    {
-                        Hint::Image(Image::File(path))
+                "image-path" | "image_path" => Str::try_from(v).ok().map(|s| {
+                    if let Ok(path) = url::Url::parse(&s) {
+                        Hint::Image(Image::File(Path::new(path.as_str()).into()))
                     } else {
-                        Hint::Image(Image::Name(s))
+                        Hint::Image(Image::Name(s.as_str().into()))
                     }
                 }),
                 "image-data" | "image_data" | "icon_data" => match v {
@@ -114,6 +131,7 @@ impl NotificationsImpl {
                 .map(|action| (action[0].into(), action[1].into()))
                 .collect(),
             hints,
+            app_icon: app_icon.into(),
         })) {
             log::error!("{e}");
         }

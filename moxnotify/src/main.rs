@@ -10,11 +10,12 @@ mod wgpu_state;
 use calloop::EventLoop;
 use calloop_wayland_source::WaylandSource;
 use config::Config;
+use dbus::xdg::NotificationData;
 use image_data::ImageData;
 use notification_manager::NotificationManager;
 use seat::Seat;
 use serde::{Deserialize, Serialize};
-use std::{path::PathBuf, sync::Arc};
+use std::{path::Path, sync::Arc};
 use surface::{FocusReason, Surface};
 use tokio::sync::broadcast;
 use wayland_client::{
@@ -151,8 +152,8 @@ impl Moxnotify {
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum Image {
-    Name(String),
-    File(PathBuf),
+    Name(Box<str>),
+    File(Box<Path>),
     Data(ImageData),
 }
 
@@ -167,28 +168,18 @@ pub enum Urgency {
 #[derive(PartialEq, Eq, Serialize, Deserialize)]
 pub enum Hint {
     ActionIcons(bool),
-    Category(String),
-    DesktopEntry(String),
+    Category(Box<str>),
+    DesktopEntry(Box<str>),
     Image(Image),
     IconData(Vec<u8>),
     Resident(bool),
-    SoundFile(PathBuf),
-    SoundName(String),
+    SoundFile(Box<Path>),
+    SoundName(Box<str>),
     SuppressSound(bool),
     Transient(bool),
     Urgency(Urgency),
     X(i32),
     Y(i32),
-}
-
-pub struct NotificationData {
-    id: u32,
-    app_name: Box<str>,
-    summary: Box<str>,
-    body: Box<str>,
-    timeout: i32,
-    actions: Box<[(Arc<str>, Arc<str>)]>,
-    hints: Vec<Hint>,
 }
 
 #[derive(Clone)]

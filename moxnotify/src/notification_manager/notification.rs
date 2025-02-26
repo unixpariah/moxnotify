@@ -12,8 +12,8 @@ use crate::{
 };
 use calloop::RegistrationToken;
 use glyphon::{FontSystem, TextArea, TextBounds};
-use std::path::PathBuf;
-use std::{path::Path, sync::Arc};
+use std::path::Path;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct Extents {
@@ -27,12 +27,13 @@ pub type NotificationId = u32;
 pub struct Notification {
     id: NotificationId,
     app_name: Box<str>,
+    app_icon: Option<ImageData>,
     pub text: Text,
     timeout: Option<u64>,
     hovered: bool,
     config: Arc<Config>,
     actions: Box<[(Arc<str>, Arc<str>)]>,
-    icon: Option<ImageData>,
+    image: Option<ImageData>,
     urgency: Urgency,
     pub registration_token: Option<RegistrationToken>,
     pub buttons: ButtonManager,
@@ -44,8 +45,8 @@ impl PartialEq for Notification {
     }
 }
 
-fn svg_to_rgba(file: PathBuf, max_icon_size: u32) -> Option<ImageData> {
-    let svg_data = std::fs::read_to_string(&file).ok()?;
+fn svg_to_rgba(file: &Path, max_icon_size: u32) -> Option<ImageData> {
+    let svg_data = std::fs::read_to_string(file).ok()?;
 
     let mut options = usvg::Options::default();
     options.fontdb_mut().load_system_fonts();
@@ -80,6 +81,23 @@ impl Notification {
     pub fn new(config: Arc<Config>, font_system: &mut FontSystem, data: NotificationData) -> Self {
         let mut icon = None;
         let mut urgency = None;
+        let app_icon = freedesktop_icons::lookup(&data.app_icon)
+            .with_size(config.max_icon_size as u16)
+            .find()
+            .and_then(|icon_path| {
+                if icon_path
+                    .extension()
+                    .and_then(|ext| ext.to_str())
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"))
+                {
+                    return svg_to_rgba(&icon_path, config.max_icon_size);
+                }
+
+                image::open(&icon_path)
+                    .ok()
+                    .and_then(|image| ImageData::try_from(image).ok())
+                    .map(|image_data| image_data.into_rgba(config.max_icon_size))
+            });
 
         data.hints.into_iter().for_each(|hint| match hint {
             Hint::Image(image) => match image {
@@ -88,7 +106,7 @@ impl Notification {
                 }
                 Image::File(file) => {
                     if file.extension().and_then(|s| s.to_str()) == Some("svg") {
-                        icon = svg_to_rgba(file, config.max_icon_size);
+                        icon = svg_to_rgba(&file, config.max_icon_size);
                     } else if let Ok(image) = image::open(&file) {
                         let image_data = ImageData::try_from(image);
                         icon = image_data.ok().map(|i| i.into_rgba(config.max_icon_size));
@@ -100,7 +118,7 @@ impl Notification {
                         .find()
                     {
                         if icon_path.extension().and_then(|s| s.to_str()) == Some("svg") {
-                            icon = svg_to_rgba(icon_path, config.max_icon_size);
+                            icon = svg_to_rgba(&icon_path, config.max_icon_size);
                         } else if let Ok(image) = image::open(icon_path) {
                             let image_data = ImageData::try_from(image);
                             icon = image_data.ok().map(|i| i.into_rgba(config.max_icon_size));
@@ -161,6 +179,7 @@ impl Notification {
         ));
 
         Self {
+            app_icon,
             buttons,
             id: data.id,
             app_name: data.app_name,
@@ -169,7 +188,7 @@ impl Notification {
             config,
             hovered: false,
             actions: data.actions,
-            icon,
+            image: icon,
             urgency: urgency.unwrap_or_default(),
             registration_token: None,
         }
@@ -233,7 +252,7 @@ impl Notification {
     }
 
     pub fn image(&self) -> Option<&ImageData> {
-        self.icon.as_ref()
+        self.image.as_ref()
     }
 
     pub fn urgency(&self) -> &Urgency {
@@ -378,7 +397,7 @@ impl Notification {
 
     pub fn icon_extents(&self) -> (f32, f32) {
         let style = self.style();
-        self.icon
+        self.image
             .as_ref()
             .map(|i| (i.width as f32 + style.padding.right, i.height as f32))
             .unwrap_or((0., 0.))
@@ -399,7 +418,7 @@ impl Notification {
         let color = color.foreground.rgba;
 
         let icon_width_positioning = self
-            .icon
+            .image
             .as_ref()
             .map(|i| i.width as f32 + style.padding.left)
             .unwrap_or(0.);

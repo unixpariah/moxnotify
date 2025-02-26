@@ -1,6 +1,6 @@
 use mlua::{Lua, LuaSerdeExt};
 use serde::{Deserialize, Deserializer};
-use std::{collections::HashMap, ffi::OsStr, fs, path::PathBuf, str::FromStr};
+use std::{collections::HashMap, fs, path::PathBuf, str::FromStr};
 use xkbcommon::xkb::Keysym;
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -430,9 +430,6 @@ pub struct Buttons {
 
 #[derive(Deserialize, Default)]
 pub struct Config {
-    #[serde(default = "default_icon_paths")]
-    #[serde(deserialize_with = "deserialize_icon_paths")]
-    pub icon_paths: Vec<Box<OsStr>>,
     #[serde(default = "default_scroll_sensitivity")]
     pub scroll_sensitivity: f64,
     #[serde(default = "default_max_visible")]
@@ -491,24 +488,6 @@ fn default_buttons() -> Buttons {
             },
         },
     }
-}
-
-fn default_icon_paths() -> Vec<Box<OsStr>> {
-    vec![
-        OsStr::new("/usr/share/icons/hicolor").into(),
-        OsStr::new("/usr/share/pixmaps").into(),
-    ]
-}
-
-fn deserialize_icon_paths<'de, D>(deserializer: D) -> Result<Vec<Box<OsStr>>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let s = String::deserialize(deserializer)?;
-    let mut res: Vec<Box<OsStr>> = s.split(':').map(|part| OsStr::new(part).into()).collect();
-    res.push(OsStr::new("/usr/share/icons/hicolor").into());
-    res.push(OsStr::new("/usr/share/pixmaps").into());
-    Ok(res)
 }
 
 fn default_keymaps() -> HashMap<KeyCombination, KeyAction> {
