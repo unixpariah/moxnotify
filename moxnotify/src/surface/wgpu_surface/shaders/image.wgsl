@@ -100,15 +100,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let color = mix(tex_color, in.border_color, border_alpha);
     let alpha = outer; 
 
-    let flipped_y = in.surface_position.y - 2.0 * in.tex_coords.y * in.size.y + in.size.y;
-    let inside = (in.surface_position.x >= in.container_rect.x) && 
-                 (in.surface_position.x <= in.container_rect.z) &&
-                 (flipped_y >= in.container_rect.y) && 
-                 (flipped_y <= in.container_rect.w);
-
-    if (!inside) {
-        discard;
-    }
-
     return vec4<f32>(color.rgb, color.a * alpha);
 }

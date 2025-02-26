@@ -94,7 +94,7 @@ impl TextureRenderer {
             address_mode_w: wgpu::AddressMode::ClampToEdge,
             mag_filter: wgpu::FilterMode::Linear,
             min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
 
@@ -242,7 +242,7 @@ impl TextureRenderer {
                 wgpu::TexelCopyBufferLayout {
                     offset: 0,
                     bytes_per_row: Some((4. * texture.width) as u32),
-                    rows_per_image: Some(texture.height as u32),
+                    rows_per_image: None,
                 },
                 wgpu::Extent3d {
                     width: texture.width as u32,
