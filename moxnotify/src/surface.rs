@@ -1,13 +1,14 @@
 pub mod wgpu_surface;
 
 use crate::{
+    Moxnotify, Output,
     config::{self, Anchor, Config},
     notification_manager::NotificationManager,
-    wgpu_state, Moxnotify, Output,
+    wgpu_state,
 };
 use std::sync::Arc;
 use wayland_client::{
-    delegate_noop, globals::GlobalList, protocol::wl_surface, Connection, Dispatch, QueueHandle,
+    Connection, Dispatch, QueueHandle, delegate_noop, globals::GlobalList, protocol::wl_surface,
 };
 use wayland_protocols::xdg::foreign::zv2::client::{zxdg_exported_v2, zxdg_exporter_v2};
 use wayland_protocols_wlr::layer_shell::v1::client::{
@@ -187,8 +188,8 @@ impl Surface {
         if let Some(FocusReason::Ctl) = self.focus_reason {
             self.layer_surface
                 .set_keyboard_interactivity(KeyboardInteractivity::OnDemand);
-            self.focus_reason = None;
         }
+        self.focus_reason = None;
     }
 
     fn create_layer_surface(

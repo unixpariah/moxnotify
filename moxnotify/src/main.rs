@@ -22,10 +22,9 @@ use std::{path::Path, sync::Arc};
 use surface::{FocusReason, Surface};
 use tokio::sync::broadcast;
 use wayland_client::{
-    delegate_noop,
-    globals::{registry_queue_init, GlobalList, GlobalListContents},
+    Connection, Dispatch, Proxy, QueueHandle, delegate_noop,
+    globals::{GlobalList, GlobalListContents, registry_queue_init},
     protocol::{wl_compositor, wl_output, wl_registry},
-    Connection, Dispatch, Proxy, QueueHandle,
 };
 use wayland_protocols::xdg::activation::v1::client::{xdg_activation_token_v1, xdg_activation_v1};
 use wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_shell_v1;
@@ -75,7 +74,7 @@ impl Moxnotify {
     ) -> anyhow::Result<Self> {
         let layer_shell = globals.bind(&qh, 1..=5, ())?;
         let compositor = globals.bind::<wl_compositor::WlCompositor, _, _>(&qh, 1..=6, ())?;
-        let seat = Seat::new(conn, &qh, &globals, &compositor)?;
+        let seat = Seat::new(&qh, &globals)?;
 
         let config = Arc::new(Config::load(None)?);
 

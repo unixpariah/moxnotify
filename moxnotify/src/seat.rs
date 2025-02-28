@@ -5,10 +5,9 @@ use crate::Moxnotify;
 use keyboard::Keyboard;
 use pointer::Pointer;
 use wayland_client::{
-    delegate_noop,
+    Connection, Dispatch, QueueHandle, delegate_noop,
     globals::GlobalList,
-    protocol::{wl_compositor, wl_seat, wl_shm},
-    Connection, Dispatch, QueueHandle,
+    protocol::{wl_seat, wl_shm},
 };
 use wayland_protocols::xdg::activation::v1::client::xdg_activation_v1;
 
@@ -21,15 +20,10 @@ pub struct Seat {
 }
 
 impl Seat {
-    pub fn new(
-        conn: &Connection,
-        qh: &QueueHandle<Moxnotify>,
-        globals: &GlobalList,
-        compositor: &wl_compositor::WlCompositor,
-    ) -> anyhow::Result<Self> {
+    pub fn new(qh: &QueueHandle<Moxnotify>, globals: &GlobalList) -> anyhow::Result<Self> {
         let wl_seat = globals.bind::<wl_seat::WlSeat, _, _>(qh, 1..=4, ())?;
         let keyboard = Keyboard::new(qh, &wl_seat);
-        let pointer = Pointer::new(conn, qh, compositor, globals, &wl_seat)?;
+        let pointer = Pointer::new(qh, globals, &wl_seat)?;
 
         Ok(Self {
             xdg_activation: globals.bind(qh, 1..=1, ())?,

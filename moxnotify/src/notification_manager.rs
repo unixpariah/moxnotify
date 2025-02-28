@@ -2,16 +2,15 @@ pub mod notification;
 mod notification_view;
 
 use crate::{
-    buffers,
+    EmitEvent, Moxnotify, NotificationData, buffers,
     button::Button,
     config::{self, Config, Key, Queue},
     surface::Surface,
     texture_renderer::TextureArea,
-    EmitEvent, Moxnotify, NotificationData,
 };
 use calloop::{
-    timer::{TimeoutAction, Timer},
     LoopHandle,
+    timer::{TimeoutAction, Timer},
 };
 use glyphon::{FontSystem, TextArea};
 use notification::{Notification, NotificationId};
@@ -149,9 +148,10 @@ impl NotificationManager {
             .clone()
             .filter_map(|index| self.notifications.get(index))
             .scan(&mut cumulative_y_offset, |current_y, notification| {
+                let style = notification.style();
                 let extents = notification.rendered_extents();
                 let notification_height = extents.height as f64;
-                let notification_x = extents.x as f64;
+                let notification_x = extents.x as f64 + style.padding.left as f64;
                 let notification_width = extents.width as f64;
 
                 let x_within_bounds =

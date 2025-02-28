@@ -205,8 +205,15 @@ pub struct Urgency {
 
 #[derive(Deserialize, Default)]
 pub struct Icon {
-    #[serde(default)]
+    #[serde(default = "default_icon_border")]
     pub border: Border,
+}
+
+fn default_icon_border() -> Border {
+    Border {
+        size: 0.,
+        radius: BorderRadius::default(),
+    }
 }
 
 #[derive(Deserialize, Default, Debug)]

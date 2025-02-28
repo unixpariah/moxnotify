@@ -1,12 +1,11 @@
 use super::config::Config;
 use crate::button::{Action, Button, ButtonManager, ButtonType};
 use crate::{
-    buffers,
+    Hint, Image, NotificationData, Urgency, buffers,
     config::{Size, StyleState},
     image_data::ImageData,
     surface::wgpu_surface::text::Text,
     texture_renderer::{TextureArea, TextureBounds},
-    Hint, Image, NotificationData, Urgency,
 };
 use calloop::RegistrationToken;
 use glyphon::{FontSystem, TextArea, TextBounds};
@@ -414,7 +413,7 @@ impl Notification {
                 width: texture_width,
                 height: texture_height,
                 scale,
-                border_size: style.border.size,
+                border_size: style.icon.border.size,
                 border_color: urgency.icon_border.into(),
                 bounds: TextureBounds {
                     left: x as u32,
