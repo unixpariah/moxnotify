@@ -152,7 +152,7 @@ pub struct Border {
 impl Default for Border {
     fn default() -> Self {
         Self {
-            size: 2.,
+            size: 0.,
             radius: BorderRadius::default(),
         }
     }

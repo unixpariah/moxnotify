@@ -1,11 +1,12 @@
 use super::config::Config;
 use crate::button::{Action, Button, ButtonManager, ButtonType};
 use crate::{
-    Hint, Image, NotificationData, Urgency, buffers,
+    buffers,
     config::{Size, StyleState},
     image_data::ImageData,
     surface::wgpu_surface::text::Text,
     texture_renderer::{TextureArea, TextureBounds},
+    Hint, Image, NotificationData, Urgency,
 };
 use calloop::RegistrationToken;
 use glyphon::{FontSystem, TextArea, TextBounds};
