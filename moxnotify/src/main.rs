@@ -1,10 +1,13 @@
+pub mod buffers;
 pub mod button;
 mod config;
 mod dbus;
 mod image_data;
 mod notification_manager;
 mod seat;
+pub mod shape_renderer;
 mod surface;
+pub mod texture_renderer;
 mod wgpu_state;
 
 use calloop::EventLoop;

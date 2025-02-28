@@ -1,5 +1,5 @@
 use super::notification::Notification;
-use crate::{config::Config, surface::wgpu_surface::buffers, NotificationData};
+use crate::{buffers, config::Config, NotificationData};
 use glyphon::{FontSystem, TextArea};
 use std::{ops::Range, sync::Arc};
 

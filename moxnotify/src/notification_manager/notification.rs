@@ -1,13 +1,11 @@
 use super::config::Config;
 use crate::button::{Action, Button, ButtonManager, ButtonType};
 use crate::{
+    buffers,
     config::{Size, StyleState},
     image_data::ImageData,
-    surface::wgpu_surface::{
-        buffers,
-        text::Text,
-        texture_renderer::{TextureArea, TextureBounds},
-    },
+    surface::wgpu_surface::text::Text,
+    texture_renderer::{TextureArea, TextureBounds},
     Hint, Image, NotificationData, Urgency,
 };
 use calloop::RegistrationToken;
@@ -164,13 +162,25 @@ impl Notification {
             .map(|i| i.width as f32 + style.padding.right)
             .unwrap_or(0.);
 
+        let mut buttons = ButtonManager::default();
+        let dismiss_button = Button::new(
+            style.border.size + style.width - style.padding.right - style.padding.left,
+            style.border.size + style.padding.top,
+            Action::DismissNotification,
+            ButtonType::Dismiss,
+            Arc::clone(&config),
+            font_system,
+        );
+
         let text = Text::new(
             &config.styles.default.font,
             font_system,
             &data.summary,
             &data.body,
-            config.styles.default.width - icon_width,
+            config.styles.default.width - icon_width - dismiss_button.extents().width,
         );
+
+        buttons.push(dismiss_button);
 
         let notification_style_entry = config
             .notification
@@ -195,16 +205,6 @@ impl Notification {
                 _ => None,
             }
         };
-
-        let mut buttons = ButtonManager::default();
-        buttons.push(Button::new(
-            style.border.size + style.width - style.padding.right - style.padding.left,
-            style.border.size + style.padding.top,
-            Action::DismissNotification,
-            ButtonType::Dismiss,
-            Arc::clone(&config),
-            font_system,
-        ));
 
         Self {
             app_icon: final_app_icon,

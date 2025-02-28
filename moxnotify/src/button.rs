@@ -1,8 +1,6 @@
 mod text;
 
-use crate::{
-    config::Config, notification_manager::notification::Extents, surface::wgpu_surface::buffers,
-};
+use crate::{buffers, config::Config, notification_manager::notification::Extents};
 use glyphon::FontSystem;
 use std::{
     ops::{Deref, DerefMut},

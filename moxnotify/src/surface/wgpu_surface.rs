@@ -1,14 +1,10 @@
-pub mod buffers;
-pub mod shape_renderer;
 pub mod text;
-pub mod texture_renderer;
 
-use crate::{config::Config, wgpu_state::WgpuState};
+use crate::{config::Config, shape_renderer, texture_renderer, wgpu_state::WgpuState};
 use anyhow::Context;
 use raw_window_handle::{RawWindowHandle, WaylandWindowHandle};
-use shape_renderer::ShapeRenderer;
+
 use std::{ptr::NonNull, sync::Arc};
-use texture_renderer::TextureRenderer;
 use wayland_client::{protocol::wl_surface, Proxy};
 
 pub struct WgpuSurface {
@@ -62,10 +58,14 @@ impl WgpuSurface {
             desired_maximum_frame_latency: 2,
         };
 
-        let texture_renderer =
-            TextureRenderer::new(&wgpu_state.device, *surface_format, config.max_icon_size);
+        let texture_renderer = texture_renderer::TextureRenderer::new(
+            &wgpu_state.device,
+            *surface_format,
+            config.max_icon_size,
+        );
 
-        let shape_renderer = ShapeRenderer::new(&wgpu_state.device, *surface_format);
+        let shape_renderer =
+            shape_renderer::ShapeRenderer::new(&wgpu_state.device, *surface_format);
 
         let text_ctx =
             text::TextContext::new(&wgpu_state.device, &wgpu_state.queue, surface_config.format);

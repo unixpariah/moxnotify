@@ -2,12 +2,11 @@ pub mod notification;
 mod notification_view;
 
 use crate::{
+    buffers,
     button::Button,
     config::{self, Config, Key, Queue},
-    surface::{
-        wgpu_surface::{buffers, texture_renderer::TextureArea},
-        Surface,
-    },
+    surface::Surface,
+    texture_renderer::TextureArea,
     EmitEvent, Moxnotify, NotificationData,
 };
 use calloop::{

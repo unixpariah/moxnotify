@@ -19,7 +19,8 @@ impl ShapeRenderer {
                 push_constant_ranges: &[],
             });
 
-        let shader = device.create_shader_module(wgpu::include_wgsl!("./shaders/shape.wgsl"));
+        let shader =
+            device.create_shader_module(wgpu::include_wgsl!("./shape_renderer/shader.wgsl"));
         let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("Render Pipeline"),
             layout: Some(&render_pipeline_layout),
