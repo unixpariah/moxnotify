@@ -88,6 +88,8 @@ in
       };
 
       Service = {
+        Type = "dbus";
+        BusName = "org.freedesktop.Notifications";
         ExecStart = "${lib.getExe cfg.package}";
         Restart = "always";
         RestartSec = "10";

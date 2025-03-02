@@ -35,7 +35,7 @@ impl Text {
         font_system: &mut FontSystem,
         summary: &str,
         body: &str,
-        width: f32,
+        max_width: f32,
         x: f32,
         y: f32,
     ) -> Self {
@@ -126,7 +126,7 @@ impl Text {
         );
         buffer.set_rich_text(font_system, spans.iter().copied(), attrs, Shaping::Advanced);
         buffer.shape_until_scroll(font_system, true);
-        buffer.set_size(font_system, Some(width), None);
+        buffer.set_size(font_system, Some(max_width), None);
 
         let mut total = 0;
         anchors.iter_mut().for_each(|anchor| {

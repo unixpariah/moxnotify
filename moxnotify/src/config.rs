@@ -226,6 +226,12 @@ pub enum Size {
 }
 
 #[derive(Deserialize, Default)]
+pub struct Progress {
+    height: f32,
+    border: Border,
+}
+
+#[derive(Deserialize, Default)]
 pub struct StyleState {
     #[serde(default = "default_width")]
     pub width: f32,
@@ -251,6 +257,8 @@ pub struct StyleState {
     pub urgency_critical: Urgency,
     #[serde(default)]
     pub icon: Icon,
+    #[serde(default)]
+    pub progress: Progress,
 }
 
 fn default_margin() -> Insets {
