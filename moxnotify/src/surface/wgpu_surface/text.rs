@@ -7,7 +7,8 @@ use regex::Regex;
 use std::sync::{Arc, LazyLock};
 use wgpu::{MultisampleState, TextureFormat};
 
-static REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"<(/?)(b|i|a)\b[^>]*>").unwrap());
+static REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"<(/?)(b|i|a|u|img)\b[^>]*>").unwrap());
 static HREF_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"href\s*=\s*["']([^"']*)["']"#).unwrap());
 
@@ -23,7 +24,9 @@ pub struct Anchor {
 
 pub struct Text {
     pub buffer: Buffer,
-    pub anchors: Vec<Anchor>,
+    anchors: Vec<Anchor>,
+    x: f32,
+    y: f32,
 }
 
 impl Text {
@@ -33,6 +36,8 @@ impl Text {
         summary: &str,
         body: &str,
         width: f32,
+        x: f32,
+        y: f32,
     ) -> Self {
         let attrs = Attrs::new().family(glyphon::Family::Name(&font.family));
         let mut spans = vec![];
@@ -97,6 +102,8 @@ impl Text {
                         "b" => current_attrs.weight(Weight::BOLD),
                         "i" => current_attrs.style(Style::Italic),
                         "a" => current_attrs.color(Color::rgb(0, 0, 255)),
+                        "u" => current_attrs, // TODO: implement this once cosmic-text implements
+                        // underline
                         _ => current_attrs,
                     };
                 });
@@ -129,7 +136,7 @@ impl Text {
                     .match_indices(&*anchor.text)
                     .for_each(|(start, _)| {
                         if total + start == anchor.char_num {
-                            anchor.start = start - 1;
+                            anchor.start = start;
                             anchor.end = start + anchor.text.len();
                             anchor.line = i;
                         }
@@ -138,11 +145,21 @@ impl Text {
             });
         });
 
-        Self { buffer, anchors }
+        Self {
+            buffer,
+            anchors,
+            x,
+            y,
+        }
+    }
+
+    pub fn set_buffer_position(&mut self, x: f32, y: f32) {
+        self.x = x;
+        self.y = y;
     }
 
     pub fn hit(&self, x: f32, y: f32) -> Option<&Anchor> {
-        let cursor = self.buffer.hit(x, y)?;
+        let cursor = self.buffer.hit(x - self.x, y - self.y)?;
         self.anchors.iter().find(|anchor| {
             anchor.line == cursor.line && anchor.start < cursor.index && anchor.end >= cursor.index
         })

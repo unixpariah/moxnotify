@@ -29,7 +29,7 @@ impl NotificationsImpl {
             // "actions",
             "body",
             "body-hyperlinks",
-            // "body-images",
+            "body-images",
             "body-markup",
             // "icon-multi",
             "icon-static",

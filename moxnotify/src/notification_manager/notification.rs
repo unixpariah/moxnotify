@@ -178,6 +178,8 @@ impl Notification {
             &data.summary,
             &data.body,
             config.styles.default.width - icon_width - dismiss_button.extents().width,
+            style.padding.left + style.border.size + style.margin.left + icon_width,
+            style.margin.top + style.border.size,
         );
 
         buttons.push(dismiss_button);
@@ -237,13 +239,13 @@ impl Notification {
             summary,
             body,
             style.width - icon_extents.0,
+            style.padding.left + style.border.size + style.margin.left + icon_extents.0,
+            style.margin.top + style.border.size,
         )
     }
 
     pub fn height(&self) -> f32 {
         let style = self.style();
-
-        let icon_extents = self.icon_extents();
 
         let dismiss_button = self
             .buttons
@@ -266,7 +268,7 @@ impl Notification {
                 .text
                 .extents()
                 .1
-                .max(icon_extents.1)
+                .max(self.icon_extents().1)
                 .max(dismiss_button)
                 .clamp(min_height, max_height),
         }
@@ -293,10 +295,20 @@ impl Notification {
 
     pub fn hover(&mut self) {
         self.hovered = true;
+        let style = self.style();
+        self.text.set_buffer_position(
+            style.padding.left + style.border.size + style.margin.left + self.icon_extents().0,
+            style.margin.top + style.border.size,
+        );
     }
 
     pub fn unhover(&mut self) {
         self.hovered = false;
+        let style = self.style();
+        self.text.set_buffer_position(
+            style.padding.left + style.border.size + style.margin.left + self.icon_extents().0,
+            style.margin.top + style.border.size,
+        );
     }
 
     pub fn id(&self) -> NotificationId {

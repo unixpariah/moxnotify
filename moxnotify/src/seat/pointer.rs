@@ -1,9 +1,10 @@
-use crate::{EmitEvent, Moxnotify, button::Action, surface::FocusReason};
+use crate::{button::Action, surface::FocusReason, EmitEvent, Moxnotify};
 use std::sync::Arc;
 use wayland_client::{
-    Connection, Dispatch, QueueHandle, WEnum, delegate_noop,
+    delegate_noop,
     globals::GlobalList,
     protocol::{wl_pointer, wl_seat},
+    Connection, Dispatch, QueueHandle, WEnum,
 };
 use wayland_protocols::wp::cursor_shape::v1::client::{
     wp_cursor_shape_device_v1::{self, Shape},
@@ -18,7 +19,7 @@ enum PointerState {
 }
 
 pub struct Pointer {
-    state: Option<PointerState>,
+    state: PointerState,
     x: f64,
     y: f64,
     wl_pointer: wl_pointer::WlPointer,
@@ -44,7 +45,7 @@ impl Pointer {
         Ok(Self {
             serial: 0,
             cursor_device,
-            state: None,
+            state: PointerState::Default,
             x: 0.,
             y: 0.,
             wl_pointer,
@@ -53,10 +54,6 @@ impl Pointer {
     }
 
     fn change_state(&mut self, pointer_state: PointerState) {
-        if self.state.as_ref() == Some(&pointer_state) {
-            return;
-        }
-
         match pointer_state {
             PointerState::Default => {
                 self.cursor_device.set_shape(self.serial, Shape::Default);
@@ -67,7 +64,7 @@ impl Pointer {
             }
         }
 
-        self.state = Some(pointer_state);
+        self.state = pointer_state;
     }
 }
 
@@ -101,7 +98,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 pointer.x = surface_x;
                 pointer.y = surface_y;
 
-                if let Some(PointerState::Pressed) = pointer.state {
+                if let PointerState::Pressed = pointer.state {
                     return;
                 }
 
@@ -126,12 +123,10 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                         notification == &under_pointer
                     });
                     acc -= under_pointer.rendered_extents().height;
+
                     if under_pointer
                         .text
-                        .hit(
-                            pointer.x as f32 - under_pointer.style().padding.left,
-                            pointer.y as f32 - acc,
-                        )
+                        .hit(pointer.x as f32, pointer.y as f32 - acc)
                         .is_some()
                     {
                         state.seat.pointer.change_state(PointerState::Hover);
@@ -241,6 +236,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
             wl_pointer::Event::Leave { .. } => {
                 if surface.focus_reason == Some(FocusReason::MouseEnter) {
                     surface.unfocus();
+                    state.seat.pointer.change_state(PointerState::Default);
                     state.deselect_notification();
                 }
             }
