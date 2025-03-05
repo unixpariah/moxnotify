@@ -427,7 +427,6 @@ impl Notification {
                 height: texture_height,
                 scale,
                 border_size: style.icon.border.size,
-                border_color: urgency.icon_border.into(),
                 bounds: TextureBounds {
                     left: x as u32,
                     top: (total_height - y - height) as u32,

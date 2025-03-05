@@ -199,8 +199,6 @@ pub struct Urgency {
     pub foreground: Color,
     #[serde(default)]
     pub border: Color,
-    #[serde(default)]
-    pub icon_border: Color,
 }
 
 #[derive(Deserialize, Default)]
@@ -435,6 +433,8 @@ pub struct Button {
     pub width: f32,
     pub height: f32,
     pub border: Border,
+    pub background_color: Color,
+    pub border_color: Color,
 }
 
 #[derive(Deserialize, Default)]
@@ -479,6 +479,12 @@ fn default_buttons() -> Buttons {
         dismiss: Button {
             height: 20.,
             width: 20.,
+            border_color: Color {
+                rgba: [255, 107, 107, 255],
+            },
+            background_color: Color {
+                rgba: [255, 107, 107, 255],
+            },
             border: Border {
                 size: 0.,
                 radius: BorderRadius {
@@ -492,6 +498,12 @@ fn default_buttons() -> Buttons {
         action: Button {
             height: 20.,
             width: 20.,
+            border_color: Color {
+                rgba: [255, 0, 0, 255],
+            },
+            background_color: Color {
+                rgba: [255, 0, 0, 255],
+            },
             border: Border {
                 size: 0.,
                 radius: BorderRadius {
@@ -606,19 +618,16 @@ impl Config {
                             urgency_low = {
                               background = "#1A1412",
                               border = "#3C7B82",
-                              icon_border = "#3C7B82",
                               foreground = "#3C7B82"
                             },
                             urgency_normal = {
                               background = "#1A1412",
                               border = "#567734",
-                              icon_border = "#567734",
                               foreground = "#567734"
                             },
                             urgency_critical = {
                               background = "#1A1412",
                               border = "#B04027",
-                              icon_border = "#B04027",
                               foreground = "#B04027"
                             },
                           },
@@ -700,16 +709,20 @@ impl Config {
                 if user_config.notification then
                     for _, entry in ipairs(user_config.notification) do
                         local styles = entry.styles or {{}}
+
+                        styles.hover = deep_merge(
+                            deep_merge(
+                                user_config.styles.hover or {{}},
+                                styles.default or {{}}
+                            ),
+                            styles.hover or {{}}
+                        )
                         
                         styles.default = deep_merge(
                             user_config.styles.default or {{}},
                             styles.default or {{}}
                         )
                         
-                        styles.hover = deep_merge(
-                            user_config.styles.hover or {{}},
-                            styles.hover or {{}}
-                        )
                     end
                 end
 
@@ -778,7 +791,7 @@ mod tests {
 
     #[test]
     fn invalid_cases() {
-        let test_cases = vec![
+        let test_cases = [
             ("missing hash", "fff", "Hex string must start with '#'"),
             ("invalid_char", "#ggg", "Invalid hex component"),
             ("wrong_length_5", "#12345", "Invalid hex length: 5"),

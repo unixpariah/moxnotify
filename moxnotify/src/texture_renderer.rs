@@ -21,7 +21,6 @@ pub struct TextureArea<'a> {
     pub data: &'a [u8],
     pub width: f32,
     pub height: f32,
-    pub border_color: [f32; 4],
     pub border_size: f32,
 }
 
@@ -220,7 +219,6 @@ impl TextureRenderer {
                 size: [texture.width, texture.height],
                 radius: texture.radius,
                 border_width: texture.border_size,
-                border_color: texture.border_color,
                 container_rect: [
                     texture.bounds.left as f32,
                     texture.bounds.top as f32,

@@ -100,10 +100,10 @@ impl Button {
         buffers::Instance {
             rect_pos: [x + self.x, y + self.y],
             rect_size: [self.width, self.height],
-            rect_color: [1., 0., 0., 1.],
+            rect_color: self.config.button.dismiss.background_color.into(),
             border_radius: button.border.radius.into(),
             border_size: button.border.size,
-            border_color: [0., 0., 0., 0.],
+            border_color: self.config.button.dismiss.border_color.into(),
             scale,
         }
     }
