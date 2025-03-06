@@ -21,10 +21,9 @@ impl WgpuState {
             NonNull::new(conn.backend().display_ptr() as *mut _).unwrap(),
         ));
 
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            ..Default::default()
-        }))
-        .expect("Failed to find suitable adapter");
+        let adapter =
+            pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
+                .expect("Failed to find suitable adapter");
 
         let (device, queue) = pollster::block_on(adapter.request_device(&Default::default(), None))
             .expect("Failed to request device");

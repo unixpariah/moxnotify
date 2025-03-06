@@ -435,6 +435,8 @@ pub struct Button {
     pub border: Border,
     pub background_color: Color,
     pub border_color: Color,
+    pub hover_background_color: Color,
+    pub hover_border_color: Color,
 }
 
 #[derive(Deserialize, Default)]
@@ -485,6 +487,12 @@ fn default_buttons() -> Buttons {
             background_color: Color {
                 rgba: [255, 107, 107, 255],
             },
+            hover_border_color: Color {
+                rgba: [255, 0, 0, 255],
+            },
+            hover_background_color: Color {
+                rgba: [255, 0, 0, 255],
+            },
             border: Border {
                 size: 0.,
                 radius: BorderRadius {
@@ -502,6 +510,12 @@ fn default_buttons() -> Buttons {
                 rgba: [255, 0, 0, 255],
             },
             background_color: Color {
+                rgba: [255, 0, 0, 255],
+            },
+            hover_border_color: Color {
+                rgba: [255, 0, 0, 255],
+            },
+            hover_background_color: Color {
                 rgba: [255, 0, 0, 255],
             },
             border: Border {

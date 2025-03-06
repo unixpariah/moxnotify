@@ -16,7 +16,7 @@ use calloop::{
 use glyphon::{FontSystem, TextArea};
 use notification::{Notification, NotificationId};
 use notification_view::NotificationView;
-use std::ops::Range;
+use std::{cell::RefMut, ops::Range};
 use std::{ops::Deref, sync::Arc, time::Duration};
 
 pub struct NotificationManager {
@@ -137,7 +137,7 @@ impl NotificationManager {
             .next()
     }
 
-    pub fn get_button_by_coordinates(&self, x: f64, y: f64) -> Option<&Button> {
+    pub fn get_button_by_coordinates(&self, x: f64, y: f64) -> Option<RefMut<Button>> {
         let mut cumulative_y_offset: f64 = self
             .notification_view
             .prev

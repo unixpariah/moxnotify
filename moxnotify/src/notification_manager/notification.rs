@@ -182,7 +182,7 @@ impl Notification {
             style.margin.top + style.border.size,
         );
 
-        buttons.push(dismiss_button);
+        buttons.push(dismiss_button.into());
 
         let notification_style_entry = config
             .notification
@@ -250,8 +250,8 @@ impl Notification {
         let dismiss_button = self
             .buttons
             .iter()
-            .find(|button| button.button_type == ButtonType::Dismiss)
-            .map(|b| b.extents().height)
+            .find(|button| button.borrow().button_type == ButtonType::Dismiss)
+            .map(|b| b.borrow().extents().height)
             .unwrap_or(0.);
 
         let min_height = match style.min_height {
@@ -340,7 +340,11 @@ impl Notification {
         }];
 
         self.buttons.iter().for_each(|button| {
-            instances.push(button.get_instance(extents.x + style.padding.left, y, scale))
+            instances.push(
+                button
+                    .borrow()
+                    .get_instance(extents.x + style.padding.left, y, scale),
+            )
         });
 
         instances
@@ -404,12 +408,6 @@ impl Notification {
         if let Some(image) = self.image() {
             let extents = self.rendered_extents();
             let style = self.style();
-
-            let urgency = match self.urgency() {
-                Urgency::Low => &style.urgency_low,
-                Urgency::Normal => &style.urgency_normal,
-                Urgency::Critical => &style.urgency_critical,
-            };
 
             let x = extents.x + style.border.size + style.padding.left;
             let y = y + style.border.size + style.padding.top;
