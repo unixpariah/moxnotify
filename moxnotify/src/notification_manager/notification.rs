@@ -172,7 +172,7 @@ impl Notification {
             font_system,
         );
 
-        let text = Text::new(
+        let text = Text::new_notification(
             &config.styles.default.font,
             font_system,
             &data.summary,
@@ -233,7 +233,7 @@ impl Notification {
 
         let icon_extents = self.icon_extents();
 
-        self.text = Text::new(
+        self.text = Text::new_notification(
             &style.font,
             font_system,
             summary,
@@ -459,8 +459,6 @@ impl Notification {
             crate::Urgency::Critical => &style.urgency_critical,
         };
 
-        let color = color.foreground.rgba;
-
         let icon_width_positioning = self
             .image
             .as_ref()
@@ -484,7 +482,7 @@ impl Notification {
                 bottom: (y + style.border.size + height.min(self.height()) + style.padding.top)
                     as i32,
             },
-            default_color: glyphon::Color::rgba(color[0], color[1], color[2], color[3]),
+            default_color: color.foreground.into(),
             custom_glyphs: &[],
         }
     }

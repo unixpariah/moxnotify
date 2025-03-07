@@ -1,6 +1,8 @@
-mod text;
-
-use crate::{buffers, config::Config, notification_manager::notification::Extents};
+use crate::{
+    buffers,
+    config::{button::ButtonState, Config},
+    notification_manager::notification::Extents,
+};
 use glyphon::FontSystem;
 use std::{
     cell::{RefCell, RefMut},
@@ -76,8 +78,8 @@ impl Button {
         font_system: &mut FontSystem,
     ) -> Self {
         let button = match button_type {
-            ButtonType::Dismiss => &config.button.dismiss,
-            ButtonType::Action => &config.button.action,
+            ButtonType::Dismiss => &config.buttons.dismiss,
+            ButtonType::Action => &config.buttons.action,
         };
 
         Self {
@@ -108,27 +110,34 @@ impl Button {
         }
     }
 
+    pub fn style(&self) -> &ButtonState {
+        let button = match self.button_type {
+            ButtonType::Dismiss => &self.config.buttons.dismiss,
+            ButtonType::Action => &self.config.buttons.action,
+        };
+
+        if self.hovered {
+            &button.hover
+        } else {
+            &button.default
+        }
+    }
+
     pub fn get_instance(&self, x: f32, y: f32, scale: f32) -> buffers::Instance {
         let button = match self.button_type {
-            ButtonType::Dismiss => &self.config.button.dismiss,
-            ButtonType::Action => &self.config.button.action,
+            ButtonType::Dismiss => &self.config.buttons.dismiss,
+            ButtonType::Action => &self.config.buttons.action,
         };
+
+        let style = self.style();
 
         buffers::Instance {
             rect_pos: [x + self.x, y + self.y],
             rect_size: [self.width, self.height],
-            rect_color: if self.hovered {
-                self.config.button.dismiss.hover_background_color.into()
-            } else {
-                self.config.button.dismiss.background_color.into()
-            },
+            rect_color: style.background_color.into(),
             border_radius: button.border.radius.into(),
             border_size: button.border.size,
-            border_color: if self.hovered {
-                self.config.button.dismiss.hover_border_color.into()
-            } else {
-                self.config.button.dismiss.border_color.into()
-            },
+            border_color: style.border_color.into(),
             scale,
         }
     }

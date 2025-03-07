@@ -51,7 +51,16 @@ in
         };
       };
 
-      buttons.dismiss.background_color = base08;
+      #button.dismiss = {
+      #  default = {
+      #    background_color = base08;
+      #    border_color = base08;
+      #  };
+      #  hover = {
+      #    background_color = base07;
+      #    border_color = base07;
+      #  };
+      #};
     };
   };
 }

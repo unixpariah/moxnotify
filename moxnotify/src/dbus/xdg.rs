@@ -23,8 +23,8 @@ struct NotificationsImpl {
 
 #[zbus::interface(name = "org.freedesktop.Notifications")]
 impl NotificationsImpl {
-    async fn get_capabilities(&self) -> Vec<&'static str> {
-        vec![
+    async fn get_capabilities(&self) -> &[&'static str] {
+        &[
             // "action-icons",
             // "actions",
             "body",

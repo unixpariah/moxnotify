@@ -30,7 +30,32 @@ pub struct Text {
 }
 
 impl Text {
-    pub fn new(
+    pub fn new(font: &Font, font_system: &mut FontSystem, body: &str, x: f32, y: f32) -> Self {
+        let dpi = 96.0;
+        let font_size = font.size * dpi / 72.0;
+
+        let mut buffer = Buffer::new(
+            font_system,
+            glyphon::Metrics::new(font_size, font_size * 1.2),
+        );
+        buffer.set_text(
+            font_system,
+            body,
+            Attrs::new().family(glyphon::Family::Name(&font.family)),
+            Shaping::Advanced,
+        );
+        buffer.shape_until_scroll(font_system, true);
+        buffer.set_size(font_system, None, None);
+
+        Self {
+            buffer,
+            anchors: Vec::new(),
+            x,
+            y,
+        }
+    }
+
+    pub fn new_notification(
         font: &Font,
         font_system: &mut FontSystem,
         summary: &str,
