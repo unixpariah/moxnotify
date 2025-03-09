@@ -7,6 +7,7 @@ mod notification_manager;
 mod seat;
 pub mod shape_renderer;
 mod surface;
+pub mod text;
 pub mod texture_renderer;
 mod wgpu_state;
 
@@ -22,9 +23,10 @@ use std::{path::Path, sync::Arc};
 use surface::{FocusReason, Surface};
 use tokio::sync::broadcast;
 use wayland_client::{
-    Connection, Dispatch, Proxy, QueueHandle, delegate_noop,
-    globals::{GlobalList, GlobalListContents, registry_queue_init},
+    delegate_noop,
+    globals::{registry_queue_init, GlobalList, GlobalListContents},
     protocol::{wl_compositor, wl_output, wl_registry},
+    Connection, Dispatch, Proxy, QueueHandle,
 };
 use wayland_protocols::xdg::activation::v1::client::{xdg_activation_token_v1, xdg_activation_v1};
 use wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_shell_v1;

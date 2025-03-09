@@ -1,6 +1,6 @@
-pub mod text;
-
-use crate::{config::Config, shape_renderer, texture_renderer, wgpu_state::WgpuState};
+use crate::{
+    config::Config, shape_renderer, text::TextContext, texture_renderer, wgpu_state::WgpuState,
+};
 use anyhow::Context;
 use raw_window_handle::{RawWindowHandle, WaylandWindowHandle};
 
@@ -10,7 +10,7 @@ use wayland_client::{protocol::wl_surface, Proxy};
 pub struct WgpuSurface {
     pub texture_renderer: texture_renderer::TextureRenderer,
     pub shape_renderer: shape_renderer::ShapeRenderer,
-    pub text_ctx: text::TextContext,
+    pub text_ctx: TextContext,
     pub surface: wgpu::Surface<'static>,
     pub config: wgpu::SurfaceConfiguration,
 }
@@ -68,7 +68,7 @@ impl WgpuSurface {
             shape_renderer::ShapeRenderer::new(&wgpu_state.device, *surface_format);
 
         let text_ctx =
-            text::TextContext::new(&wgpu_state.device, &wgpu_state.queue, surface_config.format);
+            TextContext::new(&wgpu_state.device, &wgpu_state.queue, surface_config.format);
 
         Ok(Self {
             shape_renderer,

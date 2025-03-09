@@ -31,6 +31,7 @@ rustPlatform.buildRustPackage rec {
       lib.any (p: lib.hasPrefix p relPath) [
         "moxnotify"
         "mox"
+        "contrib"
         "Cargo.toml"
         "Cargo.lock"
       ];
@@ -54,6 +55,13 @@ rustPlatform.buildRustPackage rec {
   installPhase = ''
     install -Dm755 target/release/moxnotify $out/bin/moxnotify
     install -Dm755 target/release/mox $out/bin/mox
+  '';
+
+  postInstall = ''
+    mkdir -p $out/lib/systemd/user
+    substitute $src/contrib/systemd/moxnotify.service $out/lib/systemd/user/moxnotify.service \
+      --replace-fail '/usr/bin' "$out/bin"
+    chmod 0644 $out/lib/systemd/user/moxnotify.service
   '';
 
   postFixup = ''

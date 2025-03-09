@@ -1,10 +1,10 @@
 use super::config::Config;
 use crate::button::{Action, Button, ButtonManager, ButtonType};
+use crate::text;
 use crate::{
     buffers,
     config::{Size, StyleState},
     image_data::ImageData,
-    surface::wgpu_surface::text::Text,
     texture_renderer::{TextureArea, TextureBounds},
     Hint, Image, NotificationData, Urgency,
 };
@@ -26,7 +26,7 @@ pub struct Notification {
     id: NotificationId,
     app_name: Box<str>,
     app_icon: Option<ImageData>,
-    pub text: Text,
+    pub text: text::Text,
     timeout: Option<u64>,
     hovered: bool,
     config: Arc<Config>,
@@ -172,7 +172,7 @@ impl Notification {
             font_system,
         );
 
-        let text = Text::new_notification(
+        let text = text::Text::new_notification(
             &config.styles.default.font,
             font_system,
             &data.summary,
@@ -233,7 +233,7 @@ impl Notification {
 
         let icon_extents = self.icon_extents();
 
-        self.text = Text::new_notification(
+        self.text = text::Text::new_notification(
             &style.font,
             font_system,
             summary,
