@@ -340,11 +340,12 @@ impl Notification {
         }];
 
         self.buttons.iter().for_each(|button| {
-            instances.push(
-                button
-                    .borrow()
-                    .get_instance(extents.x + style.padding.left, y, scale),
-            )
+            instances.push(button.borrow().get_instance(
+                extents.x + style.padding.left,
+                y,
+                self.hovered(),
+                scale,
+            ))
         });
 
         instances

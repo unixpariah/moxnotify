@@ -1,6 +1,9 @@
 use crate::{
     buffers,
-    config::{button::ButtonState, Config},
+    config::{
+        button::{self, ButtonState},
+        Config,
+    },
     notification_manager::notification::Extents,
 };
 use glyphon::FontSystem;
@@ -78,8 +81,8 @@ impl Button {
         font_system: &mut FontSystem,
     ) -> Self {
         let button = match button_type {
-            ButtonType::Dismiss => &config.buttons.dismiss,
-            ButtonType::Action => &config.buttons.action,
+            ButtonType::Dismiss => &config.styles.default.buttons.dismiss,
+            ButtonType::Action => &config.styles.default.buttons.action,
         };
 
         Self {
@@ -110,26 +113,26 @@ impl Button {
         }
     }
 
-    pub fn style(&self) -> &ButtonState {
-        let button = match self.button_type {
-            ButtonType::Dismiss => &self.config.buttons.dismiss,
-            ButtonType::Action => &self.config.buttons.action,
+    pub fn style(&self, hovered: bool) -> (&button::Button, &ButtonState) {
+        let button = match (&self.button_type, hovered) {
+            (ButtonType::Dismiss, true) => &self.config.styles.hover.buttons.dismiss,
+            (ButtonType::Dismiss, false) => &self.config.styles.default.buttons.dismiss,
+            (ButtonType::Action, true) => &self.config.styles.hover.buttons.action,
+            (ButtonType::Action, false) => &self.config.styles.default.buttons.action,
         };
 
-        if self.hovered {
-            &button.hover
-        } else {
-            &button.default
-        }
+        (
+            button,
+            if self.hovered {
+                &button.hover
+            } else {
+                &button.default
+            },
+        )
     }
 
-    pub fn get_instance(&self, x: f32, y: f32, scale: f32) -> buffers::Instance {
-        let button = match self.button_type {
-            ButtonType::Dismiss => &self.config.buttons.dismiss,
-            ButtonType::Action => &self.config.buttons.action,
-        };
-
-        let style = self.style();
+    pub fn get_instance(&self, x: f32, y: f32, hovered: bool, scale: f32) -> buffers::Instance {
+        let (button, style) = self.style(hovered);
 
         buffers::Instance {
             rect_pos: [x + self.x, y + self.y],

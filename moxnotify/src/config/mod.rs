@@ -165,6 +165,8 @@ pub struct StyleState {
     pub icon: Icon,
     #[serde(default)]
     pub progress: Progress,
+    #[serde(default)]
+    pub buttons: Buttons,
 }
 
 fn default_margin() -> Insets {
@@ -359,11 +361,42 @@ pub struct Config {
     pub styles: Styles,
     #[serde(default)]
     pub notification: Vec<NotificationStyleEntry>,
-    #[serde(default)]
-    pub buttons: Buttons,
     #[serde(default = "default_keymaps")]
     #[serde(deserialize_with = "deserialize_keycombination_map")]
     pub keymaps: HashMap<KeyCombination, KeyAction>,
+    #[serde(default = "default_notification_counter")]
+    pub prev: NotificationCounter,
+    #[serde(default = "default_notification_counter")]
+    pub next: NotificationCounter,
+}
+
+#[derive(Default, Deserialize)]
+pub struct NotificationCounter {
+    pub format: Box<str>,
+    pub border: Border,
+    pub border_color: Color,
+    pub background_color: Color,
+    pub margin: Insets,
+    pub padding: Insets,
+}
+
+fn default_notification_counter() -> NotificationCounter {
+    NotificationCounter {
+        format: "({} more)".into(),
+        border: Border {
+            size: 2.,
+            radius: BorderRadius {
+                top_left: 5.,
+                top_right: 5.,
+                bottom_left: 5.,
+                bottom_right: 5.,
+            },
+        },
+        border_color: Color::rgba([158, 206, 106, 255]),
+        background_color: Color::rgba([26, 27, 38, 255]),
+        margin: Insets::default(),
+        padding: Insets::default(),
+    }
 }
 
 fn default_keymaps() -> HashMap<KeyCombination, KeyAction> {

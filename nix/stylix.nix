@@ -17,6 +17,17 @@ in
     services.moxnotify.settings = {
       styles = {
         default = {
+          button.dismiss = {
+            default = {
+              background_color = base08;
+              border_color = base08;
+            };
+            hover = {
+              background_color = base07;
+              border_color = base07;
+            };
+          };
+
           urgency_low = {
             background = base00 + moxnotifyOpacity;
             foreground = base05;
@@ -51,16 +62,6 @@ in
         };
       };
 
-      #button.dismiss = {
-      #  default = {
-      #    background_color = base08;
-      #    border_color = base08;
-      #  };
-      #  hover = {
-      #    background_color = base07;
-      #    border_color = base07;
-      #  };
-      #};
     };
   };
 }

@@ -57,9 +57,11 @@ impl NotificationView {
 
     pub fn update_notification_count(&mut self, notification_count: usize) {
         if notification_count > self.visible.end {
-            let summary = format!(
-                "({} more)",
-                notification_count.saturating_sub(self.visible.end)
+            let summary = self.config.prev.format.replace(
+                "{}",
+                &notification_count
+                    .saturating_sub(self.visible.end)
+                    .to_string(),
             );
             if let Some(notification) = &mut self.next {
                 notification.set_text(&summary, "", &mut self.font_system);
@@ -68,14 +70,9 @@ impl NotificationView {
                     Arc::clone(&self.config),
                     &mut self.font_system,
                     NotificationData {
-                        id: 0,
-                        actions: [].into(),
-                        app_name: "".into(),
-                        app_icon: "".into(),
+                        app_name: "next_notification_count".into(),
                         summary: summary.into(),
-                        body: "".into(),
-                        hints: Vec::new(),
-                        timeout: 0,
+                        ..Default::default()
                     },
                 ));
             }
@@ -84,7 +81,11 @@ impl NotificationView {
         }
 
         if self.visible.start > 0 {
-            let summary = format!("({} more)", self.visible.start);
+            let summary = self
+                .config
+                .next
+                .format
+                .replace("{}", &self.visible.start.to_string());
             if let Some(notification) = &mut self.prev {
                 notification.set_text(&summary, "", &mut self.font_system);
             } else {
@@ -92,14 +93,9 @@ impl NotificationView {
                     Arc::clone(&self.config),
                     &mut self.font_system,
                     NotificationData {
-                        id: 0,
-                        actions: [].into(),
-                        app_name: "".into(),
-                        app_icon: "".into(),
+                        app_name: "prev_notification_count".into(),
                         summary: summary.into(),
-                        body: "".into(),
-                        hints: Vec::new(),
-                        timeout: 0,
+                        ..Default::default()
                     },
                 ))
             }
@@ -114,8 +110,25 @@ impl NotificationView {
         scale: f32,
     ) -> Option<(buffers::Instance, TextArea)> {
         if let Some(prev) = self.prev.as_ref() {
-            *total_height += prev.extents().height;
-            return Some((prev.get_instance(0., scale)[0], prev.text_area(0., scale)));
+            let extents = prev.rendered_extents();
+            let style = &self.config.prev;
+            let instance = buffers::Instance {
+                rect_pos: [extents.x, *total_height],
+                rect_size: [
+                    extents.width - style.border.size * 2.0,
+                    extents.height - style.border.size * 2.0,
+                ],
+                rect_color: style.background_color.to_linear(),
+                border_radius: style.border.radius.into(),
+                border_size: style.border.size,
+                border_color: style.border_color.into(),
+                scale,
+            };
+
+            let text_area = prev.text_area(*total_height, scale);
+            *total_height += prev.extents().height - prev.style().margin.top;
+
+            return Some((instance, text_area));
         }
 
         None
@@ -127,9 +140,24 @@ impl NotificationView {
         scale: f32,
     ) -> Option<(buffers::Instance, TextArea)> {
         if let Some(next) = self.next.as_ref() {
+            let extents = next.rendered_extents();
+            let style = &self.config.prev;
+            let instance = buffers::Instance {
+                rect_pos: [extents.x, total_height + next.style().margin.top],
+                rect_size: [
+                    extents.width - style.border.size * 2.0,
+                    extents.height - style.border.size * 2.0,
+                ],
+                rect_color: style.background_color.to_linear(),
+                border_radius: style.border.radius.into(),
+                border_size: style.border.size,
+                border_color: style.border_color.into(),
+                scale,
+            };
+
             return Some((
-                next.get_instance(total_height, scale)[0],
-                next.text_area(total_height, scale),
+                instance,
+                next.text_area(total_height + next.style().margin.top, scale),
             ));
         }
 

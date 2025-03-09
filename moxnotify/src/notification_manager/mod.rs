@@ -57,7 +57,12 @@ impl NotificationManager {
     }
 
     pub fn data(&self, scale: f32) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
-        let mut height = 0.0;
+        let mut height = self
+            .notification_view
+            .prev
+            .as_ref()
+            .map(|p| p.style().margin.top)
+            .unwrap_or(0.);
         let prev_data = self.notification_view.prev_data(&mut height, scale);
 
         let (height, mut instances, mut text_areas, textures) = self

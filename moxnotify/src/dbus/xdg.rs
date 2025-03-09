@@ -5,6 +5,7 @@ use zbus::{fdo::RequestNameFlags, object_server::SignalEmitter, zvariant::Str};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+#[derive(Default)]
 pub struct NotificationData {
     pub id: u32,
     pub app_name: Box<str>,
