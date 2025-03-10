@@ -62,9 +62,7 @@ rustPlatform.buildRustPackage rec {
     substitute $src/contrib/systemd/moxnotify.service $out/lib/systemd/user/moxnotify.service \
       --replace-fail '/usr/bin' "$out/bin"
     chmod 0644 $out/lib/systemd/user/moxnotify.service
-  '';
 
-  postFixup = ''
     patchelf --set-rpath "${lib.makeLibraryPath buildInputs}" $out/bin/moxnotify
   '';
 
