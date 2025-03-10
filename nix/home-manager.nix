@@ -71,29 +71,5 @@ in
     };
 
     home.packages = [ cfg.package ];
-
-    systemd.user.services.moxnotify = {
-      Install = {
-        WantedBy = [ config.wayland.systemd.target ];
-      };
-
-      Unit = {
-        Description = "moxnotify";
-        PartOf = [ config.wayland.systemd.target ];
-        After = [ config.wayland.systemd.target ];
-        ConditionEnvironment = "WAYLAND_DISPLAY";
-        X-Restart-Triggers = lib.mkIf (cfg.settings != { }) [
-          config.xdg.configFile."moxnotify/config.lua".source
-        ];
-      };
-
-      Service = {
-        Type = "dbus";
-        BusName = "org.freedesktop.Notifications";
-        ExecStart = "${lib.getExe cfg.package}";
-        Restart = "always";
-        RestartSec = "10";
-      };
-    };
   };
 }

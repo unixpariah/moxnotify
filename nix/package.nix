@@ -32,6 +32,7 @@ rustPlatform.buildRustPackage rec {
         "moxnotify"
         "mox"
         "contrib"
+        "pl.mox.notify.service.in"
         "Cargo.toml"
         "Cargo.lock"
       ];
@@ -57,14 +58,19 @@ rustPlatform.buildRustPackage rec {
     install -Dm755 target/release/mox $out/bin/mox
   '';
 
-  postInstall = ''
-    mkdir -p $out/lib/systemd/user
-    substitute $src/contrib/systemd/moxnotify.service $out/lib/systemd/user/moxnotify.service \
-      --replace-fail '/usr/bin' "$out/bin"
-    chmod 0644 $out/lib/systemd/user/moxnotify.service
-  '';
-
   postFixup = ''
+    mkdir -p $out/share/systemd/user
+    substitute $src/contrib/systemd/moxnotify.service.in $out/share/systemd/user/moxnotify.service --replace-fail '@bindir@' "$out/bin"
+    chmod 0644 $out/share/systemd/user/moxnotify.service
+
+    mkdir -p $out/lib/systemd
+    ln -s $out/share/systemd/user $out/lib/systemd/user
+
+    mkdir -p $out/share/dbus-1/services
+    substitute $src/pl.mox.notify.service.in $out/share/dbus-1/services/pl.mox.notify.service \
+      --replace-fail '@bindir@' "$out/bin"
+    chmod 0644 $out/share/dbus-1/services/pl.mox.notify.service
+
     patchelf --set-rpath "${lib.makeLibraryPath buildInputs}" $out/bin/moxnotify
   '';
 

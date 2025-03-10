@@ -5,6 +5,7 @@ use crate::{
         Config,
     },
     notification_manager::notification::Extents,
+    text::Text,
 };
 use glyphon::FontSystem;
 use std::{
@@ -67,6 +68,7 @@ pub struct Button {
     width: f32,
     height: f32,
     config: Arc<Config>,
+    text: Text,
     pub action: Action,
     pub button_type: ButtonType,
 }
@@ -85,7 +87,10 @@ impl Button {
             ButtonType::Action => &config.styles.default.buttons.action,
         };
 
+        let text = Text::new(&config.styles.default.font, font_system, "x", x, y);
+
         Self {
+            text,
             hovered: false,
             x,
             y,
