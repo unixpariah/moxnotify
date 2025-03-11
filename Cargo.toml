@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "moxnotifyd",
-    "moxnotifyctl"
+    "daemon",
+    "ctl"
 ]
 resolver = "2"

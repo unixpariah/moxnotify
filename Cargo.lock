@@ -603,6 +603,52 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
+name = "ctl"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "tokio",
+ "zbus",
+]
+
+[[package]]
+name = "daemon"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "calloop",
+ "calloop-wayland-source",
+ "clap",
+ "env_logger",
+ "fast_image_resize",
+ "freedesktop-icons",
+ "futures-lite",
+ "glyphon",
+ "image",
+ "log",
+ "mlua",
+ "pollster",
+ "raw-window-handle",
+ "regex",
+ "resvg",
+ "serde",
+ "tiny-skia",
+ "tokio",
+ "url",
+ "usvg",
+ "wayland-backend",
+ "wayland-client",
+ "wayland-cursor",
+ "wayland-protocols",
+ "wayland-protocols-wlr",
+ "wgpu",
+ "xkbcommon",
+ "zbus",
+]
+
+[[package]]
 name = "data-url"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1522,52 +1568,6 @@ dependencies = [
  "cc",
  "cfg-if",
  "pkg-config",
-]
-
-[[package]]
-name = "moxnotifyctl"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "tokio",
- "zbus",
-]
-
-[[package]]
-name = "moxnotifyd"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bytemuck",
- "calloop",
- "calloop-wayland-source",
- "clap",
- "env_logger",
- "fast_image_resize",
- "freedesktop-icons",
- "futures-lite",
- "glyphon",
- "image",
- "log",
- "mlua",
- "pollster",
- "raw-window-handle",
- "regex",
- "resvg",
- "serde",
- "tiny-skia",
- "tokio",
- "url",
- "usvg",
- "wayland-backend",
- "wayland-client",
- "wayland-cursor",
- "wayland-protocols",
- "wayland-protocols-wlr",
- "wgpu",
- "xkbcommon",
- "zbus",
 ]
 
 [[package]]
