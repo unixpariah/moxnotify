@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "moxnotify",
-    "mox"
+    "moxnotifyd",
+    "moxnotifyctl"
 ]
 resolver = "2"

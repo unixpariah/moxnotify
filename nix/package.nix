@@ -9,17 +9,13 @@
 }:
 
 let
-  cargoToml = builtins.fromTOML (builtins.readFile ../moxnotify/Cargo.toml);
+  cargoToml = builtins.fromTOML (builtins.readFile ../moxnotifyd/Cargo.toml);
 in
 rustPlatform.buildRustPackage rec {
   pname = "moxnotify";
   version = cargoToml.package.version;
 
-  cargoLock = {
-    lockFile = ../Cargo.lock;
-    allowBuiltinFetchGit = true;
-    outputHashes = { };
-  };
+  cargoLock.lockFile = ../Cargo.lock;
 
   src = lib.cleanSourceWith {
     src = ../.;
@@ -29,8 +25,8 @@ rustPlatform.buildRustPackage rec {
         relPath = lib.removePrefix (toString ../. + "/") (toString path);
       in
       lib.any (p: lib.hasPrefix p relPath) [
-        "moxnotify"
-        "mox"
+        "moxnotifyd"
+        "moxnotifyctl"
         "contrib"
         "pl.mox.notify.service.in"
         "Cargo.toml"
@@ -54,8 +50,8 @@ rustPlatform.buildRustPackage rec {
   '';
 
   installPhase = ''
-    install -Dm755 target/release/moxnotify $out/bin/moxnotify
-    install -Dm755 target/release/mox $out/bin/mox
+    install -Dm755 target/release/moxnotifyd $out/bin/moxnotifyd
+    install -Dm755 target/release/moxnotifyctl $out/bin/moxnotifyctl
   '';
 
   postFixup = ''
@@ -71,7 +67,7 @@ rustPlatform.buildRustPackage rec {
       --replace-fail '@bindir@' "$out/bin"
     chmod 0644 $out/share/dbus-1/services/pl.mox.notify.service
 
-    patchelf --set-rpath "${lib.makeLibraryPath buildInputs}" $out/bin/moxnotify
+    patchelf --set-rpath "${lib.makeLibraryPath buildInputs}" $out/bin/moxnotifyd
   '';
 
   dontPatchELF = false;

@@ -1,7 +1,9 @@
+// In notify.rs
 pub enum Event {
     Focus,
     List,
-    Dismiss { all: bool, notification: u32 },
+    DismissAll,
+    DismissOne(u32),
 }
 
 #[zbus::proxy(
@@ -25,6 +27,7 @@ pub async fn emit(event: Event) -> zbus::Result<()> {
     match event {
         Event::Focus => notify.focus().await,
         Event::List => notify.list().await,
-        Event::Dismiss { all, notification } => notify.dismiss(all, notification).await,
+        Event::DismissAll => notify.dismiss(true, 0).await,
+        Event::DismissOne(index) => notify.dismiss(false, index).await,
     }
 }

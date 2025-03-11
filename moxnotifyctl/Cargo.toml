@@ -1,0 +1,10 @@
+[package]
+name = "moxnotifyctl"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+zbus = "5.5.0"
+anyhow = "1.0.95"
+clap = { version = "4.5.27", features = ["derive"] }
+tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread", "sync"] }

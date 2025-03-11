@@ -1525,7 +1525,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mox"
+name = "moxnotifyctl"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -1535,7 +1535,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "moxnotify"
+name = "moxnotifyd"
 version = "0.1.0"
 dependencies = [
  "anyhow",
