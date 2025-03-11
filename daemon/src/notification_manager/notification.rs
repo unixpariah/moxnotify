@@ -12,7 +12,7 @@ use crate::{
 use calloop::RegistrationToken;
 use glyphon::{FontSystem, TextArea, TextBounds};
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 #[derive(Debug)]
 pub struct Extents {
@@ -32,8 +32,9 @@ pub struct Notification {
     config: Arc<Config>,
     actions: Box<[(Arc<str>, Arc<str>)]>,
     image: Option<ImageData>,
-    pub app_icon: Option<ImageData>,
+    app_icon: Option<ImageData>,
     urgency: Urgency,
+    value: Option<i32>,
     pub registration_token: Option<RegistrationToken>,
     pub buttons: ButtonManager,
 }
@@ -84,7 +85,7 @@ fn find_icon(name: &str, icon_size: u16) -> Option<ImageData> {
     get_icon(&icon_path, icon_size)
 }
 
-fn get_icon(icon_path: &Path, icon_size: u16) -> Option<ImageData> {
+pub fn get_icon(icon_path: &Path, icon_size: u16) -> Option<ImageData> {
     if icon_path.extension().and_then(|s| s.to_str()) == Some("svg") {
         svg_to_rgba(icon_path, icon_size as u32)
     } else {
@@ -98,6 +99,7 @@ impl Notification {
     pub fn new(config: Arc<Config>, font_system: &mut FontSystem, data: NotificationData) -> Self {
         let mut icon = None;
         let mut urgency = None;
+        let mut value = None;
 
         data.hints.into_iter().for_each(|hint| match hint {
             Hint::Image(image) => {
@@ -108,6 +110,7 @@ impl Notification {
                 }
             }
             Hint::Urgency(level) if urgency.is_none() => urgency = Some(level),
+            Hint::Value(val) => value = Some(val),
             _ => {}
         });
 
@@ -125,10 +128,6 @@ impl Notification {
         };
 
         let style = &config.styles.default;
-        let icon_width = final_image
-            .as_ref()
-            .map(|i| i.width as f32 + style.padding.right)
-            .unwrap_or(0.);
 
         let mut buttons = ButtonManager::default();
         let dismiss_button = Button::new(
@@ -140,6 +139,10 @@ impl Notification {
             font_system,
         );
 
+        let icon_width = final_image
+            .as_ref()
+            .map(|i| i.width as f32 + style.padding.right)
+            .unwrap_or(0.);
         let text = text::Text::new_notification(
             &config.styles.default.font,
             font_system,
@@ -177,6 +180,7 @@ impl Notification {
         };
 
         Self {
+            value,
             app_icon: final_app_icon,
             image: final_image,
             buttons,
@@ -249,8 +253,8 @@ impl Notification {
         }
     }
 
-    pub fn image(&self) -> Option<&ImageData> {
-        self.image.as_ref()
+    pub fn image(&self) -> (Option<&ImageData>, Option<&ImageData>) {
+        (self.image.as_ref(), self.app_icon.as_ref())
     }
 
     pub fn urgency(&self) -> &Urgency {
@@ -261,22 +265,23 @@ impl Notification {
         self.hovered
     }
 
-    pub fn hover(&mut self) {
-        self.hovered = true;
+    fn update_text_position(&mut self) {
         let style = self.style();
+        let icon_width = self.icon_extents().0;
         self.text.set_buffer_position(
-            style.padding.left + style.border.size + style.margin.left + self.icon_extents().0,
+            style.padding.left + style.border.size + style.margin.left + icon_width,
             style.margin.top + style.border.size,
         );
     }
 
+    pub fn hover(&mut self) {
+        self.hovered = true;
+        self.update_text_position();
+    }
+
     pub fn unhover(&mut self) {
         self.hovered = false;
-        let style = self.style();
-        self.text.set_buffer_position(
-            style.padding.left + style.border.size + style.margin.left + self.icon_extents().0,
-            style.margin.top + style.border.size,
-        );
+        self.update_text_position();
     }
 
     pub fn id(&self) -> NotificationId {
@@ -306,6 +311,25 @@ impl Notification {
             border_color: color.border.into(),
             scale,
         }];
+
+        if let Some(value) = self.value {
+            instances.push(buffers::Instance {
+                rect_pos: [extents.x + style.border.size + style.padding.left, y],
+                rect_size: [
+                    (extents.width
+                        - style.border.size * 2.0
+                        - style.padding.left
+                        - style.padding.right)
+                        * (value as f32 / 100.).min(1.),
+                    self.style().progress.height,
+                ],
+                rect_color: style.progress.complete_color.into(),
+                border_radius: style.border.radius.into(),
+                border_size: 0.,
+                border_color: color.border.into(),
+                scale,
+            });
+        }
 
         self.buttons.iter().for_each(|button| {
             instances.push(button.borrow().get_instance(

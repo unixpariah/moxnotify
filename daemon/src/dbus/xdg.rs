@@ -67,6 +67,7 @@ impl NotificationsImpl {
                 "category" => Str::try_from(v)
                     .map(|s| Hint::Category(s.as_str().into()))
                     .ok(),
+                "value" => i32::try_from(v).map(Hint::Value).ok(),
                 "desktop-entry" => Str::try_from(v)
                     .map(|s| Hint::DesktopEntry(s.as_str().into()))
                     .ok(),

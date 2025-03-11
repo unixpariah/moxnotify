@@ -78,7 +78,9 @@ impl NotificationManager {
                     let instance = notification.get_instance(height, scale);
                     let text = notification.text_area(height, scale);
 
-                    if let Some(image) = notification.image().as_ref() {
+                    let (image, app_icon) = notification.image();
+
+                    if let Some(image) = image {
                         let texture = notification.texture(
                             0.,
                             height,
@@ -92,13 +94,11 @@ impl NotificationManager {
                         textures.push(texture);
                     }
 
-                    if let Some(icon) = notification.app_icon.as_ref() {
-                        let x = (notification.image().map(|i| i.height).unwrap_or_default()
+                    if let Some(icon) = app_icon {
+                        let x = (image.map(|i| i.height).unwrap_or_default()
                             - self.config.app_icon_size) as f32;
 
-                        let y = height
-                            + (notification.image().map(|i| i.height).unwrap_or_default() as f32
-                                / 2.)
+                        let y = height + (image.map(|i| i.height).unwrap_or_default() as f32 / 2.)
                             - self.config.app_icon_size as f32 / 2.;
 
                         let icon = notification.texture(
@@ -169,13 +169,13 @@ impl NotificationManager {
     }
 
     pub fn get_button_by_coordinates(&self, x: f64, y: f64) -> Option<RefMut<Button>> {
-        let mut cumulative_y_offset: f64 = self
+        let mut cumulative_y_offset = self
             .notification_view
             .prev
             .as_ref()
             .map(|n| n.extents().height)
-            .unwrap_or_default()
-            .into();
+            .unwrap_or_default() as f64
+            + 10.;
 
         self.notification_view
             .visible
@@ -183,9 +183,9 @@ impl NotificationManager {
             .filter_map(|index| self.notifications.get(index))
             .scan(&mut cumulative_y_offset, |current_y, notification| {
                 let style = notification.style();
-                let extents = notification.rendered_extents();
+                let extents = notification.extents();
                 let notification_height = extents.height as f64;
-                let notification_x = extents.x as f64 + style.padding.left as f64;
+                let notification_x = (extents.x + style.padding.left) as f64;
                 let notification_width = extents.width as f64;
 
                 let x_within_bounds =

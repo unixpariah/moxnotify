@@ -161,7 +161,7 @@ pub enum Image {
     Data(ImageData),
 }
 
-#[derive(PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(PartialEq, Eq, Serialize, Deserialize, Default, Debug)]
 pub enum Urgency {
     #[default]
     Low,
@@ -169,8 +169,9 @@ pub enum Urgency {
     Critical,
 }
 
-#[derive(PartialEq, Eq, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Serialize, Deserialize, Debug)]
 pub enum Hint {
+    Value(i32),
     ActionIcons(bool),
     Category(Box<str>),
     DesktopEntry(Box<str>),

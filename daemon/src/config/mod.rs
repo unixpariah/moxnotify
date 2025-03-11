@@ -67,7 +67,7 @@ pub struct Border {
 impl Default for Border {
     fn default() -> Self {
         Self {
-            size: 0.,
+            size: 2.,
             radius: BorderRadius::default(),
         }
     }
@@ -122,9 +122,9 @@ pub enum Size {
 
 #[derive(Deserialize)]
 pub struct Progress {
-    height: f32,
-    incomplete_color: Color,
-    complete_color: Color,
+    pub height: f32,
+    pub incomplete_color: Color,
+    pub complete_color: Color,
 }
 
 impl Default for Progress {
@@ -520,19 +520,19 @@ impl Config {
                         styles = {
                           default = {
                             urgency_low = {
-                              background = "#1A1412",
-                              border = "#3C7B82",
-                              foreground = "#3C7B82"
+                              background = "#1a1b26FF",
+                              border = "#9ece6a",
+                              foreground = "#a9b1d6"
                             },
                             urgency_normal = {
-                              background = "#1A1412",
-                              border = "#567734",
-                              foreground = "#567734"
+                              background = "#16161eFF",
+                              border = "#bb9af7",
+                              foreground = "#a9b1d6"
                             },
                             urgency_critical = {
-                              background = "#1A1412",
-                              border = "#B04027",
-                              foreground = "#B04027"
+                              background = "#16161eFF",
+                              border = "#c0caf5",
+                              foreground = "#a9b1d6"
                             },
                           },
                           hover = {

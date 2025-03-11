@@ -1,16 +1,21 @@
-use crate::config::Font;
+use crate::{config::Font, notification_manager::notification::get_icon};
 use glyphon::{
     Attrs, Buffer, Cache, Color, FontSystem, Shaping, Style, SwashCache, TextArea, TextAtlas,
     TextRenderer, Viewport, Weight,
 };
 use regex::Regex;
-use std::sync::{Arc, LazyLock};
+use std::{
+    path::Path,
+    sync::{Arc, LazyLock},
+};
 use wgpu::{MultisampleState, TextureFormat};
 
 static REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"<(/?)(b|i|a|u|img)\b[^>]*>").unwrap());
 static HREF_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"href\s*=\s*["']([^"']*)["']"#).unwrap());
+static ALT_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r#"alt\s*=\s*["']([^"']*)["']"#).unwrap());
 
 #[derive(Debug)]
 pub struct Anchor {
@@ -105,18 +110,33 @@ impl Text {
                         }
                     }
                 } else {
-                    if tag.as_ref() == "a" {
-                        if let Some(href_cap) = HREF_REGEX.captures(full_match.as_str()) {
-                            let href = Arc::from(&href_cap[1]);
-                            anchor_stack.push(Anchor {
-                                char_num: start_pos,
-                                text: "".into(),
-                                href,
-                                line: 0,
-                                start: 0,
-                                end: 0,
-                            });
+                    match tag.as_ref() {
+                        "a" => {
+                            if let Some(href_cap) = HREF_REGEX.captures(full_match.as_str()) {
+                                let href = Arc::from(&href_cap[1]);
+                                anchor_stack.push(Anchor {
+                                    char_num: start_pos,
+                                    text: "".into(),
+                                    href,
+                                    line: 0,
+                                    start: 0,
+                                    end: 0,
+                                });
+                            }
                         }
+                        "img" => {
+                            if let Some(alt_cap) = ALT_REGEX.captures(full_match.as_str()) {
+                                if let Some(href_cap) = HREF_REGEX.captures(full_match.as_str()) {
+                                    let href = &href_cap[1];
+
+                                    if let Some(_) = get_icon(Path::new(&href), 64) {
+                                    } else if let Some(alt) = alt_cap.get(1) {
+                                        spans.push((alt.into(), current_attrs));
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
                     }
                     style_stack.push(tag);
                 }
@@ -127,8 +147,6 @@ impl Text {
                         "b" => current_attrs.weight(Weight::BOLD),
                         "i" => current_attrs.style(Style::Italic),
                         "a" => current_attrs.color(Color::rgb(0, 0, 255)),
-                        "u" => current_attrs, // TODO: implement this once cosmic-text implements
-                        // underline
                         _ => current_attrs,
                     };
                 });
