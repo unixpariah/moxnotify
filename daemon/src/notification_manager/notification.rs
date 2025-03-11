@@ -1,5 +1,6 @@
 use super::config::Config;
 use crate::button::{Action, Button, ButtonManager, ButtonType};
+use crate::config::BorderRadius;
 use crate::text;
 use crate::{
     buffers,
@@ -25,7 +26,7 @@ pub type NotificationId = u32;
 pub struct Notification {
     id: NotificationId,
     app_name: Box<str>,
-    app_icon: Option<ImageData>,
+    pub app_icon: Option<ImageData>,
     pub text: text::Text,
     timeout: Option<u64>,
     hovered: bool,
@@ -83,26 +84,26 @@ impl Notification {
         data.hints.into_iter().for_each(|hint| match hint {
             Hint::Image(image) => match image {
                 Image::Data(image_data) => {
-                    icon = Some(image_data.into_rgba(config.max_icon_size));
+                    icon = Some(image_data.into_rgba(config.icon_size));
                 }
                 Image::File(file) => {
                     if file.extension().and_then(|s| s.to_str()) == Some("svg") {
-                        icon = svg_to_rgba(&file, config.max_icon_size);
+                        icon = svg_to_rgba(&file, config.icon_size);
                     } else if let Ok(image) = image::open(&file) {
                         let image_data = ImageData::try_from(image);
-                        icon = image_data.ok().map(|i| i.into_rgba(config.max_icon_size));
+                        icon = image_data.ok().map(|i| i.into_rgba(config.icon_size));
                     }
                 }
                 Image::Name(name) => {
                     if let Some(icon_path) = freedesktop_icons::lookup(&name)
-                        .with_size(config.max_icon_size as u16)
+                        .with_size(config.icon_size as u16)
                         .find()
                     {
                         if icon_path.extension().and_then(|s| s.to_str()) == Some("svg") {
-                            icon = svg_to_rgba(&icon_path, config.max_icon_size);
+                            icon = svg_to_rgba(&icon_path, config.icon_size);
                         } else if let Ok(image) = image::open(icon_path) {
                             let image_data = ImageData::try_from(image);
-                            icon = image_data.ok().map(|i| i.into_rgba(config.max_icon_size));
+                            icon = image_data.ok().map(|i| i.into_rgba(config.icon_size));
                         }
                     }
                 }
@@ -112,7 +113,7 @@ impl Notification {
         });
 
         let app_icon_option = freedesktop_icons::lookup(&data.app_icon)
-            .with_size(config.max_icon_size as u16)
+            .with_size(config.app_icon_size as u16)
             .find()
             .and_then(|icon_path| {
                 if icon_path
@@ -120,13 +121,13 @@ impl Notification {
                     .and_then(|ext| ext.to_str())
                     .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"))
                 {
-                    return svg_to_rgba(&icon_path, config.max_icon_size);
+                    return svg_to_rgba(&icon_path, config.icon_size);
                 }
 
                 image::open(&icon_path)
                     .ok()
                     .and_then(|image| ImageData::try_from(image).ok())
-                    .map(|image_data| image_data.into_rgba(config.max_icon_size))
+                    .map(|image_data| image_data.into_rgba(config.icon_size))
             });
 
         let final_app_icon = if icon.is_some() {
@@ -138,7 +139,7 @@ impl Notification {
             icon
         } else {
             freedesktop_icons::lookup(&data.app_icon)
-                .with_size(config.max_icon_size as u16)
+                .with_size(config.icon_size as u16)
                 .find()
                 .and_then(|icon_path| {
                     if icon_path
@@ -146,13 +147,13 @@ impl Notification {
                         .and_then(|ext| ext.to_str())
                         .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"))
                     {
-                        return svg_to_rgba(&icon_path, config.max_icon_size);
+                        return svg_to_rgba(&icon_path, config.icon_size);
                     }
 
                     image::open(&icon_path)
                         .ok()
                         .and_then(|image| ImageData::try_from(image).ok())
-                        .map(|image_data| image_data.into_rgba(config.max_icon_size))
+                        .map(|image_data| image_data.into_rgba(config.icon_size))
                 })
         };
 
@@ -398,46 +399,45 @@ impl Notification {
         }
     }
 
-    pub fn texture(
-        &self,
+    pub fn texture<'a>(
+        &'a self,
+        x: f32,
         y: f32,
         texture_width: f32,
         texture_height: f32,
         total_height: f32,
         scale: f32,
-    ) -> Option<TextureArea> {
-        if let Some(image) = self.image() {
-            let extents = self.rendered_extents();
-            let style = self.style();
+        image_data: &'a [u8],
+        border_radius: BorderRadius,
+    ) -> TextureArea<'a> {
+        let extents = self.rendered_extents();
+        let style = self.style();
 
-            let x = extents.x + style.border.size + style.padding.left;
-            let y = y + style.border.size + style.padding.top;
-            let width =
-                extents.width - 2.0 * style.border.size - style.padding.left - style.padding.right;
-            let height =
-                extents.height - 2.0 * style.border.size - style.padding.top - style.padding.bottom;
+        let x = extents.x + style.border.size + style.padding.left + x;
+        let y = y + style.border.size + style.padding.top;
+        let width =
+            extents.width - 2.0 * style.border.size - style.padding.left - style.padding.right;
+        let height =
+            extents.height - 2.0 * style.border.size - style.padding.top - style.padding.bottom;
 
-            let image_y = y + (height - texture_height) / 2.0;
+        let image_y = y + (height - texture_height) / 2.0;
 
-            return Some(TextureArea {
-                left: x,
-                top: total_height - image_y - texture_height,
-                width: texture_width,
-                height: texture_height,
-                scale,
-                border_size: style.icon.border.size,
-                bounds: TextureBounds {
-                    left: x as u32,
-                    top: (total_height - y - height) as u32,
-                    right: (x + width) as u32,
-                    bottom: (total_height - y) as u32,
-                },
-                data: &image.data,
-                radius: style.icon.border.radius.into(),
-            });
+        TextureArea {
+            left: x,
+            top: total_height - image_y - texture_height,
+            width: texture_width,
+            height: texture_height,
+            scale,
+            border_size: style.icon.border.size,
+            bounds: TextureBounds {
+                left: x as u32,
+                top: (total_height - y - height) as u32,
+                right: (x + width) as u32,
+                bottom: (total_height - y) as u32,
+            },
+            data: image_data,
+            radius: border_radius.into(),
         }
-
-        None
     }
 
     pub fn icon_extents(&self) -> (f32, f32) {

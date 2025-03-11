@@ -164,6 +164,8 @@ pub struct StyleState {
     #[serde(default)]
     pub icon: Icon,
     #[serde(default)]
+    pub app_icon: Icon,
+    #[serde(default)]
     pub progress: Progress,
     #[serde(default)]
     pub buttons: Buttons,
@@ -343,8 +345,10 @@ pub struct Config {
     pub scroll_sensitivity: f64,
     #[serde(default = "default_max_visible")]
     pub max_visible: u32,
-    #[serde(default = "default_max_icon_size")]
-    pub max_icon_size: u32,
+    #[serde(default = "default_icon_size")]
+    pub icon_size: u32,
+    #[serde(default = "default_app_icon_size")]
+    pub app_icon_size: u32,
     #[serde(default)]
     pub anchor: Anchor,
     #[serde(default)]
@@ -430,8 +434,12 @@ fn default_scroll_sensitivity() -> f64 {
     20.
 }
 
-fn default_max_icon_size() -> u32 {
+fn default_icon_size() -> u32 {
     64
+}
+
+fn default_app_icon_size() -> u32 {
+    16
 }
 
 fn default_max_visible() -> u32 {

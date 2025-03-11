@@ -61,7 +61,7 @@ impl WgpuSurface {
         let texture_renderer = texture_renderer::TextureRenderer::new(
             &wgpu_state.device,
             *surface_format,
-            config.max_icon_size,
+            config.icon_size,
         );
 
         let shape_renderer =

@@ -77,21 +77,44 @@ impl NotificationManager {
 
                     let instance = notification.get_instance(height, scale);
                     let text = notification.text_area(height, scale);
-                    let texture = notification.texture(
-                        height,
-                        notification.image().map(|i| i.width).unwrap_or_default() as f32,
-                        notification.image().map(|i| i.height).unwrap_or_default() as f32,
-                        self.height(),
-                        scale,
-                    );
+
+                    if let Some(image) = notification.image().as_ref() {
+                        let texture = notification.texture(
+                            0.,
+                            height,
+                            notification.image().map(|i| i.width).unwrap_or_default() as f32,
+                            notification.image().map(|i| i.height).unwrap_or_default() as f32,
+                            self.height(),
+                            scale,
+                            &image.data,
+                            notification.style().icon.border.radius,
+                        );
+                        textures.push(texture);
+                    }
+
+                    if let Some(icon) = notification.app_icon.as_ref() {
+                        let icon = notification.texture(
+                            notification.image().map(|i| i.height).unwrap_or_default() as f32
+                                - self.config.app_icon_size as f32,
+                            height
+                                + (notification.image().map(|i| i.height).unwrap_or_default()
+                                    as f32
+                                    / 2.)
+                                - self.config.app_icon_size as f32 / 2.,
+                            self.config.app_icon_size as f32,
+                            self.config.app_icon_size as f32,
+                            self.height(),
+                            scale,
+                            &icon.data,
+                            notification.style().app_icon.border.radius,
+                        );
+                        textures.push(icon);
+                    }
 
                     height += notification.extents().height - notification.style().margin.top;
 
                     instances.extend_from_slice(&instance);
                     text_areas.push(text);
-                    if let Some(tex) = texture {
-                        textures.push(tex);
-                    }
 
                     (height, instances, text_areas, textures)
                 },
