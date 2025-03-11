@@ -82,8 +82,8 @@ impl NotificationManager {
                         let texture = notification.texture(
                             0.,
                             height,
-                            notification.image().map(|i| i.width).unwrap_or_default() as f32,
-                            notification.image().map(|i| i.height).unwrap_or_default() as f32,
+                            self.config.icon_size as f32,
+                            self.config.icon_size as f32,
                             self.height(),
                             scale,
                             &image.data,
@@ -93,14 +93,17 @@ impl NotificationManager {
                     }
 
                     if let Some(icon) = notification.app_icon.as_ref() {
+                        let x = (notification.image().map(|i| i.height).unwrap_or_default()
+                            - self.config.app_icon_size) as f32;
+
+                        let y = height
+                            + (notification.image().map(|i| i.height).unwrap_or_default() as f32
+                                / 2.)
+                            - self.config.app_icon_size as f32 / 2.;
+
                         let icon = notification.texture(
-                            notification.image().map(|i| i.height).unwrap_or_default() as f32
-                                - self.config.app_icon_size as f32,
-                            height
-                                + (notification.image().map(|i| i.height).unwrap_or_default()
-                                    as f32
-                                    / 2.)
-                                - self.config.app_icon_size as f32 / 2.,
+                            x,
+                            y,
                             self.config.app_icon_size as f32,
                             self.config.app_icon_size as f32,
                             self.height(),

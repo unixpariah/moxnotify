@@ -26,13 +26,13 @@ pub type NotificationId = u32;
 pub struct Notification {
     id: NotificationId,
     app_name: Box<str>,
-    pub app_icon: Option<ImageData>,
     pub text: text::Text,
     timeout: Option<u64>,
     hovered: bool,
     config: Arc<Config>,
     actions: Box<[(Arc<str>, Arc<str>)]>,
     image: Option<ImageData>,
+    pub app_icon: Option<ImageData>,
     urgency: Urgency,
     pub registration_token: Option<RegistrationToken>,
     pub buttons: ButtonManager,
@@ -76,59 +76,42 @@ fn svg_to_rgba(file: &Path, max_icon_size: u32) -> Option<ImageData> {
         .map(|d| d.into_rgba(max_icon_size))
 }
 
+fn find_icon(name: &str, icon_size: u16) -> Option<ImageData> {
+    let icon_path = freedesktop_icons::lookup(name)
+        .with_size(icon_size)
+        .find()?;
+
+    get_icon(&icon_path, icon_size)
+}
+
+fn get_icon(icon_path: &Path, icon_size: u16) -> Option<ImageData> {
+    if icon_path.extension().and_then(|s| s.to_str()) == Some("svg") {
+        svg_to_rgba(icon_path, icon_size as u32)
+    } else {
+        let image = image::open(icon_path).ok()?;
+        let image_data = ImageData::try_from(image);
+        image_data.ok().map(|i| i.into_rgba(icon_size as u32))
+    }
+}
+
 impl Notification {
     pub fn new(config: Arc<Config>, font_system: &mut FontSystem, data: NotificationData) -> Self {
         let mut icon = None;
         let mut urgency = None;
 
         data.hints.into_iter().for_each(|hint| match hint {
-            Hint::Image(image) => match image {
-                Image::Data(image_data) => {
-                    icon = Some(image_data.into_rgba(config.icon_size));
+            Hint::Image(image) => {
+                icon = match image {
+                    Image::Data(image_data) => Some(image_data.into_rgba(config.icon_size)),
+                    Image::File(file) => get_icon(&file, config.icon_size as u16),
+                    Image::Name(name) => find_icon(&name, config.icon_size as u16),
                 }
-                Image::File(file) => {
-                    if file.extension().and_then(|s| s.to_str()) == Some("svg") {
-                        icon = svg_to_rgba(&file, config.icon_size);
-                    } else if let Ok(image) = image::open(&file) {
-                        let image_data = ImageData::try_from(image);
-                        icon = image_data.ok().map(|i| i.into_rgba(config.icon_size));
-                    }
-                }
-                Image::Name(name) => {
-                    if let Some(icon_path) = freedesktop_icons::lookup(&name)
-                        .with_size(config.icon_size as u16)
-                        .find()
-                    {
-                        if icon_path.extension().and_then(|s| s.to_str()) == Some("svg") {
-                            icon = svg_to_rgba(&icon_path, config.icon_size);
-                        } else if let Ok(image) = image::open(icon_path) {
-                            let image_data = ImageData::try_from(image);
-                            icon = image_data.ok().map(|i| i.into_rgba(config.icon_size));
-                        }
-                    }
-                }
-            },
+            }
             Hint::Urgency(level) if urgency.is_none() => urgency = Some(level),
             _ => {}
         });
 
-        let app_icon_option = freedesktop_icons::lookup(&data.app_icon)
-            .with_size(config.app_icon_size as u16)
-            .find()
-            .and_then(|icon_path| {
-                if icon_path
-                    .extension()
-                    .and_then(|ext| ext.to_str())
-                    .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"))
-                {
-                    return svg_to_rgba(&icon_path, config.icon_size);
-                }
-
-                image::open(&icon_path)
-                    .ok()
-                    .and_then(|image| ImageData::try_from(image).ok())
-                    .map(|image_data| image_data.into_rgba(config.icon_size))
-            });
+        let app_icon_option = find_icon(&data.app_icon, config.icon_size as u16);
 
         let final_app_icon = if icon.is_some() {
             app_icon_option
@@ -138,23 +121,7 @@ impl Notification {
         let final_image = if icon.is_some() {
             icon
         } else {
-            freedesktop_icons::lookup(&data.app_icon)
-                .with_size(config.icon_size as u16)
-                .find()
-                .and_then(|icon_path| {
-                    if icon_path
-                        .extension()
-                        .and_then(|ext| ext.to_str())
-                        .is_some_and(|ext| ext.eq_ignore_ascii_case("svg"))
-                    {
-                        return svg_to_rgba(&icon_path, config.icon_size);
-                    }
-
-                    image::open(&icon_path)
-                        .ok()
-                        .and_then(|image| ImageData::try_from(image).ok())
-                        .map(|image_data| image_data.into_rgba(config.icon_size))
-                })
+            find_icon(&data.app_icon, config.icon_size as u16)
         };
 
         let style = &config.styles.default;

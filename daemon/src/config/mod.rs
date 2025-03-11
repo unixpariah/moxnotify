@@ -161,7 +161,7 @@ pub struct StyleState {
     pub urgency_normal: Urgency,
     #[serde(default)]
     pub urgency_critical: Urgency,
-    #[serde(default)]
+    #[serde(default = "default_icon")]
     pub icon: Icon,
     #[serde(default)]
     pub app_icon: Icon,
@@ -169,6 +169,20 @@ pub struct StyleState {
     pub progress: Progress,
     #[serde(default)]
     pub buttons: Buttons,
+}
+
+fn default_icon() -> Icon {
+    Icon {
+        border: Border {
+            size: 0.,
+            radius: BorderRadius {
+                top_left: 50.,
+                top_right: 50.,
+                bottom_left: 50.,
+                bottom_right: 50.,
+            },
+        },
+    }
 }
 
 fn default_margin() -> Insets {
