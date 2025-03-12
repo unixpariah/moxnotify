@@ -17,7 +17,10 @@ in
     services.moxnotify.settings = {
       styles = {
         default = {
-          progress.complete_color = base0F;
+          progress = {
+            complete_color = base0F;
+            incomplete_color = base03;
+          };
 
           button.dismiss = {
             default = {

@@ -121,8 +121,10 @@ pub enum Size {
 }
 
 #[derive(Deserialize)]
+#[serde(default)]
 pub struct Progress {
     pub height: f32,
+    pub border: Border,
     pub incomplete_color: Color,
     pub complete_color: Color,
 }
@@ -131,6 +133,15 @@ impl Default for Progress {
     fn default() -> Self {
         Self {
             height: 20.,
+            border: Border {
+                size: 2.,
+                radius: BorderRadius {
+                    top_left: 5.,
+                    top_right: 5.,
+                    bottom_left: 5.,
+                    bottom_right: 5.,
+                },
+            },
             incomplete_color: Color::rgba([255, 0, 0, 255]),
             complete_color: Color::rgba([0, 255, 0, 255]),
         }
@@ -165,7 +176,6 @@ pub struct StyleState {
     pub icon: Icon,
     #[serde(default)]
     pub app_icon: Icon,
-    #[serde(default)]
     pub progress: Progress,
     #[serde(default)]
     pub buttons: Buttons,

@@ -224,25 +224,32 @@ impl Notification {
             .iter()
             .find(|button| button.borrow().button_type == ButtonType::Dismiss)
             .map(|b| b.borrow().extents().height)
-            .unwrap_or(0.);
+            .unwrap_or(0.0);
+
+        let progress = if self.value.is_some() {
+            style.progress.height + style.padding.top + style.padding.bottom
+        } else {
+            0.0
+        };
 
         let min_height = match style.min_height {
-            Size::Auto => 0.,
+            Size::Auto => 0.0,
             Size::Value(value) => value,
         };
+
         let max_height = match style.max_height {
             Size::Auto => f32::INFINITY,
             Size::Value(value) => value,
         };
+
         match style.height {
-            Size::Value(height) => height.clamp(min_height, height),
-            Size::Auto => self
-                .text
-                .extents()
-                .1
-                .max(self.icon_extents().1)
-                .max(dismiss_button)
-                .clamp(min_height, max_height),
+            Size::Value(height) => height.clamp(min_height, max_height),
+            Size::Auto => {
+                let text_height = self.text.extents().1;
+                let icon_height = self.icon_extents().1 + progress;
+                let base_height = text_height.max(icon_height).max(dismiss_button);
+                base_height.clamp(min_height, max_height)
+            }
         }
     }
 
@@ -288,18 +295,16 @@ impl Notification {
         self.id
     }
 
-    pub fn get_instance(&self, y: f32, scale: f32) -> Vec<buffers::Instance> {
+    pub fn background_instance(&self, y: f32, scale: f32) -> buffers::Instance {
         let extents = self.rendered_extents();
-
         let style = self.style();
-
         let color = match self.urgency() {
             crate::Urgency::Low => &style.urgency_low,
             crate::Urgency::Normal => &style.urgency_normal,
             crate::Urgency::Critical => &style.urgency_critical,
         };
 
-        let mut instances = vec![buffers::Instance {
+        buffers::Instance {
             rect_pos: [extents.x, y],
             rect_size: [
                 extents.width - style.border.size * 2.0,
@@ -310,26 +315,91 @@ impl Notification {
             border_size: style.border.size,
             border_color: color.border.into(),
             scale,
-        }];
+        }
+    }
 
-        if let Some(value) = self.value {
+    pub fn progress_instance(&self, y: f32, scale: f32) -> Option<Vec<buffers::Instance>> {
+        let value = self.value?;
+        let extents = self.rendered_extents();
+        let style = self.style();
+        let progress_style = &style.progress;
+
+        let progress_height = progress_style.height;
+        let total_width =
+            extents.width - style.border.size * 2.0 - style.padding.left - style.padding.right;
+        let progress_ratio = (value as f32 / 100.0).min(1.0);
+        let progress_y =
+            y + extents.height - style.border.size - style.padding.bottom - progress_height;
+        let base_x = extents.x + style.border.size + style.padding.left;
+
+        let color = match self.urgency() {
+            crate::Urgency::Low => &style.urgency_low,
+            crate::Urgency::Normal => &style.urgency_normal,
+            crate::Urgency::Critical => &style.urgency_critical,
+        };
+
+        let mut instances = Vec::new();
+        let complete_width = total_width * progress_ratio;
+
+        if complete_width > 0.0 {
+            let border_radius = if value < 100 {
+                BorderRadius {
+                    top_right: 0.0,
+                    bottom_right: 0.0,
+                    ..style.border.radius
+                }
+            } else {
+                style.border.radius
+            };
+
             instances.push(buffers::Instance {
-                rect_pos: [extents.x + style.border.size + style.padding.left, y],
-                rect_size: [
-                    (extents.width
-                        - style.border.size * 2.0
-                        - style.padding.left
-                        - style.padding.right)
-                        * (value as f32 / 100.).min(1.),
-                    self.style().progress.height,
-                ],
-                rect_color: style.progress.complete_color.into(),
-                border_radius: style.border.radius.into(),
-                border_size: 0.,
+                rect_pos: [base_x, progress_y],
+                rect_size: [complete_width, progress_height],
+                rect_color: progress_style.complete_color.into(),
+                border_radius: border_radius.into(),
+                border_size: progress_style.border.size,
                 border_color: color.border.into(),
                 scale,
             });
         }
+
+        if value < 100 {
+            let incomplete_width = total_width - complete_width;
+
+            if incomplete_width > 0.0 {
+                let border_radius = if value > 0 {
+                    BorderRadius {
+                        top_left: 0.0,
+                        bottom_left: 0.0,
+                        ..style.border.radius
+                    }
+                } else {
+                    style.border.radius
+                };
+
+                instances.push(buffers::Instance {
+                    rect_pos: [base_x + complete_width, progress_y],
+                    rect_size: [incomplete_width, progress_height],
+                    rect_color: progress_style.incomplete_color.into(),
+                    border_radius: border_radius.into(),
+                    border_size: progress_style.border.size,
+                    border_color: color.border.into(),
+                    scale,
+                });
+            }
+        }
+
+        Some(instances)
+    }
+
+    pub fn get_instance(&self, y: f32, scale: f32) -> Vec<buffers::Instance> {
+        let mut instances = vec![self.background_instance(y, scale)];
+        if let Some(progress_instance) = self.progress_instance(y, scale) {
+            instances.extend_from_slice(&progress_instance);
+        }
+
+        let extents = self.rendered_extents();
+        let style = self.style();
 
         self.buttons.iter().for_each(|button| {
             instances.push(button.borrow().get_instance(
@@ -408,8 +478,15 @@ impl Notification {
         let y = y + style.border.size + style.padding.top;
         let width =
             extents.width - 2.0 * style.border.size - style.padding.left - style.padding.right;
-        let height =
-            extents.height - 2.0 * style.border.size - style.padding.top - style.padding.bottom;
+        let height = extents.height
+            - 2.0 * style.border.size
+            - style.padding.top
+            - style.padding.bottom
+            - if self.value.is_some() {
+                style.progress.height
+            } else {
+                0.
+            };
 
         let image_y = y + (height - texture_height) / 2.0;
 
