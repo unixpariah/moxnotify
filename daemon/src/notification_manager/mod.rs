@@ -77,45 +77,11 @@ impl NotificationManager {
 
                     let instance = notification.get_instance(height, scale);
                     let text = notification.text_area(height, scale);
-
-                    let (image, app_icon) = notification.image();
-
-                    if let Some(image) = image {
-                        let texture = notification.texture(
-                            0.,
-                            height,
-                            self.config.icon_size as f32,
-                            self.config.icon_size as f32,
-                            self.height(),
-                            scale,
-                            &image.data,
-                            notification.style().icon.border.radius,
-                        );
-                        textures.push(texture);
-                    }
-
-                    if let Some(icon) = app_icon {
-                        let x = (image.map(|i| i.height).unwrap_or_default()
-                            - self.config.app_icon_size) as f32;
-
-                        let y = height + (image.map(|i| i.height).unwrap_or_default() as f32 / 2.)
-                            - self.config.app_icon_size as f32 / 2.;
-
-                        let icon = notification.texture(
-                            x,
-                            y,
-                            self.config.app_icon_size as f32,
-                            self.config.app_icon_size as f32,
-                            self.height(),
-                            scale,
-                            &icon.data,
-                            notification.style().app_icon.border.radius,
-                        );
-                        textures.push(icon);
-                    }
+                    let texture = notification.textures(height, self.height(), scale);
 
                     height += notification.extents().height - notification.style().margin.top;
 
+                    textures.extend_from_slice(&texture);
                     instances.extend_from_slice(&instance);
                     text_areas.push(text);
 

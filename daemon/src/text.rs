@@ -27,6 +27,18 @@ pub struct Anchor {
     pub end: usize,
 }
 
+fn create_buffer(font: &Font, font_system: &mut FontSystem, max_width: Option<f32>) -> Buffer {
+    let dpi = 96.0;
+    let font_size = font.size * dpi / 72.0;
+    let mut buffer = Buffer::new(
+        font_system,
+        glyphon::Metrics::new(font_size, font_size * 1.2),
+    );
+    buffer.shape_until_scroll(font_system, true);
+    buffer.set_size(font_system, max_width, None);
+    buffer
+}
+
 pub struct Text {
     pub buffer: Buffer,
     anchors: Vec<Anchor>,
@@ -36,22 +48,9 @@ pub struct Text {
 
 impl Text {
     pub fn new(font: &Font, font_system: &mut FontSystem, body: &str, x: f32, y: f32) -> Self {
-        let dpi = 96.0;
-        let font_size = font.size * dpi / 72.0;
-
-        let mut buffer = Buffer::new(
-            font_system,
-            glyphon::Metrics::new(font_size, font_size * 1.2),
-        );
-        buffer.set_text(
-            font_system,
-            body,
-            Attrs::new().family(glyphon::Family::Name(&font.family)),
-            Shaping::Advanced,
-        );
-        buffer.shape_until_scroll(font_system, true);
-        buffer.set_size(font_system, None, None);
-
+        let attrs = Attrs::new().family(glyphon::Family::Name(&font.family));
+        let mut buffer = create_buffer(font, font_system, None);
+        buffer.set_text(font_system, body, attrs, Shaping::Advanced);
         Self {
             buffer,
             anchors: Vec::new(),
@@ -129,7 +128,8 @@ impl Text {
                                 if let Some(href_cap) = HREF_REGEX.captures(full_match.as_str()) {
                                     let href = &href_cap[1];
 
-                                    if let Some(_) = get_icon(Path::new(&href), 64) {
+                                    if let Some(image) = get_icon(Path::new(&href), 64) {
+                                        _ = image;
                                     } else if let Some(alt) = alt_cap.get(1) {
                                         spans.push((alt.into(), current_attrs));
                                     }
@@ -147,6 +147,8 @@ impl Text {
                         "b" => current_attrs.weight(Weight::BOLD),
                         "i" => current_attrs.style(Style::Italic),
                         "a" => current_attrs.color(Color::rgb(0, 0, 255)),
+                        "u" => current_attrs, // TODO: implement this once cosmic text implements
+                        // underline
                         _ => current_attrs,
                     };
                 });
@@ -160,16 +162,8 @@ impl Text {
             }
         }
 
-        let dpi = 96.0;
-        let font_size = font.size * dpi / 72.0;
-
-        let mut buffer = Buffer::new(
-            font_system,
-            glyphon::Metrics::new(font_size, font_size * 1.2),
-        );
+        let mut buffer = create_buffer(font, font_system, Some(max_width));
         buffer.set_rich_text(font_system, spans.iter().copied(), attrs, Shaping::Advanced);
-        buffer.shape_until_scroll(font_system, true);
-        buffer.set_size(font_system, Some(max_width), None);
 
         let mut total = 0;
         anchors.iter_mut().for_each(|anchor| {

@@ -17,6 +17,7 @@ use std::sync::Arc;
 #[derive(Debug)]
 pub struct Extents {
     pub x: f32,
+    pub y: f32,
     pub width: f32,
     pub height: f32,
 }
@@ -200,9 +201,8 @@ impl Notification {
         self.timeout
     }
 
-    pub fn set_text(&mut self, summary: &str, body: &str, font_system: &mut FontSystem) {
+    fn text_extents(&self) -> Extents {
         let style = self.style();
-
         let icon_extents = self.icon_extents();
 
         let dismiss_button = self
@@ -210,14 +210,30 @@ impl Notification {
             .iter()
             .find(|button| button.borrow().button_type == ButtonType::Dismiss);
 
+        Extents {
+            x: style.padding.left + style.border.size + style.margin.left + icon_extents.0,
+            y: style.margin.top + style.border.size,
+            width: style.width
+                - icon_extents.0
+                - dismiss_button
+                    .map(|b| b.borrow().extents().width)
+                    .unwrap_or_default(),
+            height: 0.,
+        }
+    }
+
+    pub fn set_text(&mut self, summary: &str, body: &str, font_system: &mut FontSystem) {
+        let style = self.style();
+        let text_extents = self.text_extents();
+
         self.text = text::Text::new_notification(
             &style.font,
             font_system,
             summary,
             body,
-            style.width - icon_extents.0 - dismiss_button.unwrap().borrow().extents().width,
-            style.padding.left + style.border.size + style.margin.left + icon_extents.0,
-            style.margin.top + style.border.size,
+            text_extents.width,
+            text_extents.x,
+            text_extents.y,
         );
     }
 
@@ -323,7 +339,7 @@ impl Notification {
         }
     }
 
-    pub fn progress_instance(&self, y: f32, scale: f32) -> Option<Vec<buffers::Instance>> {
+    pub fn progress_instances(&self, y: f32, scale: f32) -> Option<Vec<buffers::Instance>> {
         let value = self.value?;
         let extents = self.rendered_extents();
         let style = self.style();
@@ -397,23 +413,28 @@ impl Notification {
         Some(instances)
     }
 
-    pub fn get_instance(&self, y: f32, scale: f32) -> Vec<buffers::Instance> {
-        let mut instances = vec![self.background_instance(y, scale)];
-        if let Some(progress_instance) = self.progress_instance(y, scale) {
-            instances.extend_from_slice(&progress_instance);
-        }
-
+    fn button_instances(&self, y: f32, scale: f32) -> Vec<buffers::Instance> {
         let extents = self.rendered_extents();
         let style = self.style();
+        self.buttons
+            .iter()
+            .map(|button| {
+                button.borrow().get_instance(
+                    extents.x + style.padding.left,
+                    y,
+                    self.hovered(),
+                    scale,
+                )
+            })
+            .collect()
+    }
 
-        self.buttons.iter().for_each(|button| {
-            instances.push(button.borrow().get_instance(
-                extents.x + style.padding.left,
-                y,
-                self.hovered(),
-                scale,
-            ))
-        });
+    pub fn get_instance(&self, y: f32, scale: f32) -> Vec<buffers::Instance> {
+        let mut instances = vec![self.background_instance(y, scale)];
+        if let Some(progress_instances) = self.progress_instances(y, scale) {
+            instances.extend_from_slice(&progress_instances);
+        }
+        instances.extend_from_slice(&self.button_instances(y, scale));
 
         instances
     }
@@ -423,6 +444,7 @@ impl Notification {
 
         Extents {
             x: 0.,
+            y: 0.,
             width: self.width()
                 + style.border.size * 2.
                 + style.padding.left
@@ -460,27 +482,19 @@ impl Notification {
 
         Extents {
             x: extents.x + style.margin.left,
+            y: extents.y + style.margin.top,
             width: extents.width - style.margin.left - style.margin.right,
             height: extents.height - style.margin.top - style.margin.bottom,
         }
     }
 
-    pub fn texture<'a>(
-        &'a self,
-        x: f32,
-        y: f32,
-        texture_width: f32,
-        texture_height: f32,
-        total_height: f32,
-        scale: f32,
-        image_data: &'a [u8],
-        border_radius: BorderRadius,
-    ) -> TextureArea<'a> {
+    pub fn textures(&self, y: f32, total_height: f32, scale: f32) -> Vec<TextureArea> {
+        let mut texture_areas = Vec::new();
+        let (icon, app_icon) = self.image();
+
         let extents = self.rendered_extents();
         let style = self.style();
 
-        let x = extents.x + style.border.size + style.padding.left + x;
-        let y = y + style.border.size + style.padding.top;
         let width =
             extents.width - 2.0 * style.border.size - style.padding.left - style.padding.right;
         let height = extents.height
@@ -493,24 +507,57 @@ impl Notification {
                 0.
             };
 
-        let image_y = y + (height - texture_height) / 2.0;
+        let mut x = extents.x + style.border.size + style.padding.left;
+        let mut y = y + style.border.size + style.padding.top;
 
-        TextureArea {
-            left: x,
-            top: total_height - image_y - texture_height,
-            width: texture_width,
-            height: texture_height,
-            scale,
-            border_size: style.icon.border.size,
-            bounds: TextureBounds {
-                left: x as u32,
-                top: (total_height - y - height) as u32,
-                right: (x + width) as u32,
-                bottom: (total_height - y) as u32,
-            },
-            data: image_data,
-            radius: border_radius.into(),
+        if let Some(icon) = icon.as_ref() {
+            let icon_size = self.config.icon_size as f32;
+            let image_y = y + (height - icon_size) / 2.0;
+
+            texture_areas.push(TextureArea {
+                left: x,
+                top: total_height - image_y - icon_size,
+                width: icon_size,
+                height: icon_size,
+                scale,
+                border_size: style.icon.border.size,
+                bounds: TextureBounds {
+                    left: x as u32,
+                    top: (total_height - y - height) as u32,
+                    right: (x + width) as u32,
+                    bottom: (total_height - y) as u32,
+                },
+                data: &icon.data,
+                radius: style.icon.border.radius.into(),
+            });
+
+            x += (icon.height - self.config.app_icon_size) as f32;
+            y += (icon.height as f32 / 2.) - self.config.app_icon_size as f32 / 2.;
         }
+
+        if let Some(app_icon) = app_icon.as_ref() {
+            let app_icon_size = self.config.app_icon_size as f32;
+            let image_y = y + (height - app_icon_size) / 2.0;
+
+            texture_areas.push(TextureArea {
+                left: x,
+                top: total_height - image_y - app_icon_size,
+                width: app_icon_size,
+                height: app_icon_size,
+                scale,
+                border_size: style.icon.border.size,
+                bounds: TextureBounds {
+                    left: x as u32,
+                    top: (total_height - y - height) as u32,
+                    right: (x + width) as u32,
+                    bottom: (total_height - y) as u32,
+                },
+                data: &app_icon.data,
+                radius: style.app_icon.border.radius.into(),
+            });
+        }
+
+        texture_areas
     }
 
     pub fn icon_extents(&self) -> (f32, f32) {

@@ -12,6 +12,7 @@ pub struct TextureRenderer {
     max_icon_size: u32,
 }
 
+#[derive(Clone)]
 pub struct TextureArea<'a> {
     pub left: f32,
     pub top: f32,
@@ -24,6 +25,7 @@ pub struct TextureArea<'a> {
     pub border_size: f32,
 }
 
+#[derive(Clone)]
 pub struct TextureBounds {
     pub left: u32,
     pub top: u32,
