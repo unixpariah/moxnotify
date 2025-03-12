@@ -3,7 +3,7 @@ mod notification_view;
 
 use crate::{
     buffers,
-    button::Button,
+    button::{Button, ButtonType},
     config::{self, Config, Key, Queue},
     surface::Surface,
     texture_renderer::TextureArea,
@@ -256,9 +256,16 @@ impl NotificationManager {
 
             let icon_extents = new_notification.icon_extents();
 
+            let dismiss_button = new_notification
+                .buttons
+                .iter()
+                .find(|button| button.borrow().button_type == ButtonType::Dismiss)
+                .map(|b| b.borrow().extents().width)
+                .unwrap_or(0.0);
+
             new_notification.text.buffer.set_size(
                 &mut self.font_system,
-                Some(style.width - icon_extents.0),
+                Some(style.width - icon_extents.0 - dismiss_button),
                 None,
             );
 

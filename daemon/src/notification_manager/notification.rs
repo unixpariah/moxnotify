@@ -12,7 +12,7 @@ use crate::{
 use calloop::RegistrationToken;
 use glyphon::{FontSystem, TextArea, TextBounds};
 use std::path::Path;
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct Extents {
@@ -205,15 +205,20 @@ impl Notification {
 
         let icon_extents = self.icon_extents();
 
+        let dismiss_button = self
+            .buttons
+            .iter()
+            .find(|button| button.borrow().button_type == ButtonType::Dismiss);
+
         self.text = text::Text::new_notification(
             &style.font,
             font_system,
             summary,
             body,
-            style.width - icon_extents.0,
+            style.width - icon_extents.0 - dismiss_button.unwrap().borrow().extents().width,
             style.padding.left + style.border.size + style.margin.left + icon_extents.0,
             style.margin.top + style.border.size,
-        )
+        );
     }
 
     pub fn height(&self) -> f32 {
@@ -245,7 +250,7 @@ impl Notification {
         match style.height {
             Size::Value(height) => height.clamp(min_height, max_height),
             Size::Auto => {
-                let text_height = self.text.extents().1;
+                let text_height = self.text.extents().1 + progress;
                 let icon_height = self.icon_extents().1 + progress;
                 let base_height = text_height.max(icon_height).max(dismiss_button);
                 base_height.clamp(min_height, max_height)
