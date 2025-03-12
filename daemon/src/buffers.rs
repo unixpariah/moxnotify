@@ -89,7 +89,7 @@ pub struct Instance {
     pub rect_size: [f32; 2],
     pub rect_color: [f32; 4],
     pub border_radius: [f32; 4],
-    pub border_size: f32,
+    pub border_size: [f32; 4],
     pub border_color: [f32; 4],
     pub scale: f32,
 }
@@ -100,7 +100,7 @@ impl Instance {
         2 => Float32x2,
         3 => Float32x4,
         4 => Float32x4,
-        5 => Float32,
+        5 => Float32x4,
         6 => Float32x4,
         7 => Float32,
     ];

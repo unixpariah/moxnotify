@@ -145,7 +145,7 @@ impl Button {
             rect_size: [self.width, self.height],
             rect_color: style.background_color.into(),
             border_radius: button.border.radius.into(),
-            border_size: button.border.size,
+            border_size: button.border.size.into(),
             border_color: style.border_color.into(),
             scale,
         }

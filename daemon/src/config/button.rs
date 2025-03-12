@@ -1,4 +1,4 @@
-use super::{Border, BorderRadius, Color};
+use super::{Border, BorderRadius, Color, Insets};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -42,7 +42,12 @@ impl Default for Button {
             width: 20.0,
             height: 20.0,
             border: Border {
-                size: 0.,
+                size: Insets {
+                    left: 0.,
+                    right: 0.,
+                    top: 0.,
+                    bottom: 0.,
+                },
                 radius: BorderRadius::circle(),
             },
             default: ButtonState::default(),

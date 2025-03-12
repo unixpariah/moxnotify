@@ -1,49 +1,16 @@
+pub mod border;
 pub mod button;
 pub mod color;
 
+use border::{Border, BorderRadius};
 use button::Buttons;
 use color::Color;
 use mlua::{Lua, LuaSerdeExt};
 use serde::{Deserialize, Deserializer};
-use std::{collections::HashMap, fs, path::PathBuf, str::FromStr};
+use std::{collections::HashMap, fmt, fs, path::PathBuf, str::FromStr};
 use xkbcommon::xkb::Keysym;
 
-#[derive(Deserialize, Default, Clone, Copy)]
-pub struct BorderRadius {
-    #[serde(default)]
-    pub top_left: f32,
-    #[serde(default)]
-    pub top_right: f32,
-    #[serde(default)]
-    pub bottom_left: f32,
-    #[serde(default)]
-    pub bottom_right: f32,
-}
-
-impl BorderRadius {
-    fn circle() -> Self {
-        Self {
-            top_right: 50.,
-            top_left: 50.,
-            bottom_left: 50.,
-            bottom_right: 50.,
-        }
-    }
-}
-
-impl From<BorderRadius> for [f32; 4] {
-    fn from(value: BorderRadius) -> Self {
-        [
-            value.bottom_right,
-            value.top_right,
-            value.bottom_left,
-            value.top_left,
-        ]
-    }
-}
-
-#[derive(Deserialize, Default)]
-#[serde(default)]
+#[derive(Default, Clone, Copy)]
 pub struct Insets {
     pub left: f32,
     pub right: f32,
@@ -51,25 +18,119 @@ pub struct Insets {
     pub bottom: f32,
 }
 
-impl From<Insets> for [f32; 4] {
-    fn from(value: Insets) -> Self {
-        [value.left, value.right, value.top, value.bottom]
+impl<'de> Deserialize<'de> for Insets {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct InsetsVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for InsetsVisitor {
+            type Value = Insets;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a number or a map with optional corner values")
+            }
+
+            fn visit_f32<E>(self, value: f32) -> Result<Self::Value, E> {
+                Ok(Insets {
+                    left: value,
+                    right: value,
+                    top: value,
+                    bottom: value,
+                })
+            }
+
+            fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E> {
+                let value = v as f32;
+                Ok(Insets {
+                    left: value,
+                    right: value,
+                    top: value,
+                    bottom: value,
+                })
+            }
+
+            fn visit_i32<E>(self, v: i32) -> Result<Self::Value, E> {
+                let value = v as f32;
+                Ok(Insets {
+                    left: value,
+                    right: value,
+                    top: value,
+                    bottom: value,
+                })
+            }
+
+            fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E> {
+                let value = v as f32;
+                Ok(Insets {
+                    left: value,
+                    right: value,
+                    top: value,
+                    bottom: value,
+                })
+            }
+
+            fn visit_u32<E>(self, v: u32) -> Result<Self::Value, E> {
+                let value = v as f32;
+                Ok(Insets {
+                    left: value,
+                    right: value,
+                    top: value,
+                    bottom: value,
+                })
+            }
+
+            fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E> {
+                let value = v as f32;
+                Ok(Insets {
+                    left: value,
+                    right: value,
+                    top: value,
+                    bottom: value,
+                })
+            }
+
+            fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
+            where
+                M: serde::de::MapAccess<'de>,
+            {
+                let mut left = None;
+                let mut right = None;
+                let mut top = None;
+                let mut bottom = None;
+
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "left" => left = Some(map.next_value()?),
+                        "right" => right = Some(map.next_value()?),
+                        "top" => top = Some(map.next_value()?),
+                        "bottom" => bottom = Some(map.next_value()?),
+                        _ => {
+                            return Err(serde::de::Error::unknown_field(
+                                &key,
+                                &["left", "right", "top", "bottom"],
+                            ))
+                        }
+                    }
+                }
+
+                Ok(Insets {
+                    left: left.unwrap_or(0.0),
+                    right: right.unwrap_or(0.0),
+                    top: top.unwrap_or(0.0),
+                    bottom: bottom.unwrap_or(0.0),
+                })
+            }
+        }
+
+        deserializer.deserialize_any(InsetsVisitor)
     }
 }
 
-#[derive(Deserialize)]
-#[serde(default)]
-pub struct Border {
-    pub size: f32,
-    pub radius: BorderRadius,
-}
-
-impl Default for Border {
-    fn default() -> Self {
-        Self {
-            size: 2.,
-            radius: BorderRadius::default(),
-        }
+impl From<Insets> for [f32; 4] {
+    fn from(value: Insets) -> Self {
+        [value.left, value.right, value.top, value.bottom]
     }
 }
 
@@ -134,7 +195,12 @@ impl Default for Progress {
         Self {
             height: 20.,
             border: Border {
-                size: 2.,
+                size: Insets {
+                    left: 2.,
+                    right: 2.,
+                    top: 2.,
+                    bottom: 2.,
+                },
                 radius: BorderRadius {
                     top_left: 5.,
                     top_right: 5.,
@@ -184,7 +250,12 @@ pub struct StyleState {
 fn default_icon() -> Icon {
     Icon {
         border: Border {
-            size: 0.,
+            size: Insets {
+                left: 0.,
+                right: 0.,
+                top: 0.,
+                bottom: 0.,
+            },
             radius: BorderRadius {
                 top_left: 50.,
                 top_right: 50.,
@@ -412,7 +483,12 @@ fn default_notification_counter() -> NotificationCounter {
     NotificationCounter {
         format: "({} more)".into(),
         border: Border {
-            size: 2.,
+            size: Insets {
+                left: 2.,
+                right: 2.,
+                top: 2.,
+                bottom: 2.,
+            },
             radius: BorderRadius {
                 top_left: 5.,
                 top_right: 5.,

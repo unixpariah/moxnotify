@@ -115,12 +115,12 @@ impl NotificationView {
             let instance = buffers::Instance {
                 rect_pos: [extents.x, *total_height],
                 rect_size: [
-                    extents.width - style.border.size * 2.0,
-                    extents.height - style.border.size * 2.0,
+                    extents.width - style.border.size.left - style.border.size.right,
+                    extents.height - style.border.size.top - style.border.size.bottom,
                 ],
                 rect_color: style.background_color.to_linear(),
                 border_radius: style.border.radius.into(),
-                border_size: style.border.size,
+                border_size: style.border.size.into(),
                 border_color: style.border_color.into(),
                 scale,
             };
@@ -145,12 +145,12 @@ impl NotificationView {
             let instance = buffers::Instance {
                 rect_pos: [extents.x, total_height + next.style().margin.top],
                 rect_size: [
-                    extents.width - style.border.size * 2.0,
-                    extents.height - style.border.size * 2.0,
+                    extents.width - style.border.size.left - style.border.size.right,
+                    extents.height - style.border.size.top - style.border.size.bottom,
                 ],
                 rect_color: style.background_color.to_linear(),
                 border_radius: style.border.radius.into(),
-                border_size: style.border.size,
+                border_size: style.border.size.into(),
                 border_color: style.border_color.into(),
                 scale,
             };

@@ -1,11 +1,10 @@
 use super::config::Config;
-use crate::button::{Action, Button, ButtonManager, ButtonType};
-use crate::config::BorderRadius;
-use crate::text;
 use crate::{
     buffers,
-    config::{Size, StyleState},
+    button::{Action, Button, ButtonManager, ButtonType},
+    config::{border::BorderRadius, Size, StyleState},
     image_data::ImageData,
+    text,
     texture_renderer::{TextureArea, TextureBounds},
     Hint, Image, NotificationData, Urgency,
 };
@@ -132,8 +131,8 @@ impl Notification {
 
         let mut buttons = ButtonManager::default();
         let dismiss_button = Button::new(
-            style.border.size + style.width - style.padding.right - style.padding.left,
-            style.border.size + style.padding.top,
+            style.border.size.left + style.width - style.padding.right - style.padding.left,
+            style.border.size.top + style.padding.top,
             Action::DismissNotification,
             ButtonType::Dismiss,
             Arc::clone(&config),
@@ -150,8 +149,8 @@ impl Notification {
             &data.summary,
             &data.body,
             config.styles.default.width - icon_width - dismiss_button.extents().width,
-            style.padding.left + style.border.size + style.margin.left + icon_width,
-            style.margin.top + style.border.size,
+            style.padding.left + style.border.size.left + style.margin.left + icon_width,
+            style.margin.top + style.border.size.top,
         );
 
         buttons.push(dismiss_button.into());
@@ -211,8 +210,8 @@ impl Notification {
             .find(|button| button.borrow().button_type == ButtonType::Dismiss);
 
         Extents {
-            x: style.padding.left + style.border.size + style.margin.left + icon_extents.0,
-            y: style.margin.top + style.border.size,
+            x: style.padding.left + style.border.size.left + style.margin.left + icon_extents.0,
+            y: style.margin.top + style.border.size.top,
             width: style.width
                 - icon_extents.0
                 - dismiss_button
@@ -297,8 +296,8 @@ impl Notification {
         let style = self.style();
         let icon_width = self.icon_extents().0;
         self.text.set_buffer_position(
-            style.padding.left + style.border.size + style.margin.left + icon_width,
-            style.margin.top + style.border.size,
+            style.padding.left + style.border.size.left + style.margin.left + icon_width,
+            style.margin.top + style.border.size.top,
         );
     }
 
@@ -328,12 +327,12 @@ impl Notification {
         buffers::Instance {
             rect_pos: [extents.x, y],
             rect_size: [
-                extents.width - style.border.size * 2.0,
-                extents.height - style.border.size * 2.0,
+                extents.width - style.border.size.left - style.border.size.right,
+                extents.height - style.border.size.top - style.border.size.bottom,
             ],
             rect_color: color.background.to_linear(),
             border_radius: style.border.radius.into(),
-            border_size: style.border.size,
+            border_size: style.border.size.into(),
             border_color: color.border.into(),
             scale,
         }
@@ -346,12 +345,15 @@ impl Notification {
         let progress_style = &style.progress;
 
         let progress_height = progress_style.height;
-        let total_width =
-            extents.width - style.border.size * 2.0 - style.padding.left - style.padding.right;
+        let total_width = extents.width
+            - style.border.size.left
+            - style.border.size.right
+            - style.padding.left
+            - style.padding.right;
         let progress_ratio = (value as f32 / 100.0).min(1.0);
         let progress_y =
-            y + extents.height - style.border.size - style.padding.bottom - progress_height;
-        let base_x = extents.x + style.border.size + style.padding.left;
+            y + extents.height - style.border.size.bottom - style.padding.bottom - progress_height;
+        let base_x = extents.x + style.border.size.left + style.padding.left;
 
         let color = match self.urgency() {
             crate::Urgency::Low => &style.urgency_low,
@@ -378,7 +380,7 @@ impl Notification {
                 rect_size: [complete_width, progress_height],
                 rect_color: progress_style.complete_color.into(),
                 border_radius: border_radius.into(),
-                border_size: progress_style.border.size,
+                border_size: progress_style.border.size.into(),
                 border_color: color.border.into(),
                 scale,
             });
@@ -403,7 +405,7 @@ impl Notification {
                     rect_size: [incomplete_width, progress_height],
                     rect_color: progress_style.incomplete_color.into(),
                     border_radius: border_radius.into(),
-                    border_size: progress_style.border.size,
+                    border_size: progress_style.border.size.into(),
                     border_color: color.border.into(),
                     scale,
                 });
@@ -446,13 +448,15 @@ impl Notification {
             x: 0.,
             y: 0.,
             width: self.width()
-                + style.border.size * 2.
+                + style.border.size.left
+                + style.border.size.right
                 + style.padding.left
                 + style.padding.right
                 + style.margin.left
                 + style.margin.right,
             height: self.height()
-                + style.border.size * 2.
+                + style.border.size.top
+                + style.border.size.bottom
                 + style.padding.top
                 + style.padding.bottom
                 + style.margin.top
@@ -495,10 +499,14 @@ impl Notification {
         let extents = self.rendered_extents();
         let style = self.style();
 
-        let width =
-            extents.width - 2.0 * style.border.size - style.padding.left - style.padding.right;
+        let width = extents.width
+            - style.border.size.left
+            - style.border.size.right
+            - style.padding.left
+            - style.padding.right;
         let height = extents.height
-            - 2.0 * style.border.size
+            - style.border.size.top
+            - style.border.size.bottom
             - style.padding.top
             - style.padding.bottom
             - if self.value.is_some() {
@@ -507,8 +515,8 @@ impl Notification {
                 0.
             };
 
-        let mut x = extents.x + style.border.size + style.padding.left;
-        let mut y = y + style.border.size + style.padding.top;
+        let mut x = extents.x + style.border.size.left + style.padding.left;
+        let mut y = y + style.border.size.top + style.padding.top;
 
         if let Some(icon) = icon.as_ref() {
             let icon_size = self.config.icon_size as f32;
@@ -520,7 +528,7 @@ impl Notification {
                 width: icon_size,
                 height: icon_size,
                 scale,
-                border_size: style.icon.border.size,
+                border_size: style.icon.border.size.top, // TODO: make it use each of the edges
                 bounds: TextureBounds {
                     left: x as u32,
                     top: (total_height - y - height) as u32,
@@ -545,7 +553,7 @@ impl Notification {
                 width: app_icon_size,
                 height: app_icon_size,
                 scale,
-                border_size: style.icon.border.size,
+                border_size: style.icon.border.size.top, // TODO: make it use each of the edges
                 bounds: TextureBounds {
                     left: x as u32,
                     top: (total_height - y - height) as u32,
@@ -588,19 +596,21 @@ impl Notification {
 
         TextArea {
             buffer: &self.text.buffer,
-            left: extents.x + style.border.size + style.padding.left + icon_width_positioning,
-            top: y + style.border.size + style.padding.top,
+            left: extents.x + style.border.size.left + style.padding.left + icon_width_positioning,
+            top: y + style.border.size.top + style.padding.top,
             scale,
             bounds: TextBounds {
-                left: (extents.x + style.border.size + style.padding.left + icon_width_positioning)
-                    as i32,
-                top: (y + style.border.size + style.padding.top) as i32,
+                left: (extents.x
+                    + style.border.size.left
+                    + style.padding.left
+                    + icon_width_positioning) as i32,
+                top: (y + style.border.size.top + style.padding.top) as i32,
                 right: (extents.x
-                    + style.border.size
+                    + style.border.size.left
                     + width
                     + style.padding.left
                     + icon_width_positioning) as i32,
-                bottom: (y + style.border.size + height.min(self.height()) + style.padding.top)
+                bottom: (y + style.border.size.top + height.min(self.height()) + style.padding.top)
                     as i32,
             },
             default_color: color.foreground.into(),
