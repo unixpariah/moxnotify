@@ -2,7 +2,10 @@ use super::config::Config;
 use crate::{
     buffers,
     button::{Action, Button, ButtonManager, ButtonType},
-    config::{border::BorderRadius, Size, StyleState},
+    config::{
+        border::{Border, BorderRadius},
+        Insets, Size, StyleState,
+    },
     image_data::ImageData,
     text,
     texture_renderer::{TextureArea, TextureBounds},
@@ -365,6 +368,15 @@ impl Notification {
         let complete_width = total_width * progress_ratio;
 
         if complete_width > 0.0 {
+            let border_size = if value < 100 {
+                Insets {
+                    right: 0.,
+                    ..progress_style.border.size
+                }
+            } else {
+                progress_style.border.size
+            };
+
             let border_radius = if value < 100 {
                 BorderRadius {
                     top_right: 0.0,
@@ -380,7 +392,7 @@ impl Notification {
                 rect_size: [complete_width, progress_height],
                 rect_color: progress_style.complete_color.into(),
                 border_radius: border_radius.into(),
-                border_size: progress_style.border.size.into(),
+                border_size: border_size.into(),
                 border_color: color.border.into(),
                 scale,
             });
@@ -390,6 +402,15 @@ impl Notification {
             let incomplete_width = total_width - complete_width;
 
             if incomplete_width > 0.0 {
+                let border_size = if value > 0 {
+                    Insets {
+                        left: 0.,
+                        ..progress_style.border.size
+                    }
+                } else {
+                    progress_style.border.size
+                };
+
                 let border_radius = if value > 0 {
                     BorderRadius {
                         top_left: 0.0,
@@ -405,7 +426,7 @@ impl Notification {
                     rect_size: [incomplete_width, progress_height],
                     rect_color: progress_style.incomplete_color.into(),
                     border_radius: border_radius.into(),
-                    border_size: progress_style.border.size.into(),
+                    border_size: border_size.into(),
                     border_color: color.border.into(),
                     scale,
                 });
