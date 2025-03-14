@@ -730,6 +730,21 @@ impl Config {
         Ok(config)
     }
 
+    pub fn find_style(&self, app_name: &str, hovered: bool) -> &StyleState {
+        let styles = self
+            .notification
+            .iter()
+            .find(|n| &*n.app == app_name)
+            .map(|c| &c.styles)
+            .unwrap_or(&self.styles);
+
+        if hovered {
+            &styles.hover
+        } else {
+            &styles.default
+        }
+    }
+
     pub fn path() -> anyhow::Result<PathBuf> {
         let config_dir = std::env::var("XDG_CONFIG_HOME")
             .map(PathBuf::from)

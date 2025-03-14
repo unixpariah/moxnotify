@@ -1,14 +1,13 @@
 pub mod wgpu_surface;
 
 use crate::{
-    Moxnotify, Output,
     config::{self, Anchor, Config},
     notification_manager::NotificationManager,
-    wgpu_state,
+    wgpu_state, Moxnotify, Output,
 };
 use std::sync::Arc;
 use wayland_client::{
-    Connection, Dispatch, QueueHandle, delegate_noop, globals::GlobalList, protocol::wl_surface,
+    delegate_noop, globals::GlobalList, protocol::wl_surface, Connection, Dispatch, QueueHandle,
 };
 use wayland_protocols::xdg::foreign::zv2::client::{zxdg_exported_v2, zxdg_exporter_v2};
 use wayland_protocols_wlr::layer_shell::v1::client::{

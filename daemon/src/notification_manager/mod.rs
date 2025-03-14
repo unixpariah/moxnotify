@@ -57,44 +57,32 @@ impl NotificationManager {
     }
 
     pub fn data(&self, scale: f32) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
-        let mut height = self
-            .notification_view
-            .prev
-            .as_ref()
-            .map(|p| p.style().margin.top)
-            .unwrap_or(0.);
-        let prev_data = self.notification_view.prev_data(&mut height, scale);
-
-        let (height, mut instances, mut text_areas, textures) = self
+        let (mut instances, mut text_areas, textures) = self
             .notifications
             .iter()
             .enumerate()
             .filter(|(i, _)| self.notification_view.visible.contains(i))
             .fold(
-                (height, Vec::new(), Vec::new(), Vec::new()),
-                |(mut height, mut instances, mut text_areas, mut textures), (_, notification)| {
-                    height += notification.style().margin.top;
-
-                    let instance = notification.get_instance(height, scale);
-                    let text = notification.text_area(height, scale);
-                    let texture = notification.textures(height, self.height(), scale);
-
-                    height += notification.extents().height - notification.style().margin.top;
+                (Vec::new(), Vec::new(), Vec::new()),
+                |(mut instances, mut text_areas, mut textures), (_, notification)| {
+                    let instance = notification.get_instance(scale);
+                    let text = notification.text_area(scale);
+                    let texture = notification.textures(self.height(), scale);
 
                     textures.extend_from_slice(&texture);
                     instances.extend_from_slice(&instance);
                     text_areas.push(text);
 
-                    (height, instances, text_areas, textures)
+                    (instances, text_areas, textures)
                 },
             );
 
-        if let Some((instance, text_area)) = prev_data {
+        if let Some((instance, text_area)) = self.notification_view.prev_data(scale) {
             instances.push(instance);
             text_areas.push(text_area);
         }
 
-        if let Some((instance, text_area)) = self.notification_view.next_data(height, scale) {
+        if let Some((instance, text_area)) = self.notification_view.next_data(scale) {
             instances.push(instance);
             text_areas.push(text_area);
         }
@@ -257,11 +245,31 @@ impl NotificationManager {
         } else {
             0
         };
+
         if let Some(notification) = self.notifications.get(next_notification_index) {
             self.select(notification.id());
-            self.notification_view
-                .next(next_notification_index, self.notifications.len());
+            self.notification_view.next(
+                self.height(),
+                next_notification_index,
+                self.notifications.len(),
+            );
         }
+
+        self.notification_view.visible.clone().fold(
+            self.notification_view
+                .prev
+                .as_ref()
+                .map(|p| p.extents().height)
+                .unwrap_or(0.),
+            |acc, i| {
+                if let Some(notification) = self.notifications.get_mut(i) {
+                    notification.set_y(acc);
+                    acc + notification.extents().height
+                } else {
+                    acc
+                }
+            },
+        );
     }
 
     pub fn prev(&mut self) {
@@ -282,9 +290,28 @@ impl NotificationManager {
 
         if let Some(notification) = self.notifications.get(notification_index) {
             self.select(notification.id());
-            self.notification_view
-                .prev(notification_index, self.notifications.len());
+            self.notification_view.prev(
+                self.height(),
+                notification_index,
+                self.notifications.len(),
+            );
         }
+
+        self.notification_view.visible.clone().fold(
+            self.notification_view
+                .prev
+                .as_ref()
+                .map(|p| p.extents().height)
+                .unwrap_or(0.),
+            |acc, i| {
+                if let Some(notification) = self.notifications.get_mut(i) {
+                    notification.set_y(acc);
+                    acc + notification.extents().height
+                } else {
+                    acc
+                }
+            },
+        );
     }
 
     pub fn deselect(&mut self) {
@@ -296,8 +323,13 @@ impl NotificationManager {
     pub fn add(&mut self, data: NotificationData) -> anyhow::Result<()> {
         let id = data.id;
 
-        let mut notification =
-            Notification::new(Arc::clone(&self.config), &mut self.font_system, data);
+        let mut notification = Notification::new(
+            self.height(),
+            Arc::clone(&self.config),
+            &mut self.font_system,
+            data,
+        );
+        notification.set_y(notification.extents().y);
 
         match self.config.queue {
             Queue::Ordered => {
@@ -333,7 +365,7 @@ impl NotificationManager {
 
         if self.notification_view.visible.end < self.notifications.len() {
             self.notification_view
-                .update_notification_count(self.notifications.len());
+                .update_notification_count(self.height(), self.notifications.len());
         }
 
         Ok(())
@@ -397,7 +429,7 @@ impl Moxnotify {
 
         self.notifications
             .notification_view
-            .update_notification_count(self.notifications.len());
+            .update_notification_count(self.notifications.height(), self.notifications.len());
 
         if self.notifications.selected == Some(id) {
             self.deselect_notification();
@@ -421,6 +453,23 @@ impl Moxnotify {
             }
         }
 
+        self.notifications.notification_view.visible.clone().fold(
+            self.notifications
+                .notification_view
+                .prev
+                .as_ref()
+                .map(|p| p.extents().height)
+                .unwrap_or(0.),
+            |acc, i| {
+                if let Some(notification) = self.notifications.notifications.get_mut(i) {
+                    notification.set_y(acc);
+                    acc + notification.extents().height
+                } else {
+                    acc
+                }
+            },
+        );
+
         if self.notifications.height()
             == self
                 .surface
@@ -437,6 +486,7 @@ impl Moxnotify {
             }
             return;
         }
+
         self.update_surface_size();
     }
 
