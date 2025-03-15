@@ -237,6 +237,7 @@ pub struct StyleState {
     pub icon: Icon,
     #[serde(default)]
     pub app_icon: Icon,
+    #[serde(default)]
     pub progress: Progress,
     #[serde(default)]
     pub buttons: Buttons,
@@ -733,25 +734,19 @@ impl Config {
                       return {
                         styles = {
                           default = {
-                            background = "#1a1b26FF",
-                            foreground = "#a9b1d6"
-                            border.color = "#9ece6a",
-                            --urgency_normal = {
-                            --  background = "#16161eFF",
-                            --  border = "#bb9af7",
-                            --  foreground = "#a9b1d6"
-                            --},
-                            --urgency_critical = {
-                            --  background = "#16161eFF",
-                            --  border = "#c0caf5",
-                            --  foreground = "#a9b1d6"
-                            --},
+                            background = {
+                                urgency_low = "#1a1b26FF",
+                                urgency_normal = "#16161eFF",
+                                urgency_critical = "#16161eFF",
+                            },
+                            font = { color = "#a9b1d6" },
+                            border = { color = {
+                                urgency_low = "#9ece6a",
+                                urgency_normal = "#bb9af7",
+                                urgency_critical = "#c0caf5",
+                            }},
                           },
-                          hover = {
-                            background = "#2f3549FF" },
-                            -- urgency_normal = { background = "#2f3549FF" },
-                            -- urgency_critical = { background = "#2f3549FF" },
-                          }
+                          hover = { background = "#2f3549FF" }
                         }
                       }
                       "##
