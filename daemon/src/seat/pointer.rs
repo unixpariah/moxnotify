@@ -189,7 +189,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                                 let dismiss_button = state
                                     .notifications
                                     .get_button_by_coordinates(x, y)
-                                    .map(|button| button.action == Action::DismissNotification)
+                                    .map(|button| button == Action::DismissNotification)
                                     .unwrap_or(false);
 
                                 (href, Some(notification_id), dismiss_button)

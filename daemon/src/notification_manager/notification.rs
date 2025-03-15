@@ -62,6 +62,7 @@ impl Progress {
 
     fn instances(
         &self,
+        urgency: &Urgency,
         notification_extents: Extents,
         style: &StyleState,
         scale: f32,
@@ -99,7 +100,7 @@ impl Progress {
                 rect_color: style.progress.complete_color.into(),
                 border_radius: border_radius.into(),
                 border_size: border_size.into(),
-                border_color: [0., 0., 0., 0.],
+                border_color: style.progress.border.color.to_linear(urgency),
                 scale,
             });
         }
@@ -133,7 +134,7 @@ impl Progress {
                     rect_color: style.progress.incomplete_color.into(),
                     border_radius: border_radius.into(),
                     border_size: border_size.into(),
-                    border_color: [0., 0., 0., 0.],
+                    border_color: style.progress.border.color.to_linear(urgency),
                     scale,
                 });
             }
@@ -334,10 +335,25 @@ impl Notification {
         let extents = self.rendered_extents();
         let app_name = &self.app_name;
         let hovered = self.hovered();
+        let style = self.config.find_style(app_name, hovered);
+
         if let Some(progress) = self.progress.as_mut() {
-            let style = self.config.find_style(app_name, hovered);
             progress.set_position(extents, style);
         }
+
+        let extents = self.rendered_extents();
+        self.buttons.iter_mut().for_each(|button| {
+            let button_width = button.extents().width;
+            button.set_position(
+                extents.x
+                    + style.margin.left
+                    + style.border.size.left
+                    + style.padding.left
+                    + style.width
+                    - button_width,
+                y + style.margin.top + style.border.size.top + style.padding.top,
+            );
+        });
     }
 
     pub fn timeout(&self) -> Option<u64> {
@@ -351,7 +367,7 @@ impl Notification {
         let dismiss_button = self
             .buttons
             .iter()
-            .find(|button| button.borrow().button_type == ButtonType::Dismiss);
+            .find(|button| button.button_type == ButtonType::Dismiss);
 
         Extents {
             x: style.padding.left + style.border.size.left + style.margin.left + icon_extents.0,
@@ -359,7 +375,7 @@ impl Notification {
             width: style.width
                 - icon_extents.0
                 - dismiss_button
-                    .map(|b| b.borrow().extents().width)
+                    .map(|b| b.extents().width)
                     .unwrap_or_default(),
             height: 0.,
         }
@@ -386,8 +402,8 @@ impl Notification {
         let dismiss_button = self
             .buttons
             .iter()
-            .find(|button| button.borrow().button_type == ButtonType::Dismiss)
-            .map(|b| b.borrow().extents().height)
+            .find(|button| button.button_type == ButtonType::Dismiss)
+            .map(|b| b.extents().height)
             .unwrap_or(0.0);
 
         let progress = if self.progress.is_some() {
@@ -477,35 +493,25 @@ impl Notification {
         }
     }
 
-    fn button_instances(&self, y: f32, scale: f32) -> Vec<buffers::Instance> {
-        let extents = self.rendered_extents();
-        let style = self.style();
+    fn button_instances(&self, scale: f32) -> Vec<buffers::Instance> {
         self.buttons
             .iter()
-            .map(|button| {
-                button.borrow().get_instance(
-                    extents.x + style.padding.left,
-                    y,
-                    self.hovered(),
-                    scale,
-                )
-            })
+            .map(|button| button.get_instance(self.hovered(), scale))
             .collect()
     }
 
     pub fn get_instance(&self, scale: f32) -> Vec<buffers::Instance> {
-        let extents = self.extents();
-
         let mut instances = vec![self.background_instance(scale)];
         if let Some(progress) = self.progress.as_ref() {
             instances.extend_from_slice(&progress.instances(
+                self.urgency(),
                 self.rendered_extents(),
                 self.style(),
                 scale,
             ));
         }
 
-        instances.extend_from_slice(&self.button_instances(extents.y, scale));
+        instances.extend_from_slice(&self.button_instances(scale));
 
         instances
     }

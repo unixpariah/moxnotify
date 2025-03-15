@@ -9,7 +9,6 @@ use crate::{
 };
 use glyphon::FontSystem;
 use std::{
-    cell::{RefCell, RefMut},
     ops::{Deref, DerefMut},
     sync::Arc,
 };
@@ -20,18 +19,18 @@ pub enum ButtonType {
     Action,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Copy, Clone)]
 pub enum Action {
     DismissNotification,
 }
 
 #[derive(Default)]
 pub struct ButtonManager {
-    buttons: Vec<RefCell<Button>>,
+    buttons: Vec<Button>,
 }
 
 impl Deref for ButtonManager {
-    type Target = Vec<RefCell<Button>>;
+    type Target = Vec<Button>;
 
     fn deref(&self) -> &Self::Target {
         &self.buttons
@@ -45,19 +44,22 @@ impl DerefMut for ButtonManager {
 }
 
 impl ButtonManager {
-    pub fn get_by_coordinates(&self, x: f64, y: f64) -> Option<RefMut<Button>> {
-        let index = self.buttons.iter().position(|button| {
-            let mut b = button.borrow_mut();
-            b.unhover();
-            x >= b.x as f64
-                && y >= b.y as f64
-                && x <= (b.x as f64 + b.width as f64)
-                && y <= (b.y as f64 + b.height as f64)
+    pub fn get_by_coordinates(&mut self, x: f64, y: f64) -> Option<Action> {
+        let index = self.buttons.iter_mut().position(|button| {
+            let extents = button.extents();
+            button.unhover();
+            x >= extents.x as f64
+                && y >= extents.y as f64
+                && x <= (extents.x as f64 + extents.width as f64)
+                && y <= (extents.y as f64 + extents.height as f64)
         })?;
 
-        self.buttons[index].borrow_mut().hover();
-
-        Some(self.buttons[index].borrow_mut())
+        if let Some(button) = self.buttons.get_mut(index) {
+            button.hover();
+            Some(button.action)
+        } else {
+            None
+        }
     }
 }
 
@@ -65,8 +67,6 @@ pub struct Button {
     hovered: bool,
     x: f32,
     y: f32,
-    width: f32,
-    height: f32,
     config: Arc<Config>,
     text: Text,
     pub action: Action,
@@ -82,11 +82,6 @@ impl Button {
         config: Arc<Config>,
         font_system: &mut FontSystem,
     ) -> Self {
-        let button = match button_type {
-            ButtonType::Dismiss => &config.styles.default.buttons.dismiss,
-            ButtonType::Action => &config.styles.default.buttons.action,
-        };
-
         let text = Text::new(&config.styles.default.font, font_system, "x", x, y);
 
         Self {
@@ -94,12 +89,15 @@ impl Button {
             hovered: false,
             x,
             y,
-            width: button.width,
-            height: button.height,
             config,
             action,
             button_type,
         }
+    }
+
+    pub fn set_position(&mut self, x: f32, y: f32) {
+        self.x = x;
+        self.y = y;
     }
 
     pub fn hover(&mut self) {
@@ -111,11 +109,16 @@ impl Button {
     }
 
     pub fn extents(&self) -> Extents {
+        let button = match self.button_type {
+            ButtonType::Action => &self.config.styles.default.buttons.action,
+            ButtonType::Dismiss => &self.config.styles.default.buttons.dismiss,
+        };
+
         Extents {
             x: self.x,
             y: self.y,
-            width: self.width,
-            height: self.height,
+            width: button.width,
+            height: button.height,
         }
     }
 
@@ -137,12 +140,13 @@ impl Button {
         )
     }
 
-    pub fn get_instance(&self, x: f32, y: f32, hovered: bool, scale: f32) -> buffers::Instance {
+    pub fn get_instance(&self, hovered: bool, scale: f32) -> buffers::Instance {
         let (button, style) = self.style(hovered);
+        let extents = self.extents();
 
         buffers::Instance {
-            rect_pos: [x + self.x, y + self.y],
-            rect_size: [self.width, self.height],
+            rect_pos: [extents.x, extents.y],
+            rect_size: [extents.width, extents.height],
             rect_color: style.background_color.into(),
             border_radius: button.border.radius.into(),
             border_size: button.border.size.into(),

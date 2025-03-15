@@ -3,7 +3,7 @@ mod notification_view;
 
 use crate::{
     buffers,
-    button::{Button, ButtonType},
+    button::{Action, ButtonType},
     config::{self, Config, Key, Queue},
     surface::Surface,
     texture_renderer::TextureArea,
@@ -16,8 +16,11 @@ use calloop::{
 use glyphon::{FontSystem, TextArea};
 use notification::{Notification, NotificationId};
 use notification_view::NotificationView;
-use std::{cell::RefMut, ops::Range};
-use std::{ops::Deref, sync::Arc, time::Duration};
+use std::{
+    ops::{Deref, Range},
+    sync::Arc,
+    time::Duration,
+};
 
 pub struct NotificationManager {
     notifications: Vec<Notification>,
@@ -122,41 +125,12 @@ impl NotificationManager {
             .next()
     }
 
-    pub fn get_button_by_coordinates(&self, x: f64, y: f64) -> Option<RefMut<Button>> {
-        let mut cumulative_y_offset = self
-            .notification_view
-            .prev
-            .as_ref()
-            .map(|n| n.extents().height)
-            .unwrap_or_default() as f64
-            + 10.;
-
-        self.notification_view
-            .visible
-            .clone()
-            .filter_map(|index| self.notifications.get(index))
-            .scan(&mut cumulative_y_offset, |current_y, notification| {
-                let style = notification.style();
-                let extents = notification.extents();
-                let notification_height = extents.height as f64;
-                let notification_x = (extents.x + style.padding.left) as f64;
-                let notification_width = extents.width as f64;
-
-                let x_within_bounds =
-                    x >= notification_x && x < (notification_x + notification_width);
-                let y_within_bounds = y >= **current_y && y < (**current_y + notification_height);
-
-                if x_within_bounds && y_within_bounds {
-                    let local_x = x - notification_x;
-                    let local_y = y - **current_y;
-                    Some(notification.buttons.get_by_coordinates(local_x, local_y))
-                } else {
-                    **current_y += notification.extents().height as f64;
-                    Some(None)
-                }
-            })
-            .flatten()
-            .next()
+    pub fn get_button_by_coordinates(&mut self, x: f64, y: f64) -> Option<Action> {
+        self.notification_view.visible.clone().find_map(|index| {
+            self.notifications
+                .get_mut(index)
+                .and_then(|notification| notification.buttons.get_by_coordinates(x, y))
+        })
     }
 
     pub fn height(&self) -> f32 {
@@ -213,8 +187,8 @@ impl NotificationManager {
             let dismiss_button = new_notification
                 .buttons
                 .iter()
-                .find(|button| button.borrow().button_type == ButtonType::Dismiss)
-                .map(|b| b.borrow().extents().width)
+                .find(|button| button.button_type == ButtonType::Dismiss)
+                .map(|b| b.extents().width)
                 .unwrap_or(0.0);
 
             new_notification.text.buffer.set_size(
