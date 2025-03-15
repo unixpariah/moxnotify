@@ -1,4 +1,4 @@
-use super::Insets;
+use super::{color::Color, Insets};
 use serde::{Deserialize, Deserializer};
 use std::fmt;
 
@@ -7,6 +7,7 @@ use std::fmt;
 pub struct Border {
     pub size: Insets,
     pub radius: BorderRadius,
+    pub color: Color,
 }
 
 impl Default for Border {
@@ -19,6 +20,11 @@ impl Default for Border {
                 bottom: 2.,
             },
             radius: BorderRadius::default(),
+            color: Color {
+                urgency_low: [158, 206, 106, 255],
+                urgency_normal: [187, 154, 247, 255],
+                urgency_critical: [192, 202, 245, 255],
+            },
         }
     }
 }

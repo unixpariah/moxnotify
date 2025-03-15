@@ -462,11 +462,6 @@ impl Notification {
     pub fn background_instance(&self, scale: f32) -> buffers::Instance {
         let extents = self.rendered_extents();
         let style = self.style();
-        let color = match self.urgency() {
-            crate::Urgency::Low => &style.urgency_low,
-            crate::Urgency::Normal => &style.urgency_normal,
-            crate::Urgency::Critical => &style.urgency_critical,
-        };
 
         buffers::Instance {
             rect_pos: [extents.x, extents.y],
@@ -474,10 +469,10 @@ impl Notification {
                 extents.width - style.border.size.left - style.border.size.right,
                 extents.height - style.border.size.top - style.border.size.bottom,
             ],
-            rect_color: color.background.to_linear(),
+            rect_color: style.background.to_linear(self.urgency()),
             border_radius: style.border.radius.into(),
             border_size: style.border.size.into(),
-            border_color: color.border.into(),
+            border_color: style.border.color.to_linear(self.urgency()),
             scale,
         }
     }
@@ -656,12 +651,6 @@ impl Notification {
 
         let style = self.style();
 
-        let color = match self.urgency() {
-            crate::Urgency::Low => &style.urgency_low,
-            crate::Urgency::Normal => &style.urgency_normal,
-            crate::Urgency::Critical => &style.urgency_critical,
-        };
-
         let icon_width_positioning = self
             .image
             .as_ref()
@@ -689,7 +678,7 @@ impl Notification {
                     + height.min(self.height())
                     + style.padding.top) as i32,
             },
-            default_color: color.foreground.into(),
+            default_color: style.font.color.into_glyphon(self.urgency()),
             custom_glyphs: &[],
         }
     }
