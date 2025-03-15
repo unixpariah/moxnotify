@@ -48,7 +48,9 @@ pub struct Text {
 
 impl Text {
     pub fn new(font: &Font, font_system: &mut FontSystem, body: &str, x: f32, y: f32) -> Self {
-        let attrs = Attrs::new().family(glyphon::Family::Name(&font.family));
+        let attrs = Attrs::new()
+            .family(glyphon::Family::Name(&font.family))
+            .weight(Weight::BOLD);
         let mut buffer = create_buffer(font, font_system, None);
         buffer.set_text(font_system, body, attrs, Shaping::Advanced);
         Self {

@@ -135,9 +135,7 @@ impl NotificationView {
                 scale,
             };
 
-            let text_area = prev.text_area(scale);
-
-            return Some((instance, text_area));
+            return Some((instance, prev.text_area(scale).swap_remove(0)));
         }
 
         None
@@ -160,7 +158,7 @@ impl NotificationView {
                 scale,
             };
 
-            return Some((instance, next.text_area(scale)));
+            return Some((instance, next.text_area(scale).swap_remove(0)));
         }
 
         None

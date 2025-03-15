@@ -12,6 +12,7 @@ use calloop::RegistrationToken;
 use glyphon::{FontSystem, TextArea, TextBounds};
 use std::path::Path;
 use std::sync::Arc;
+use usvg::Text;
 
 #[derive(Debug)]
 pub struct Extents {
@@ -343,16 +344,20 @@ impl Notification {
 
         let extents = self.rendered_extents();
         self.buttons.iter_mut().for_each(|button| {
-            let button_width = button.extents().width;
-            button.set_position(
-                extents.x
-                    + style.margin.left
-                    + style.border.size.left
-                    + style.padding.left
-                    + style.width
-                    - button_width,
-                y + style.margin.top + style.border.size.top + style.padding.top,
-            );
+            let (x, y) = match button.button_type {
+                ButtonType::Action => todo!(),
+                ButtonType::Dismiss => (
+                    extents.x
+                        + style.margin.left
+                        + style.border.size.left
+                        + style.padding.left
+                        + style.width
+                        - button.extents().width,
+                    y + style.margin.top + style.border.size.top + style.padding.top,
+                ),
+            };
+
+            button.set_position(x, y);
         });
     }
 
@@ -493,13 +498,6 @@ impl Notification {
         }
     }
 
-    fn button_instances(&self, scale: f32) -> Vec<buffers::Instance> {
-        self.buttons
-            .iter()
-            .map(|button| button.get_instance(self.hovered(), scale))
-            .collect()
-    }
-
     pub fn get_instance(&self, scale: f32) -> Vec<buffers::Instance> {
         let mut instances = vec![self.background_instance(scale)];
         if let Some(progress) = self.progress.as_ref() {
@@ -511,7 +509,13 @@ impl Notification {
             ));
         }
 
-        instances.extend_from_slice(&self.button_instances(scale));
+        let button_instances: Box<[buffers::Instance]> = self
+            .buttons
+            .iter()
+            .map(|button| button.get_instance(self.hovered(), scale))
+            .collect();
+
+        instances.extend_from_slice(&button_instances);
 
         instances
     }
@@ -651,7 +655,7 @@ impl Notification {
             .unwrap_or((0., 0.))
     }
 
-    pub fn text_area(&self, scale: f32) -> TextArea {
+    pub fn text_area(&self, scale: f32) -> Vec<TextArea> {
         let extents = self.rendered_extents();
         let (width, height) = self.text.extents();
 
@@ -663,7 +667,7 @@ impl Notification {
             .map(|i| i.width as f32 + style.padding.left)
             .unwrap_or(0.);
 
-        TextArea {
+        let mut res = vec![TextArea {
             buffer: &self.text.buffer,
             left: extents.x + style.border.size.left + style.padding.left + icon_width_positioning,
             top: extents.y + style.border.size.top + style.padding.top,
@@ -686,6 +690,15 @@ impl Notification {
             },
             default_color: style.font.color.into_glyphon(self.urgency()),
             custom_glyphs: &[],
-        }
+        }];
+
+        let button_areas: Box<[TextArea]> = self
+            .buttons
+            .iter()
+            .map(|button| button.text_area(scale))
+            .collect();
+
+        res.extend_from_slice(&button_areas);
+        res
     }
 }

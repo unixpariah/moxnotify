@@ -82,7 +82,12 @@ impl Button {
         config: Arc<Config>,
         font_system: &mut FontSystem,
     ) -> Self {
-        let text = Text::new(&config.styles.default.font, font_system, "x", x, y);
+        let font = match button_type {
+            ButtonType::Dismiss => &config.styles.default.buttons.dismiss.font,
+            ButtonType::Action => &config.styles.default.buttons.action.font,
+        };
+
+        let text = Text::new(font, font_system, "X", x, y);
 
         Self {
             text,
@@ -138,6 +143,25 @@ impl Button {
                 &button.default
             },
         )
+    }
+
+    pub fn text_area(&self, scale: f32) -> glyphon::TextArea {
+        let extents = self.extents();
+
+        glyphon::TextArea {
+            buffer: &self.text.buffer,
+            left: extents.x,
+            top: extents.y,
+            scale,
+            bounds: glyphon::TextBounds {
+                left: extents.x as i32,
+                top: extents.y as i32,
+                right: (extents.x + extents.width) as i32,
+                bottom: (extents.y + extents.height) as i32,
+            },
+            custom_glyphs: &[],
+            default_color: glyphon::Color::rgba(0, 0, 0, 255),
+        }
     }
 
     pub fn get_instance(&self, hovered: bool, scale: f32) -> buffers::Instance {

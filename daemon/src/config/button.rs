@@ -1,4 +1,4 @@
-use super::{Border, BorderRadius, Color, Insets};
+use super::{Border, BorderRadius, Color, Font, Insets};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -34,6 +34,7 @@ pub struct Button {
     pub border: Border,
     pub default: ButtonState,
     pub hover: ButtonState,
+    pub font: Font,
 }
 
 impl Default for Button {
@@ -55,6 +56,10 @@ impl Default for Button {
             hover: ButtonState {
                 background_color: Color::rgba([255, 0, 0, 255]),
                 border_color: Color::rgba([255, 0, 0, 255]),
+            },
+            font: Font {
+                size: 20.,
+                ..Default::default()
             },
         }
     }
