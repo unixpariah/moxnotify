@@ -27,7 +27,7 @@ pub enum Action {
 
 #[derive(Default)]
 pub struct ButtonManager {
-    buttons: Vec<Button>,
+    pub buttons: Vec<Button>,
 }
 
 impl Deref for ButtonManager {
@@ -64,7 +64,7 @@ impl ButtonManager {
 }
 
 pub struct Button {
-    hovered: bool,
+    pub hovered: bool,
     x: f32,
     y: f32,
     config: Arc<Config>,

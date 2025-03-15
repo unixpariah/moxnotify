@@ -108,8 +108,18 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     .get_button_by_coordinates(pointer.x, pointer.y)
                     .is_some()
                 {
+                    _ = surface.render(
+                        &state.wgpu_state.device,
+                        &state.wgpu_state.queue,
+                        &state.notifications,
+                    );
                     state.seat.pointer.change_state(PointerState::Hover);
                 } else {
+                    _ = surface.render(
+                        &state.wgpu_state.device,
+                        &state.wgpu_state.queue,
+                        &state.notifications,
+                    );
                     state.seat.pointer.change_state(PointerState::Default);
                 }
 
@@ -218,6 +228,10 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                             if dismiss_button {
                                 state.dismiss_notification(notification_id);
                             }
+                        }
+
+                        if let Some(notification) = state.notifications.get_by_coordinates(x, y) {
+                            state.select_notification(notification.id());
                         }
 
                         if state
