@@ -49,6 +49,7 @@ impl Default for Button {
                     bottom: 0.,
                 },
                 radius: BorderRadius::circle(),
+                color: Color::default(),
             },
             default: ButtonState::default(),
             hover: ButtonState {

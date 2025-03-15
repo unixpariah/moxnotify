@@ -139,6 +139,7 @@ impl From<Insets> for [f32; 4] {
 pub struct Font {
     pub size: f32,
     pub family: Box<str>,
+    pub color: Color,
 }
 
 impl Default for Font {
@@ -146,6 +147,7 @@ impl Default for Font {
         Self {
             size: 10.,
             family: "DejaVu Sans".into(),
+            color: Color::default(),
         }
     }
 }
@@ -160,11 +162,7 @@ pub enum Queue {
 
 #[derive(Deserialize, Default)]
 #[serde(default)]
-pub struct Urgency {
-    pub background: Color,
-    pub foreground: Color,
-    pub border: Color,
-}
+pub struct Urgency {}
 
 #[derive(Deserialize, Default)]
 #[serde(default)]
@@ -195,6 +193,7 @@ impl Default for Progress {
         Self {
             height: 20.,
             border: Border {
+                color: Color::default(),
                 size: Insets {
                     left: 2.,
                     right: 2.,
@@ -216,6 +215,8 @@ impl Default for Progress {
 
 #[derive(Deserialize, Default)]
 pub struct StyleState {
+    #[serde(default)]
+    pub background: Color,
     #[serde(default = "default_width")]
     pub width: f32,
     #[serde(default)]
@@ -232,12 +233,6 @@ pub struct StyleState {
     pub margin: Insets,
     #[serde(default = "default_padding")]
     pub padding: Insets,
-    #[serde(default)]
-    pub urgency_low: Urgency,
-    #[serde(default)]
-    pub urgency_normal: Urgency,
-    #[serde(default)]
-    pub urgency_critical: Urgency,
     #[serde(default = "default_icon")]
     pub icon: Icon,
     #[serde(default)]
@@ -250,6 +245,7 @@ pub struct StyleState {
 fn default_icon() -> Icon {
     Icon {
         border: Border {
+            color: Color::default(),
             size: Insets {
                 left: 0.,
                 right: 0.,
@@ -432,8 +428,8 @@ pub struct Timeout {
 impl Default for Timeout {
     fn default() -> Self {
         Self {
-            urgency_low: 10,
-            urgency_normal: 5,
+            urgency_low: 5,
+            urgency_normal: 10,
             urgency_critical: 0,
         }
     }
@@ -481,8 +477,7 @@ impl<'de> Deserialize<'de> for Timeout {
                 })
             }
 
-            fn visit_i32<E>(self, v: i32) -> Result<Self::Value, E> {
-                let value = v as i32;
+            fn visit_i32<E>(self, value: i32) -> Result<Self::Value, E> {
                 Ok(Timeout {
                     urgency_low: value,
                     urgency_normal: value,
@@ -611,6 +606,11 @@ fn default_notification_counter() -> NotificationCounter {
     NotificationCounter {
         format: "({} more)".into(),
         border: Border {
+            color: Color {
+                urgency_low: [158, 206, 106, 255],
+                urgency_normal: [187, 154, 247, 255],
+                urgency_critical: [192, 202, 245, 255],
+            },
             size: Insets {
                 left: 2.,
                 right: 2.,
@@ -733,26 +733,24 @@ impl Config {
                       return {
                         styles = {
                           default = {
-                            urgency_low = {
-                              background = "#1a1b26FF",
-                              border = "#9ece6a",
-                              foreground = "#a9b1d6"
-                            },
-                            urgency_normal = {
-                              background = "#16161eFF",
-                              border = "#bb9af7",
-                              foreground = "#a9b1d6"
-                            },
-                            urgency_critical = {
-                              background = "#16161eFF",
-                              border = "#c0caf5",
-                              foreground = "#a9b1d6"
-                            },
+                            background = "#1a1b26FF",
+                            foreground = "#a9b1d6"
+                            border.color = "#9ece6a",
+                            --urgency_normal = {
+                            --  background = "#16161eFF",
+                            --  border = "#bb9af7",
+                            --  foreground = "#a9b1d6"
+                            --},
+                            --urgency_critical = {
+                            --  background = "#16161eFF",
+                            --  border = "#c0caf5",
+                            --  foreground = "#a9b1d6"
+                            --},
                           },
                           hover = {
-                            urgency_low = { background = "#2f3549FF" },
-                            urgency_normal = { background = "#2f3549FF" },
-                            urgency_critical = { background = "#2f3549FF" },
+                            background = "#2f3549FF" },
+                            -- urgency_normal = { background = "#2f3549FF" },
+                            -- urgency_critical = { background = "#2f3549FF" },
                           }
                         }
                       }

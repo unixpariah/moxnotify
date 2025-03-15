@@ -33,40 +33,36 @@ in
             };
           };
 
-          urgency_low = {
-            background = base00 + moxnotifyOpacity;
-            foreground = base05;
-            border = base0B;
-            icon_border = base0B;
+          background = {
+            urgency_low = base00 + moxnotifyOpacity;
+            urgency_normal = base01 + moxnotifyOpacity;
+            urgency_critical = base01 + moxnotifyOpacity;
           };
 
-          urgency_normal = {
-            background = base01 + moxnotifyOpacity;
-            foreground = base05;
-            border = base0E;
-            icon_border = base0E;
-          };
-
-          urgency_critical = {
-            background = base01 + moxnotifyOpacity;
-            foreground = base05;
-            border = base08;
-            icon_border = base08;
+          icon.border.color = {
+            urgency_low = base0B;
+            urgency_normal = base0E;
+            urgency_critical = base08;
           };
 
           font = {
             family = sansSerif.name;
             size = sizes.popups;
+            color = base05;
           };
-          border.size = 2;
+
+          border.color = {
+            urgency_low = base0B;
+            urgency_normal = base0E;
+            urgency_critical = base08;
+          };
         };
-        hover = {
-          urgency_low.background = base02 + moxnotifyOpacity;
-          urgency_normal.background = base02 + moxnotifyOpacity;
-          urgency_critical.background = base02 + moxnotifyOpacity;
+        hover.background = {
+          urgency_low = base02 + moxnotifyOpacity;
+          urgency_normal = base02 + moxnotifyOpacity;
+          urgency_critical = base02 + moxnotifyOpacity;
         };
       };
-
     };
   };
 }
