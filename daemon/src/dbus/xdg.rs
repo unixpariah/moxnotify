@@ -9,7 +9,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub struct NotificationData {
     pub id: u32,
     pub app_name: Box<str>,
-    pub app_icon: Box<str>,
+    pub app_icon: Option<Box<str>>,
     pub summary: Box<str>,
     pub body: Box<str>,
     pub timeout: i32,
@@ -122,6 +122,12 @@ impl NotificationsImpl {
             })
             .collect();
 
+        let app_icon: Option<Box<str>> = if app_icon.is_empty() {
+            None
+        } else {
+            Some(app_icon.into())
+        };
+
         if let Err(e) = self.event_sender.send(Event::Notify(NotificationData {
             id,
             app_name: app_name.into(),
@@ -133,7 +139,7 @@ impl NotificationsImpl {
                 .map(|action| (action[0].into(), action[1].into()))
                 .collect(),
             hints,
-            app_icon: app_icon.into(),
+            app_icon,
         })) {
             log::error!("{e}");
         }

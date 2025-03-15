@@ -12,7 +12,6 @@ use calloop::RegistrationToken;
 use glyphon::{FontSystem, TextArea, TextBounds};
 use std::path::Path;
 use std::sync::Arc;
-use usvg::Text;
 
 #[derive(Debug)]
 pub struct Extents {
@@ -244,7 +243,10 @@ impl Notification {
             _ => {}
         });
 
-        let app_icon_option = find_icon(&data.app_icon, config.icon_size as u16);
+        let app_icon_option = data
+            .app_icon
+            .as_ref()
+            .and_then(|icon| find_icon(icon, config.icon_size as u16));
 
         let final_app_icon = if icon.is_some() {
             app_icon_option
@@ -254,7 +256,9 @@ impl Notification {
         let final_image = if icon.is_some() {
             icon
         } else {
-            find_icon(&data.app_icon, config.icon_size as u16)
+            data.app_icon
+                .as_ref()
+                .and_then(|icon| find_icon(icon, config.icon_size as u16))
         };
 
         let style = &config.styles.default;
@@ -283,7 +287,7 @@ impl Notification {
             style.margin.top + style.border.size.top,
         );
 
-        buttons.push(dismiss_button.into());
+        buttons.push(dismiss_button);
 
         let notification_style_entry = config
             .notification
@@ -695,7 +699,7 @@ impl Notification {
         let button_areas: Box<[TextArea]> = self
             .buttons
             .iter()
-            .map(|button| button.text_area(scale))
+            .map(|button| button.text_area(self.urgency(), self.hovered(), scale))
             .collect();
 
         res.extend_from_slice(&button_areas);

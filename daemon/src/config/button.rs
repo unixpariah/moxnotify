@@ -58,7 +58,12 @@ impl Default for Button {
                 border_color: Color::rgba([255, 0, 0, 255]),
             },
             font: Font {
-                size: 20.,
+                size: 10.,
+                color: Color {
+                    urgency_low: [0, 0, 0, 255],
+                    urgency_normal: [0, 0, 0, 255],
+                    urgency_critical: [0, 0, 0, 255],
+                },
                 ..Default::default()
             },
         }

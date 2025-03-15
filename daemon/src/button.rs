@@ -6,6 +6,7 @@ use crate::{
     },
     notification_manager::notification::Extents,
     text::Text,
+    Urgency,
 };
 use glyphon::FontSystem;
 use std::{
@@ -45,21 +46,20 @@ impl DerefMut for ButtonManager {
 
 impl ButtonManager {
     pub fn get_by_coordinates(&mut self, x: f64, y: f64) -> Option<Action> {
-        let index = self.buttons.iter_mut().position(|button| {
+        self.buttons.iter_mut().find_map(|button| {
             let extents = button.extents();
-            button.unhover();
-            x >= extents.x as f64
+            if x >= extents.x as f64
                 && y >= extents.y as f64
                 && x <= (extents.x as f64 + extents.width as f64)
                 && y <= (extents.y as f64 + extents.height as f64)
-        })?;
-
-        if let Some(button) = self.buttons.get_mut(index) {
-            button.hover();
-            Some(button.action)
-        } else {
-            None
-        }
+            {
+                button.hovered = true;
+                Some(button.action)
+            } else {
+                button.hovered = false;
+                None
+            }
+        })
     }
 }
 
@@ -105,25 +105,19 @@ impl Button {
         self.y = y;
     }
 
-    pub fn hover(&mut self) {
-        self.hovered = true;
-    }
-
-    pub fn unhover(&mut self) {
-        self.hovered = false;
-    }
-
     pub fn extents(&self) -> Extents {
         let button = match self.button_type {
             ButtonType::Action => &self.config.styles.default.buttons.action,
             ButtonType::Dismiss => &self.config.styles.default.buttons.dismiss,
         };
 
+        let text_extents = self.text.extents();
+
         Extents {
             x: self.x,
             y: self.y,
-            width: button.width,
-            height: button.height,
+            width: button.width.max(text_extents.0),
+            height: button.height.max(text_extents.1),
         }
     }
 
@@ -145,22 +139,25 @@ impl Button {
         )
     }
 
-    pub fn text_area(&self, scale: f32) -> glyphon::TextArea {
+    pub fn text_area(&self, urgency: &Urgency, hovered: bool, scale: f32) -> glyphon::TextArea {
         let extents = self.extents();
+        let (button, _) = self.style(hovered);
 
+        let text_extents = self.text.extents();
         glyphon::TextArea {
             buffer: &self.text.buffer,
-            left: extents.x,
-            top: extents.y,
+            left: extents.x + (extents.width - text_extents.0) / 2.,
+            top: extents.y + (extents.height - text_extents.1) / 2.,
             scale,
             bounds: glyphon::TextBounds {
-                left: extents.x as i32,
-                top: extents.y as i32,
-                right: (extents.x + extents.width) as i32,
-                bottom: (extents.y + extents.height) as i32,
+                left: (extents.x + (extents.width - text_extents.0) / 2.) as i32,
+                top: (extents.y + (extents.height - text_extents.1) / 2.) as i32,
+                right: ((extents.x + (extents.width - text_extents.0) / 2.) + extents.width) as i32,
+                bottom: ((extents.y + (extents.height - text_extents.1) / 2.) + extents.height)
+                    as i32,
             },
             custom_glyphs: &[],
-            default_color: glyphon::Color::rgba(0, 0, 0, 255),
+            default_color: button.font.color.into_glyphon(urgency),
         }
     }
 
