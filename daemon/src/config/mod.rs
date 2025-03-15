@@ -423,13 +423,141 @@ pub enum Anchor {
     Center,
 }
 
+pub struct Timeout {
+    urgency_low: i32,
+    urgency_normal: i32,
+    urgency_critical: i32,
+}
+
+impl Default for Timeout {
+    fn default() -> Self {
+        Self {
+            urgency_low: 10,
+            urgency_normal: 5,
+            urgency_critical: 0,
+        }
+    }
+}
+
+impl Timeout {
+    pub fn get(&self, urgency: &crate::Urgency) -> i32 {
+        match urgency {
+            crate::Urgency::Low => self.urgency_low,
+            crate::Urgency::Normal => self.urgency_normal,
+            crate::Urgency::Critical => self.urgency_critical,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Timeout {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct TimeoutVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for TimeoutVisitor {
+            type Value = Timeout;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a number or a map")
+            }
+
+            fn visit_f32<E>(self, v: f32) -> Result<Self::Value, E> {
+                let value = v as i32;
+                Ok(Timeout {
+                    urgency_low: value,
+                    urgency_normal: value,
+                    urgency_critical: value,
+                })
+            }
+
+            fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E> {
+                let value = v as i32;
+                Ok(Timeout {
+                    urgency_low: value,
+                    urgency_normal: value,
+                    urgency_critical: value,
+                })
+            }
+
+            fn visit_i32<E>(self, v: i32) -> Result<Self::Value, E> {
+                let value = v as i32;
+                Ok(Timeout {
+                    urgency_low: value,
+                    urgency_normal: value,
+                    urgency_critical: value,
+                })
+            }
+
+            fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E> {
+                let value = v as i32;
+                Ok(Timeout {
+                    urgency_low: value,
+                    urgency_normal: value,
+                    urgency_critical: value,
+                })
+            }
+
+            fn visit_u32<E>(self, v: u32) -> Result<Self::Value, E> {
+                let value = v as i32;
+                Ok(Timeout {
+                    urgency_low: value,
+                    urgency_normal: value,
+                    urgency_critical: value,
+                })
+            }
+
+            fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E> {
+                let value = v as i32;
+                Ok(Timeout {
+                    urgency_low: value,
+                    urgency_normal: value,
+                    urgency_critical: value,
+                })
+            }
+
+            fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
+            where
+                M: serde::de::MapAccess<'de>,
+            {
+                let mut urgency_low = None;
+                let mut urgency_normal = None;
+                let mut urgency_critical = None;
+
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "urgency_low" => urgency_low = Some(map.next_value()?),
+                        "urgency_normal" => urgency_normal = Some(map.next_value()?),
+                        "urgency_critical" => urgency_critical = Some(map.next_value()?),
+                        _ => {
+                            return Err(serde::de::Error::unknown_field(
+                                &key,
+                                &["urgency_low", "urgency_normal", "urgency_critical"],
+                            ))
+                        }
+                    }
+                }
+
+                Ok(Timeout {
+                    urgency_low: urgency_low.unwrap_or_default(),
+                    urgency_normal: urgency_normal.unwrap_or_default(),
+                    urgency_critical: urgency_critical.unwrap_or_default(),
+                })
+            }
+        }
+
+        deserializer.deserialize_any(TimeoutVisitor)
+    }
+}
+
 #[derive(Deserialize)]
 pub struct NotificationStyleEntry {
     pub app: Box<str>,
     #[serde(default)]
     pub styles: Styles,
     #[serde(default)]
-    pub default_timeout: Option<i32>,
+    pub default_timeout: Option<Timeout>,
     #[serde(default)]
     pub ignore_timeout: Option<bool>,
 }
@@ -453,7 +581,7 @@ pub struct Config {
     #[serde(default)]
     pub output: Box<str>,
     #[serde(default)]
-    pub default_timeout: i32,
+    pub default_timeout: Timeout,
     #[serde(default)]
     pub ignore_timeout: bool,
     #[serde(default)]

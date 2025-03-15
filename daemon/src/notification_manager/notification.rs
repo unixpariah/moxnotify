@@ -293,15 +293,19 @@ impl Notification {
             .unwrap_or(config.ignore_timeout);
 
         let default_timeout = notification_style_entry
-            .and_then(|entry| entry.default_timeout)
-            .unwrap_or(config.default_timeout);
+            .and_then(|entry| entry.default_timeout.as_ref())
+            .unwrap_or(&config.default_timeout);
+
+        let urgency = urgency.unwrap_or_default();
 
         let timeout = if ignore_timeout {
-            (default_timeout > 0).then(|| (default_timeout as u64) * 1000)
+            (default_timeout.get(&urgency) > 0)
+                .then(|| (default_timeout.get(&urgency) as u64) * 1000)
         } else {
             match data.timeout {
                 0 => None,
-                -1 => (default_timeout > 0).then(|| (default_timeout as u64) * 1000),
+                -1 => (default_timeout.get(&urgency) > 0)
+                    .then(|| (default_timeout.get(&urgency) as u64) * 1000),
                 t if t > 0 => Some(t as u64),
                 _ => None,
             }
@@ -320,7 +324,7 @@ impl Notification {
             config,
             hovered: false,
             actions: data.actions,
-            urgency: urgency.unwrap_or_default(),
+            urgency,
             registration_token: None,
         }
     }
