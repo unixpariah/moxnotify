@@ -13,8 +13,26 @@ impl Default for Buttons {
         let action = Button {
             width: 200.0,
             default: ButtonState {
+                font: Font {
+                    size: 10.,
+                    color: Color {
+                        urgency_low: [255, 255, 255, 255],
+                        urgency_normal: [255, 255, 255, 255],
+                        urgency_critical: [255, 255, 255, 255],
+                    },
+                    ..Default::default()
+                },
                 background_color: Color::rgba([255, 0, 0, 255]),
-                border_color: Color::rgba([255, 0, 0, 255]),
+                border: Border {
+                    size: Insets {
+                        left: 0.,
+                        right: 0.,
+                        top: 0.,
+                        bottom: 0.,
+                    },
+                    radius: BorderRadius::circle(),
+                    color: Color::rgba([255, 0, 0, 255]),
+                },
             },
             ..Default::default()
         };
@@ -31,10 +49,8 @@ impl Default for Buttons {
 pub struct Button {
     pub width: f32,
     pub height: f32,
-    pub border: Border,
     pub default: ButtonState,
     pub hover: ButtonState,
-    pub font: Font,
 }
 
 impl Default for Button {
@@ -42,29 +58,29 @@ impl Default for Button {
         Self {
             width: 20.0,
             height: 20.0,
-            border: Border {
-                size: Insets {
-                    left: 0.,
-                    right: 0.,
-                    top: 0.,
-                    bottom: 0.,
-                },
-                radius: BorderRadius::circle(),
-                color: Color::default(),
-            },
+
             default: ButtonState::default(),
             hover: ButtonState {
                 background_color: Color::rgba([255, 0, 0, 255]),
-                border_color: Color::rgba([255, 0, 0, 255]),
-            },
-            font: Font {
-                size: 10.,
-                color: Color {
-                    urgency_low: [0, 0, 0, 255],
-                    urgency_normal: [0, 0, 0, 255],
-                    urgency_critical: [0, 0, 0, 255],
+                border: Border {
+                    size: Insets {
+                        left: 0.,
+                        right: 0.,
+                        top: 0.,
+                        bottom: 0.,
+                    },
+                    radius: BorderRadius::circle(),
+                    color: Color::rgba([255, 0, 0, 255]),
                 },
-                ..Default::default()
+                font: Font {
+                    size: 10.,
+                    color: Color {
+                        urgency_low: [255, 255, 255, 255],
+                        urgency_normal: [255, 255, 255, 255],
+                        urgency_critical: [255, 255, 255, 255],
+                    },
+                    ..Default::default()
+                },
             },
         }
     }
@@ -74,14 +90,33 @@ impl Default for Button {
 #[serde(default)]
 pub struct ButtonState {
     pub background_color: Color,
-    pub border_color: Color,
+    pub border: Border,
+    pub font: Font,
 }
 
 impl Default for ButtonState {
     fn default() -> Self {
         Self {
             background_color: Color::rgba([255, 107, 107, 255]),
-            border_color: Color::rgba([255, 107, 107, 255]),
+            border: Border {
+                size: Insets {
+                    left: 0.,
+                    right: 0.,
+                    top: 0.,
+                    bottom: 0.,
+                },
+                radius: BorderRadius::circle(),
+                color: Color::rgba([255, 107, 107, 255]),
+            },
+            font: Font {
+                size: 10.,
+                color: Color {
+                    urgency_low: [255, 255, 255, 255],
+                    urgency_normal: [255, 255, 255, 255],
+                    urgency_critical: [255, 255, 255, 255],
+                },
+                ..Default::default()
+            },
         }
     }
 }

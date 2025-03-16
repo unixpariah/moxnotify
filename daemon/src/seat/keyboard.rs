@@ -181,14 +181,8 @@ impl Moxnotify {
     fn handle_key(&mut self) -> anyhow::Result<()> {
         if let Some(action) = self.config.keymaps.get(&self.seat.keyboard.key_combination) {
             match action {
-                KeyAction::NextNotification => {
-                    self.notifications.next();
-                    self.update_surface_size();
-                }
-                KeyAction::PreviousNotification => {
-                    self.notifications.prev();
-                    self.update_surface_size();
-                }
+                KeyAction::NextNotification => self.notifications.next(),
+                KeyAction::PreviousNotification => self.notifications.prev(),
                 KeyAction::DismissNotification => {
                     if let Some(id) = self.notifications.selected() {
                         if let Some(index) = self
@@ -220,8 +214,9 @@ impl Moxnotify {
                 }
             }
 
+            self.update_surface_size();
             if let Some(surface) = self.surface.as_mut() {
-                surface.render(
+                _ = surface.render(
                     &self.wgpu_state.device,
                     &self.wgpu_state.queue,
                     &self.notifications,

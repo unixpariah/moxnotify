@@ -34,11 +34,12 @@ in
           buttons.dismiss = {
             default = {
               background_color = base08 + "00";
-              border_color = base08 + "00";
+              border.color = base08 + "00";
+              font.color = base05 + "00";
             };
             hover = {
               background_color = base08;
-              border_color = base08;
+              border.color = base08;
             };
           };
 

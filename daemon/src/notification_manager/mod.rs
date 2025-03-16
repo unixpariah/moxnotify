@@ -17,6 +17,7 @@ use glyphon::{FontSystem, TextArea};
 use notification::{Notification, NotificationId};
 use notification_view::NotificationView;
 use std::{
+    io::Write,
     ops::{Deref, Range},
     sync::Arc,
     time::Duration,
@@ -244,6 +245,15 @@ impl NotificationManager {
                 }
             },
         );
+
+        if let Some(notification) = self.notifications.get(next_notification_index) {
+            self.select(notification.id());
+            self.notification_view.next(
+                self.height(),
+                next_notification_index,
+                self.notifications.len(),
+            );
+        }
     }
 
     pub fn prev(&mut self) {

@@ -53,7 +53,6 @@ async fn emit(notification: Notification<'_>) -> zbus::Result<u32> {
 mod tests {
     use super::*;
     use std::time::Duration;
-    use tokio::process::Command;
 
     #[tokio::test]
     async fn image_test() {
@@ -64,14 +63,14 @@ mod tests {
             hints,
             ..Default::default()
         };
-        emit(notification).await;
+        assert!(emit(notification).await.is_ok());
 
         let notification = Notification {
             summary: "app_icon test",
             app_icon: "zen-beta",
             ..Default::default()
         };
-        emit(notification).await;
+        assert!(emit(notification).await.is_ok());
 
         let mut hints = HashMap::new();
         hints.insert("image-path", "zen-beta".into());
@@ -81,7 +80,7 @@ mod tests {
             hints,
             ..Default::default()
         };
-        emit(notification).await;
+        assert!(emit(notification).await.is_ok());
     }
 
     #[tokio::test]
@@ -101,32 +100,130 @@ mod tests {
             body: "Replacing notification",
             ..Default::default()
         };
-        emit(notification).await;
+        assert!(emit(notification).await.is_ok());
     }
 
     #[tokio::test]
     async fn expire_test() {
-        let notification = Notification {
-            summary: "expire test",
-            body: "Expires in 5 seconds",
-            expire_timeout: 5000,
-            ..Default::default()
-        };
-        emit(notification).await;
+        let mut id = None;
+        for i in 1..=5 {
+            let notification = Notification {
+                summary: "expire test",
+                body: &format!("Expires in {} seconds", i),
+                expire_timeout: if i == 5 { 1000 } else { 0 },
+                replaces_id: id.unwrap_or(0),
+                ..Default::default()
+            };
+            id = emit(notification).await.ok();
+            std::thread::sleep(Duration::from_secs(1));
+        }
     }
 
     #[tokio::test]
     async fn progress_test() {
         let mut hints = HashMap::new();
-        hints.insert("image-path", "zen-beta".into());
-
+        hints.insert("value", zbus::zvariant::Value::I32(10));
         let notification = Notification {
-            summary: "expire test",
-            body: "Expires in 5 seconds",
-            expire_timeout: 5000,
+            summary: "progress test",
             hints,
             ..Default::default()
         };
-        emit(notification).await;
+        assert!(emit(notification).await.is_ok());
+
+        let mut hints = HashMap::new();
+        hints.insert("value", zbus::zvariant::Value::I32(0));
+        let notification = Notification {
+            summary: "progress test",
+            body: "Progress value == 0",
+            hints,
+            ..Default::default()
+        };
+        assert!(emit(notification).await.is_ok());
+
+        let mut hints = HashMap::new();
+        hints.insert("value", zbus::zvariant::Value::I32(100));
+        let notification = Notification {
+            summary: "progress test",
+            body: "Progress value == 100",
+            hints,
+            ..Default::default()
+        };
+        assert!(emit(notification).await.is_ok());
+
+        let mut hints = HashMap::new();
+        hints.insert("value", zbus::zvariant::Value::I32(1000));
+        let notification = Notification {
+            summary: "progress test",
+            body: "Progress value > 100",
+            hints,
+            ..Default::default()
+        };
+        assert!(emit(notification).await.is_ok());
+
+        let mut hints = HashMap::new();
+        hints.insert("value", zbus::zvariant::Value::I32(-10));
+        let notification = Notification {
+            summary: "progress test",
+            body: "Negative progress value",
+            hints,
+            ..Default::default()
+        };
+        assert!(emit(notification).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn urgency_test() {
+        let mut hints = HashMap::new();
+        hints.insert("urgency", zbus::zvariant::Value::U8(0));
+        let notification = Notification {
+            summary: "urgency test",
+            body: "Urgency low",
+            hints,
+            ..Default::default()
+        };
+        assert!(emit(notification).await.is_ok());
+
+        let mut hints = HashMap::new();
+        hints.insert("urgency", zbus::zvariant::Value::U8(1));
+        let notification = Notification {
+            summary: "urgency test",
+            body: "Urgency normal",
+            hints,
+            ..Default::default()
+        };
+        assert!(emit(notification).await.is_ok());
+
+        let mut hints = HashMap::new();
+        hints.insert("urgency", zbus::zvariant::Value::U8(2));
+        let notification = Notification {
+            summary: "urgency test",
+            body: "Urgency critical",
+            hints,
+            ..Default::default()
+        };
+        assert!(emit(notification).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn everything_test() {
+        let mut hints = HashMap::new();
+        hints.insert("value", zbus::zvariant::Value::I32(25));
+        hints.insert("image-path", "zen-beta".into());
+
+        let body = r#"
+<u>underline</u>
+<i>italic</i>
+<b>bold</b>
+<a href="https://github.com/unixpariah/moxnotify">github</a>
+<img alt="image" href=""/>
+"#;
+
+        let notification = Notification {
+            summary: "everything test",
+            body,
+            hints,
+            ..Default::default()
+        };
+        assert!(emit(notification).await.is_ok());
     }
 }

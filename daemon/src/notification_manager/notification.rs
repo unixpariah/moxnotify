@@ -72,7 +72,7 @@ impl Progress {
         let progress_ratio = (self.value as f32 / 100.0).min(1.0);
 
         let mut instances = Vec::new();
-        let complete_width = extents.width * progress_ratio;
+        let complete_width = (extents.width * progress_ratio).max(0.);
 
         if complete_width > 0.0 {
             let border_size = if self.value < 100 {

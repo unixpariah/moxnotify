@@ -1,9 +1,6 @@
 use crate::{
     buffers,
-    config::{
-        button::{self, ButtonState},
-        Config,
-    },
+    config::{button::ButtonState, Config},
     notification_manager::notification::Extents,
     text::Text,
     Urgency,
@@ -83,8 +80,8 @@ impl Button {
         font_system: &mut FontSystem,
     ) -> Self {
         let font = match button_type {
-            ButtonType::Dismiss => &config.styles.default.buttons.dismiss.font,
-            ButtonType::Action => &config.styles.default.buttons.action.font,
+            ButtonType::Dismiss => &config.styles.default.buttons.dismiss.default.font,
+            ButtonType::Action => &config.styles.default.buttons.action.default.font,
         };
 
         let text = Text::new(font, font_system, "X", x, y);
@@ -121,7 +118,7 @@ impl Button {
         }
     }
 
-    pub fn style(&self, hovered: bool) -> (&button::Button, &ButtonState) {
+    pub fn style(&self, hovered: bool) -> &ButtonState {
         let button = match (&self.button_type, hovered) {
             (ButtonType::Dismiss, true) => &self.config.styles.hover.buttons.dismiss,
             (ButtonType::Dismiss, false) => &self.config.styles.default.buttons.dismiss,
@@ -129,19 +126,16 @@ impl Button {
             (ButtonType::Action, false) => &self.config.styles.default.buttons.action,
         };
 
-        (
-            button,
-            if self.hovered {
-                &button.hover
-            } else {
-                &button.default
-            },
-        )
+        if self.hovered {
+            &button.hover
+        } else {
+            &button.default
+        }
     }
 
     pub fn text_area(&self, urgency: &Urgency, hovered: bool, scale: f32) -> glyphon::TextArea {
         let extents = self.extents();
-        let (button, _) = self.style(hovered);
+        let style = self.style(hovered);
 
         let text_extents = self.text.extents();
         glyphon::TextArea {
@@ -157,21 +151,21 @@ impl Button {
                     as i32,
             },
             custom_glyphs: &[],
-            default_color: button.font.color.into_glyphon(urgency),
+            default_color: style.font.color.into_glyphon(urgency),
         }
     }
 
     pub fn get_instance(&self, hovered: bool, scale: f32) -> buffers::Instance {
-        let (button, style) = self.style(hovered);
+        let style = self.style(hovered);
         let extents = self.extents();
 
         buffers::Instance {
             rect_pos: [extents.x, extents.y],
             rect_size: [extents.width, extents.height],
             rect_color: style.background_color.into(),
-            border_radius: button.border.radius.into(),
-            border_size: button.border.size.into(),
-            border_color: style.border_color.into(),
+            border_radius: style.border.radius.into(),
+            border_size: style.border.size.into(),
+            border_color: style.border.color.into(),
             scale,
         }
     }
