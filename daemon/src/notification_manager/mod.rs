@@ -296,13 +296,21 @@ impl NotificationManager {
 
     pub fn add(&mut self, data: NotificationData) -> anyhow::Result<()> {
         let id = data.id;
+        let mut existing_index = None;
+        let y = if let Some(index) = self
+            .notifications
+            .iter()
+            .position(|notification| notification.id() == id)
+        {
+            let notification = self.notifications.remove(index);
+            existing_index = Some(index);
+            notification.extents().y
+        } else {
+            self.height()
+        };
 
-        let mut notification = Notification::new(
-            self.height(),
-            Arc::clone(&self.config),
-            &mut self.font_system,
-            data,
-        );
+        let mut notification =
+            Notification::new(y, Arc::clone(&self.config), &mut self.font_system, data);
         notification.set_y(notification.extents().y);
 
         match self.config.queue {
@@ -330,12 +338,16 @@ impl NotificationManager {
                             moxnotify.dismiss_notification(id);
                             TimeoutAction::Drop
                         })
-                        .ok()
+                        .ok();
                 }
             }
         }
 
-        self.notifications.push(notification);
+        if let Some(index) = existing_index {
+            self.notifications.insert(index, notification);
+        } else {
+            self.notifications.push(notification);
+        }
 
         if self.notification_view.visible.end < self.notifications.len() {
             self.notification_view

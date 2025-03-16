@@ -134,6 +134,14 @@ impl Moxnotify {
                         )?;
                     }
                 }
+
+                if let Some(surface) = self.surface.as_mut() {
+                    surface.render(
+                        &self.wgpu_state.device,
+                        &self.wgpu_state.queue,
+                        &self.notifications,
+                    )?;
+                }
             }
             Event::CloseNotification(id) => self.dismiss_notification(id),
             Event::FocusSurface => {

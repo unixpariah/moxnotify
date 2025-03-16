@@ -156,8 +156,8 @@ impl Default for Font {
 #[serde(rename_all = "snake_case")]
 pub enum Queue {
     #[default]
-    Ordered,
     Unordered,
+    Ordered,
 }
 
 #[derive(Deserialize, Default)]

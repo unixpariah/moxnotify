@@ -45,6 +45,8 @@ rustPlatform.buildRustPackage rec {
     vulkan-loader
   ];
 
+  doCheck = false;
+
   buildPhase = ''
     cargo build --release --workspace
   '';

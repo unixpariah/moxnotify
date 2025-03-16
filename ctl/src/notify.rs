@@ -21,7 +21,6 @@ trait Notify {
 
 pub async fn emit(event: Event) -> zbus::Result<()> {
     let conn = zbus::Connection::session().await?;
-
     let notify = NotifyProxy::new(&conn).await?;
 
     match event {
