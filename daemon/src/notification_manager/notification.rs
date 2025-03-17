@@ -97,7 +97,7 @@ impl Progress {
             instances.push(buffers::Instance {
                 rect_pos: [extents.x, extents.y],
                 rect_size: [complete_width, extents.height],
-                rect_color: style.progress.complete_color.into(),
+                rect_color: style.progress.complete_color.to_linear(urgency),
                 border_radius: border_radius.into(),
                 border_size: border_size.into(),
                 border_color: style.progress.border.color.to_linear(urgency),
@@ -131,7 +131,7 @@ impl Progress {
                 instances.push(buffers::Instance {
                     rect_pos: [extents.x + complete_width, extents.y],
                     rect_size: [incomplete_width, extents.height],
-                    rect_color: style.progress.incomplete_color.into(),
+                    rect_color: style.progress.incomplete_color.to_linear(urgency),
                     border_radius: border_radius.into(),
                     border_size: border_size.into(),
                     border_color: style.progress.border.color.to_linear(urgency),
@@ -516,7 +516,7 @@ impl Notification {
         let button_instances: Box<[buffers::Instance]> = self
             .buttons
             .iter()
-            .map(|button| button.get_instance(self.hovered(), scale))
+            .map(|button| button.get_instance(self.hovered(), scale, &self.urgency))
             .collect();
 
         instances.extend_from_slice(&button_instances);

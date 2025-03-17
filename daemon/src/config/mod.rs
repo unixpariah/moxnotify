@@ -3,7 +3,7 @@ pub mod button;
 pub mod color;
 
 use border::{Border, BorderRadius};
-use button::Buttons;
+use button::{Button, ButtonState, Buttons};
 use color::Color;
 use mlua::{Lua, LuaSerdeExt};
 use serde::{Deserialize, Deserializer};
@@ -147,7 +147,7 @@ impl Default for Font {
         Self {
             size: 10.,
             family: "DejaVu Sans".into(),
-            color: Color::default(),
+            color: Color::rgba([255, 255, 255, 255]),
         }
     }
 }
@@ -160,14 +160,27 @@ pub enum Queue {
     Ordered,
 }
 
-#[derive(Deserialize, Default)]
-#[serde(default)]
-pub struct Urgency {}
-
-#[derive(Deserialize, Default)]
+#[derive(Deserialize)]
 #[serde(default)]
 pub struct Icon {
     pub border: Border,
+}
+
+impl Default for Icon {
+    fn default() -> Self {
+        Self {
+            border: Border {
+                color: Color::default(),
+                size: Insets {
+                    left: 0.,
+                    right: 0.,
+                    top: 0.,
+                    bottom: 0.,
+                },
+                radius: BorderRadius::circle(),
+            },
+        }
+    }
 }
 
 #[derive(Deserialize, Default, Debug)]
@@ -193,7 +206,6 @@ impl Default for Progress {
         Self {
             height: 20.,
             border: Border {
-                color: Color::default(),
                 size: Insets {
                     left: 2.,
                     right: 2.,
@@ -206,86 +218,123 @@ impl Default for Progress {
                     bottom_left: 5.,
                     bottom_right: 5.,
                 },
+                ..Default::default()
             },
-            incomplete_color: Color::rgba([255, 0, 0, 255]),
-            complete_color: Color::rgba([0, 255, 0, 255]),
+            incomplete_color: Color {
+                urgency_low: [26, 27, 38, 255],
+                urgency_normal: [22, 22, 30, 255],
+                urgency_critical: [22, 22, 30, 255],
+            },
+            complete_color: Color {
+                urgency_low: [247, 118, 142, 255],
+                urgency_normal: [247, 118, 142, 255],
+                urgency_critical: [247, 118, 142, 255],
+            },
         }
     }
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize)]
+#[serde(default)]
 pub struct StyleState {
-    #[serde(default)]
     pub background: Color,
-    #[serde(default = "default_width")]
     pub width: f32,
-    #[serde(default)]
     pub min_height: Size,
-    #[serde(default)]
     pub max_height: Size,
-    #[serde(default)]
     pub height: Size,
-    #[serde(default)]
     pub font: Font,
-    #[serde(default)]
     pub border: Border,
-    #[serde(default = "default_margin")]
     pub margin: Insets,
-    #[serde(default = "default_padding")]
     pub padding: Insets,
-    #[serde(default = "default_icon")]
     pub icon: Icon,
-    #[serde(default)]
     pub app_icon: Icon,
-    #[serde(default)]
     pub progress: Progress,
-    #[serde(default)]
     pub buttons: Buttons,
 }
 
-fn default_icon() -> Icon {
-    Icon {
-        border: Border {
-            color: Color::default(),
-            size: Insets {
-                left: 0.,
-                right: 0.,
-                top: 0.,
-                bottom: 0.,
+impl Default for StyleState {
+    fn default() -> Self {
+        Self {
+            background: Color {
+                urgency_low: [26, 27, 38, 255],
+                urgency_normal: [22, 22, 30, 255],
+                urgency_critical: [22, 22, 30, 255],
             },
-            radius: BorderRadius {
-                top_left: 50.,
-                top_right: 50.,
-                bottom_left: 50.,
-                bottom_right: 50.,
+            width: 300.,
+            min_height: Size::Auto,
+            max_height: Size::Auto,
+            height: Size::Auto,
+            font: Font::default(),
+            border: Border {
+                color: Color {
+                    urgency_low: [158, 205, 106, 255],
+                    urgency_normal: [187, 154, 247, 255],
+                    urgency_critical: [192, 202, 245, 255],
+                },
+                ..Default::default()
             },
-        },
+            margin: Insets {
+                left: 5.,
+                right: 5.,
+                top: 5.,
+                bottom: 5.,
+            },
+            padding: Insets {
+                left: 10.,
+                right: 10.,
+                top: 10.,
+                bottom: 10.,
+            },
+            icon: Icon::default(),
+            app_icon: Icon::default(),
+            progress: Progress::default(),
+            buttons: Buttons::default(),
+        }
     }
 }
 
-fn default_margin() -> Insets {
-    Insets {
-        left: 5.,
-        right: 5.,
-        top: 5.,
-        bottom: 5.,
-    }
-}
-
-fn default_padding() -> Insets {
-    Insets {
-        left: 10.,
-        right: 10.,
-        top: 10.,
-        bottom: 10.,
-    }
-}
-
-#[derive(Deserialize, Default)]
+#[derive(Deserialize)]
 #[serde(default)]
 pub struct Styles {
     pub default: StyleState,
     pub hover: StyleState,
+}
+
+impl Default for Styles {
+    fn default() -> Self {
+        Self {
+            default: StyleState {
+                buttons: Buttons {
+                    dismiss: Button {
+                        default: ButtonState {
+                            background_color: Color::rgba([0, 0, 0, 0]),
+                            border: Border {
+                                size: Insets {
+                                    left: 0.,
+                                    right: 0.,
+                                    top: 0.,
+                                    bottom: 0.,
+                                },
+                                radius: BorderRadius::circle(),
+                                color: Color::rgba([0, 0, 0, 0]),
+                            },
+                            font: Font {
+                                color: Color::rgba([0, 0, 0, 0]),
+                                ..Default::default()
+                            },
+                        },
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            hover: StyleState {
+                background: Color::rgba([47, 53, 73, 255]),
+                ..Default::default()
+            },
+        }
+    }
 }
 
 #[derive(Deserialize, PartialEq, Eq, Hash, Debug, Default)]
@@ -547,53 +596,83 @@ impl<'de> Deserialize<'de> for Timeout {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
+#[serde(default)]
 pub struct NotificationStyleEntry {
     pub app: Box<str>,
-    #[serde(default)]
     pub styles: Styles,
-    #[serde(default)]
     pub default_timeout: Option<Timeout>,
-    #[serde(default)]
     pub ignore_timeout: Option<bool>,
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize)]
+#[serde(default)]
 pub struct Config {
-    #[serde(default = "default_scroll_sensitivity")]
     pub scroll_sensitivity: f64,
-    #[serde(default = "default_max_visible")]
     pub max_visible: u32,
-    #[serde(default = "default_icon_size")]
     pub icon_size: u32,
-    #[serde(default = "default_app_icon_size")]
     pub app_icon_size: u32,
-    #[serde(default)]
     pub anchor: Anchor,
-    #[serde(default)]
     pub layer: Layer,
-    #[serde(default)]
     pub queue: Queue,
-    #[serde(default)]
     pub output: Box<str>,
-    #[serde(default)]
     pub default_timeout: Timeout,
-    #[serde(default)]
     pub ignore_timeout: bool,
-    #[serde(default)]
     pub styles: Styles,
-    #[serde(default)]
     pub notification: Vec<NotificationStyleEntry>,
-    #[serde(default = "default_keymaps")]
     #[serde(deserialize_with = "deserialize_keycombination_map")]
     pub keymaps: HashMap<KeyCombination, KeyAction>,
-    #[serde(default = "default_notification_counter")]
     pub prev: NotificationCounter,
-    #[serde(default = "default_notification_counter")]
     pub next: NotificationCounter,
 }
 
-#[derive(Default, Deserialize)]
+impl Default for Config {
+    fn default() -> Self {
+        let mut keymaps: HashMap<KeyCombination, KeyAction> = HashMap::new();
+
+        let mut insert_default = |key: Key, default_action: KeyAction| {
+            let key_combination = KeyCombination {
+                modifiers: Modifiers {
+                    control: false,
+                    shift: false,
+                    alt: false,
+                    meta: false,
+                },
+                key,
+            };
+
+            if !keymaps.values().any(|action| *action == default_action) {
+                keymaps.insert(key_combination, default_action);
+            }
+        };
+
+        insert_default(Key::Character('j'), KeyAction::NextNotification);
+        insert_default(Key::Character('k'), KeyAction::PreviousNotification);
+        insert_default(Key::Character('x'), KeyAction::DismissNotification);
+        insert_default(Key::SpecialKey(SpecialKeyCode::Escape), KeyAction::Unfocus);
+
+        Self {
+            scroll_sensitivity: 20.,
+            max_visible: 5,
+            icon_size: 64,
+            app_icon_size: 16,
+            anchor: Anchor::default(),
+            layer: Layer::default(),
+            queue: Queue::default(),
+            output: "".into(),
+            default_timeout: Timeout::default(),
+            ignore_timeout: false,
+            styles: Styles::default(),
+            notification: Vec::new(),
+            keymaps,
+            prev: NotificationCounter::default(),
+            next: NotificationCounter::default(),
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(default)]
 pub struct NotificationCounter {
     pub format: Box<str>,
     pub border: Border,
@@ -603,80 +682,35 @@ pub struct NotificationCounter {
     pub padding: Insets,
 }
 
-fn default_notification_counter() -> NotificationCounter {
-    NotificationCounter {
-        format: "({} more)".into(),
-        border: Border {
-            color: Color {
-                urgency_low: [158, 206, 106, 255],
-                urgency_normal: [187, 154, 247, 255],
-                urgency_critical: [192, 202, 245, 255],
+impl Default for NotificationCounter {
+    fn default() -> Self {
+        Self {
+            format: "({} more)".into(),
+            border: Border {
+                color: Color {
+                    urgency_low: [158, 206, 106, 255],
+                    urgency_normal: [187, 154, 247, 255],
+                    urgency_critical: [192, 202, 245, 255],
+                },
+                size: Insets {
+                    left: 2.,
+                    right: 2.,
+                    top: 2.,
+                    bottom: 2.,
+                },
+                radius: BorderRadius {
+                    top_left: 5.,
+                    top_right: 5.,
+                    bottom_left: 5.,
+                    bottom_right: 5.,
+                },
             },
-            size: Insets {
-                left: 2.,
-                right: 2.,
-                top: 2.,
-                bottom: 2.,
-            },
-            radius: BorderRadius {
-                top_left: 5.,
-                top_right: 5.,
-                bottom_left: 5.,
-                bottom_right: 5.,
-            },
-        },
-        border_color: Color::rgba([158, 206, 106, 255]),
-        background_color: Color::rgba([26, 27, 38, 255]),
-        margin: Insets::default(),
-        padding: Insets::default(),
-    }
-}
-
-fn default_keymaps() -> HashMap<KeyCombination, KeyAction> {
-    let mut keymaps: HashMap<KeyCombination, KeyAction> = HashMap::new();
-
-    let mut insert_default = |key: Key, default_action: KeyAction| {
-        let key_combination = KeyCombination {
-            modifiers: Modifiers {
-                control: false,
-                shift: false,
-                alt: false,
-                meta: false,
-            },
-            key,
-        };
-
-        if !keymaps.values().any(|action| *action == default_action) {
-            keymaps.insert(key_combination, default_action);
+            border_color: Color::rgba([158, 206, 106, 255]),
+            background_color: Color::rgba([26, 27, 38, 255]),
+            margin: Insets::default(),
+            padding: Insets::default(),
         }
-    };
-
-    insert_default(Key::Character('j'), KeyAction::NextNotification);
-    insert_default(Key::Character('k'), KeyAction::PreviousNotification);
-    insert_default(Key::Character('x'), KeyAction::DismissNotification);
-    insert_default(Key::SpecialKey(SpecialKeyCode::Escape), KeyAction::Unfocus);
-
-    keymaps
-}
-
-fn default_scroll_sensitivity() -> f64 {
-    20.
-}
-
-fn default_icon_size() -> u32 {
-    64
-}
-
-fn default_app_icon_size() -> u32 {
-    16
-}
-
-fn default_max_visible() -> u32 {
-    5
-}
-
-fn default_width() -> f32 {
-    300.0
+    }
 }
 
 fn deserialize_keycombination_map<'de, D>(
@@ -728,30 +762,8 @@ impl Config {
         } else {
             Self::path()?
         };
-        let lua_code = match fs::read_to_string(&config_path) {
-            Ok(content) => content,
-            Err(_) => r##"
-                      return {
-                        styles = {
-                          default = {
-                            background = {
-                                urgency_low = "#1a1b26FF",
-                                urgency_normal = "#16161eFF",
-                                urgency_critical = "#16161eFF",
-                            },
-                            font = { color = "#a9b1d6" },
-                            border = { color = {
-                                urgency_low = "#9ece6a",
-                                urgency_normal = "#bb9af7",
-                                urgency_critical = "#c0caf5",
-                            }},
-                          },
-                          hover = { background = "#2f3549FF" }
-                        }
-                      }
-                      "##
-            .into(),
-        };
+
+        let lua_code = fs::read_to_string(&config_path).unwrap_or_default();
         let lua = Lua::new();
 
         let lua_result = lua

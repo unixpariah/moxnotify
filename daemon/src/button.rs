@@ -155,17 +155,17 @@ impl Button {
         }
     }
 
-    pub fn get_instance(&self, hovered: bool, scale: f32) -> buffers::Instance {
+    pub fn get_instance(&self, hovered: bool, scale: f32, urgency: &Urgency) -> buffers::Instance {
         let style = self.style(hovered);
         let extents = self.extents();
 
         buffers::Instance {
             rect_pos: [extents.x, extents.y],
             rect_size: [extents.width, extents.height],
-            rect_color: style.background_color.into(),
+            rect_color: style.background_color.to_linear(urgency),
             border_radius: style.border.radius.into(),
             border_size: style.border.size.into(),
-            border_color: style.border.color.into(),
+            border_color: style.border.color.to_linear(urgency),
             scale,
         }
     }

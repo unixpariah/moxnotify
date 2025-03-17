@@ -131,7 +131,7 @@ impl NotificationView {
                 rect_color: style.background_color.to_linear(&crate::Urgency::Low),
                 border_radius: style.border.radius.into(),
                 border_size: style.border.size.into(),
-                border_color: style.border_color.into(),
+                border_color: style.border_color.to_linear(&crate::Urgency::Low),
                 scale,
             };
 
@@ -154,7 +154,7 @@ impl NotificationView {
                 rect_color: style.background_color.to_linear(&crate::Urgency::Low),
                 border_radius: style.border.radius.into(),
                 border_size: style.border.size.into(),
-                border_color: style.border_color.into(),
+                border_color: style.border_color.to_linear(&crate::Urgency::Low),
                 scale,
             };
 

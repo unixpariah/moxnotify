@@ -106,10 +106,10 @@ mod tests {
     #[tokio::test]
     async fn expire_test() {
         let mut id = None;
-        for i in 1..=5 {
+        for i in 0..=5 {
             let notification = Notification {
                 summary: "expire test",
-                body: &format!("Expires in {} seconds", i),
+                body: &format!("Expires in {} seconds", 5 - i),
                 expire_timeout: if i == 5 { 1000 } else { 0 },
                 replaces_id: id.unwrap_or(0),
                 ..Default::default()
