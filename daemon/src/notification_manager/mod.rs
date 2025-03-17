@@ -296,6 +296,15 @@ impl NotificationManager {
                 }
             },
         );
+
+        if let Some(notification) = self.notifications.get(notification_index) {
+            self.select(notification.id());
+            self.notification_view.prev(
+                self.height(),
+                notification_index,
+                self.notifications.len(),
+            );
+        }
     }
 
     pub fn deselect(&mut self) {

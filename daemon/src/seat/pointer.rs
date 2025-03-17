@@ -283,16 +283,18 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                         } else {
                             state.notifications.prev();
                         }
-                        _ = surface.render(
-                            &state.wgpu_state.device,
-                            &state.wgpu_state.queue,
-                            &state.notifications,
-                        );
+
+                        state.update_surface_size();
+                        if let Some(surface) = state.surface.as_mut() {
+                            _ = surface.render(
+                                &state.wgpu_state.device,
+                                &state.wgpu_state.queue,
+                                &state.notifications,
+                            );
+                        }
 
                         state.seat.pointer.scroll_accumulator = 0.0;
                     }
-
-                    state.update_surface_size();
                 }
             }
             _ => {}
