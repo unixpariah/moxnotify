@@ -37,7 +37,7 @@ impl Progress {
         }
     }
 
-    pub fn set_position(&mut self, container_extents: Extents, style: &StyleState) {
+    pub fn set_position(&mut self, container_extents: &Extents, style: &StyleState) {
         self.x = container_extents.x + style.border.size.left + style.padding.left;
         self.y = container_extents.y + container_extents.height
             - style.border.size.bottom
@@ -45,7 +45,7 @@ impl Progress {
             - style.progress.height;
     }
 
-    fn extents(&self, container_extents: Extents, style: &StyleState) -> Extents {
+    fn extents(&self, container_extents: &Extents, style: &StyleState) -> Extents {
         let width = container_extents.width
             - style.border.size.left
             - style.border.size.right
@@ -63,7 +63,7 @@ impl Progress {
     fn instances(
         &self,
         urgency: &Urgency,
-        notification_extents: Extents,
+        notification_extents: &Extents,
         style: &StyleState,
         scale: f32,
     ) -> Vec<buffers::Instance> {
@@ -88,10 +88,10 @@ impl Progress {
                 BorderRadius {
                     top_right: 0.0,
                     bottom_right: 0.0,
-                    ..style.border.radius
+                    ..style.progress.border.radius
                 }
             } else {
-                style.border.radius
+                style.progress.border.radius
             };
 
             instances.push(buffers::Instance {
@@ -122,10 +122,10 @@ impl Progress {
                     BorderRadius {
                         top_left: 0.0,
                         bottom_left: 0.0,
-                        ..style.border.radius
+                        ..style.progress.border.radius
                     }
                 } else {
-                    style.border.radius
+                    style.progress.border.radius
                 };
 
                 instances.push(buffers::Instance {
@@ -205,10 +205,9 @@ pub struct Notification {
     hovered: bool,
     config: Arc<Config>,
     actions: Box<[(Arc<str>, Arc<str>)]>,
-    image: Option<ImageData>,
-    app_icon: Option<ImageData>,
+    icons: Icons,
     urgency: Urgency,
-    pub progress: Option<Progress>,
+    progress: Option<Progress>,
     pub registration_token: Option<RegistrationToken>,
     pub buttons: ButtonManager,
 }
@@ -219,61 +218,105 @@ impl PartialEq for Notification {
     }
 }
 
-impl Notification {
-    pub fn new(
-        y: f32,
-        config: Arc<Config>,
-        font_system: &mut FontSystem,
-        data: NotificationData,
-    ) -> Self {
-        let mut icon = None;
-        let mut urgency = None;
-        let mut progress = None;
+pub struct Icons {
+    icon: Option<ImageData>,
+    app_icon: Option<ImageData>,
+    x: f32,
+    y: f32,
+}
 
-        data.hints.into_iter().for_each(|hint| match hint {
-            Hint::Image(image) => {
-                icon = match image {
-                    Image::Data(image_data) => Some(image_data.into_rgba(config.icon_size)),
-                    Image::File(file) => get_icon(&file, config.icon_size as u16),
-                    Image::Name(name) => find_icon(&name, config.icon_size as u16),
-                }
-            }
-            Hint::Urgency(level) if urgency.is_none() => urgency = Some(level),
-            Hint::Value(value) => progress = Some(Progress::new(value)),
-            _ => {}
-        });
+impl Icons {
+    fn new(image: Option<Image>, app_icon: Option<Box<str>>, config: &Config) -> Self {
+        let icon = match image {
+            Some(Image::Data(image_data)) => Some(image_data.into_rgba(config.icon_size)),
+            Some(Image::File(file)) => get_icon(&file, config.icon_size as u16),
+            Some(Image::Name(name)) => find_icon(&name, config.icon_size as u16),
+            _ => None,
+        };
 
-        let app_icon_option = data
-            .app_icon
+        let app_icon = app_icon
             .as_ref()
             .and_then(|icon| find_icon(icon, config.icon_size as u16));
 
-        let final_app_icon = if icon.is_some() {
-            app_icon_option
-        } else {
-            None
+        let (final_app_icon, final_icon) = match icon.is_some() {
+            true => (app_icon, icon),
+            false => (None, app_icon),
         };
-        let final_image = if icon.is_some() {
-            icon
-        } else {
-            data.app_icon
+
+        Self {
+            icon: final_icon,
+            app_icon: final_app_icon,
+            x: 0.,
+            y: 0.,
+        }
+    }
+
+    fn set_position(
+        &mut self,
+        container_extents: &Extents,
+        style: &StyleState,
+        progress: &Option<Progress>,
+    ) {
+        let icon_size = 64.0;
+
+        let available_height = container_extents.height
+            - style.border.size.top
+            - style.border.size.bottom
+            - style.padding.top
+            - style.padding.bottom
+            - progress
                 .as_ref()
-                .and_then(|icon| find_icon(icon, config.icon_size as u16))
-        };
+                .map(|p| p.extents(container_extents, style).height)
+                .unwrap_or_default();
+
+        let vertical_offset = (available_height - icon_size) / 2.0;
+
+        self.x = container_extents.x + style.border.size.left + style.padding.left;
+        self.y = container_extents.y + style.border.size.top + style.padding.top + vertical_offset;
+    }
+
+    fn extents(&self) -> Extents {
+        Extents {
+            x: self.x,
+            y: self.y,
+            width: 0.,
+            height: 0.,
+        }
+    }
+}
+
+impl Notification {
+    pub fn new(config: Arc<Config>, font_system: &mut FontSystem, data: NotificationData) -> Self {
+        let mut urgency = None;
+        let mut progress = None;
+
+        data.hints.iter().for_each(|hint| match hint {
+            Hint::Urgency(level) if urgency.is_none() => urgency = Some(*level),
+            Hint::Value(value) => progress = Some(Progress::new(*value)),
+            _ => {}
+        });
+
+        let icon = data.hints.into_iter().find_map(|hint| {
+            if let Hint::Image(image) = hint {
+                Some(image)
+            } else {
+                None
+            }
+        });
+
+        let icons = Icons::new(icon, data.app_icon, &config);
 
         let style = &config.styles.default;
-
         let mut buttons = ButtonManager::default();
         let dismiss_button = Button::new(
-            style.border.size.left + style.width - style.padding.right - style.padding.left,
-            style.border.size.top + style.padding.top,
             Action::DismissNotification,
             ButtonType::Dismiss,
             Arc::clone(&config),
             font_system,
         );
 
-        let icon_width = final_image
+        let icon_width = icons
+            .icon
             .as_ref()
             .map(|i| i.width as f32 + style.padding.right)
             .unwrap_or(0.);
@@ -283,8 +326,6 @@ impl Notification {
             &data.summary,
             &data.body,
             config.styles.default.width - icon_width - dismiss_button.extents().width,
-            style.padding.left + style.border.size.left + style.margin.left + icon_width,
-            style.margin.top + style.border.size.top,
         );
 
         buttons.push(dismiss_button);
@@ -319,9 +360,8 @@ impl Notification {
 
         Self {
             progress,
-            y,
-            app_icon: final_app_icon,
-            image: final_image,
+            y: 0.,
+            icons,
             buttons,
             id: data.id,
             app_name: data.app_name,
@@ -343,8 +383,10 @@ impl Notification {
         let style = self.config.find_style(app_name, hovered);
 
         if let Some(progress) = self.progress.as_mut() {
-            progress.set_position(extents, style);
+            progress.set_position(&extents, style);
         }
+
+        self.icons.set_position(&extents, style, &self.progress);
 
         let extents = self.rendered_extents();
         self.buttons.iter_mut().for_each(|button| {
@@ -400,8 +442,6 @@ impl Notification {
             summary,
             body,
             text_extents.width,
-            text_extents.x,
-            text_extents.y,
         );
     }
 
@@ -450,7 +490,7 @@ impl Notification {
     }
 
     pub fn image(&self) -> (Option<&ImageData>, Option<&ImageData>) {
-        (self.image.as_ref(), self.app_icon.as_ref())
+        (self.icons.icon.as_ref(), self.icons.app_icon.as_ref())
     }
 
     pub fn urgency(&self) -> &Urgency {
@@ -507,7 +547,7 @@ impl Notification {
         if let Some(progress) = self.progress.as_ref() {
             instances.extend_from_slice(&progress.instances(
                 self.urgency(),
-                self.rendered_extents(),
+                &self.rendered_extents(),
                 self.style(),
                 scale,
             ));
@@ -579,69 +619,54 @@ impl Notification {
         let mut texture_areas = Vec::new();
         let (icon, app_icon) = self.image();
 
-        let extents = self.rendered_extents();
         let style = self.style();
 
-        let width = extents.width
-            - style.border.size.left
-            - style.border.size.right
-            - style.padding.left
-            - style.padding.right;
-        let height = extents.height
-            - style.border.size.top
-            - style.border.size.bottom
-            - style.padding.top
-            - style.padding.bottom
-            - if self.progress.is_some() {
-                style.progress.height
-            } else {
-                0.
-            };
+        let width = self.config.icon_size as f32;
+        let height = self.config.icon_size as f32;
 
-        let mut x = extents.x + style.border.size.left + style.padding.left;
-        let mut y = extents.y + style.border.size.top + style.padding.top;
+        let mut icon_extents = self.icons.extents();
 
         if let Some(icon) = icon.as_ref() {
             let icon_size = self.config.icon_size as f32;
-            let image_y = y + (height - icon_size) / 2.0;
+            let image_y = icon_extents.y + (height - icon_size) / 2.0;
 
             texture_areas.push(TextureArea {
-                left: x,
+                left: icon_extents.x,
                 top: total_height - image_y - icon_size,
                 width: icon_size,
                 height: icon_size,
                 scale,
                 border_size: style.icon.border.size.top, // TODO: make it use each of the edges
                 bounds: TextureBounds {
-                    left: x as u32,
-                    top: (total_height - y - height) as u32,
-                    right: (x + width) as u32,
-                    bottom: (total_height - y) as u32,
+                    left: icon_extents.x as u32,
+                    top: (total_height - icon_extents.y - height) as u32,
+                    right: (icon_extents.x + width) as u32,
+                    bottom: (total_height - icon_extents.y) as u32,
                 },
                 data: &icon.data,
                 radius: style.icon.border.radius.into(),
             });
 
-            x += (icon.height - self.config.app_icon_size) as f32;
-            y += (icon.height as f32 / 2.) - self.config.app_icon_size as f32 / 2.;
+            icon_extents.x += (icon.height - self.config.app_icon_size) as f32;
+            icon_extents.y += (icon.height as f32 / 2.) - self.config.app_icon_size as f32 / 2.;
         }
 
         if let Some(app_icon) = app_icon.as_ref() {
             let app_icon_size = self.config.app_icon_size as f32;
-            let image_y = y + (height - app_icon_size) / 2.0;
+            let image_y = icon_extents.y + (height - app_icon_size) / 2.0;
 
             texture_areas.push(TextureArea {
-                left: x,
+                left: icon_extents.x,
                 top: total_height - image_y - app_icon_size,
                 width: app_icon_size,
                 height: app_icon_size,
                 scale,
                 border_size: style.icon.border.size.top, // TODO: make it use each of the edges
                 bounds: TextureBounds {
-                    left: x as u32,
-                    top: (total_height - y - height) as u32,
-                    right: (x + width) as u32,
-                    bottom: (total_height - y) as u32,
+                    left: icon_extents.x as u32,
+                    top: (total_height - icon_extents.y - height) as u32,
+                    right: (icon_extents.x + width) as u32,
+                    bottom: (total_height - icon_extents.y) as u32,
                 },
                 data: &app_icon.data,
                 radius: style.app_icon.border.radius.into(),
@@ -653,7 +678,8 @@ impl Notification {
 
     pub fn icon_extents(&self) -> (f32, f32) {
         let style = self.style();
-        self.image
+        self.icons
+            .icon
             .as_ref()
             .map(|i| (i.width as f32 + style.padding.right, i.height as f32))
             .unwrap_or((0., 0.))
@@ -666,7 +692,8 @@ impl Notification {
         let style = self.style();
 
         let icon_width_positioning = self
-            .image
+            .icons
+            .icon
             .as_ref()
             .map(|i| i.width as f32 + style.padding.left)
             .unwrap_or(0.);

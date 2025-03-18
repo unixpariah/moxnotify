@@ -7,7 +7,7 @@ use crate::{
     config::{self, Config, Key, Queue},
     surface::Surface,
     texture_renderer::TextureArea,
-    EmitEvent, Moxnotify, NotificationData,
+    Moxnotify, NotificationData,
 };
 use calloop::{
     timer::{TimeoutAction, Timer},
@@ -17,7 +17,6 @@ use glyphon::{FontSystem, TextArea};
 use notification::{Notification, NotificationId};
 use notification_view::NotificationView;
 use std::{
-    io::Write,
     ops::{Deref, Range},
     sync::Arc,
     time::Duration,
@@ -170,10 +169,6 @@ impl NotificationManager {
     }
 
     pub fn select(&mut self, id: NotificationId) {
-        if Some(id) == self.selected {
-            return;
-        }
-
         if let Some(old_id) = self.selected.take() {
             self.unhover_notification(old_id);
         }
@@ -329,8 +324,8 @@ impl NotificationManager {
         };
 
         let mut notification =
-            Notification::new(y, Arc::clone(&self.config), &mut self.font_system, data);
-        notification.set_y(notification.extents().y);
+            Notification::new(Arc::clone(&self.config), &mut self.font_system, data);
+        notification.set_y(y);
 
         match self.config.queue {
             Queue::Ordered => {
@@ -368,6 +363,11 @@ impl NotificationManager {
             self.notifications.push(notification);
         }
 
+        // If replacing notification select it
+        if self.selected() == Some(id) {
+            self.select(id);
+        }
+
         if self.notification_view.visible.end < self.notifications.len() {
             self.notification_view
                 .update_notification_count(self.height(), self.notifications.len());
@@ -399,49 +399,35 @@ impl NotificationManager {
             }
         }
     }
-}
 
-impl Moxnotify {
-    pub fn dismiss_notification(&mut self, id: NotificationId) {
+    pub fn dismiss(&mut self, id: NotificationId) {
         if let Some(i) = self.notifications.iter().position(|n| n.id() == id) {
-            if !self.notifications.notification_view.visible.contains(&i) {
-                return;
+            let notification = self.notifications.remove(i);
+            if let Some(token) = notification.registration_token {
+                self.loop_handle.remove(token);
             }
-        }
 
-        if let Err(e) = self
-            .emit_sender
-            .send(EmitEvent::NotificationClosed { id, reason: 0 })
-        {
-            log::error!("Failed to emit NotificationClosed event: {e}");
-        }
-        self.notifications.notifications.retain(|n| {
-            if n.id() == id {
-                if let Some(token) = n.registration_token {
-                    self.loop_handle.remove(token);
+            if let Some(next_notification) = self.notifications.get(i) {
+                if self.selected() == Some(notification.id()) {
+                    self.select(next_notification.id());
                 }
-                false
-            } else {
-                true
             }
-        });
-
-        if self.notifications.notification_view.visible.start >= self.notifications.len() {
-            self.notifications.notification_view.visible =
-                self.notifications.len().saturating_sub(1)
-                    ..self.notifications.len().saturating_sub(1) + self.config.max_visible as usize;
         }
 
-        self.notifications
-            .notification_view
-            .update_notification_count(self.notifications.height(), self.notifications.len());
+        if self.notification_view.visible.start >= self.notifications.len() {
+            self.notification_view.visible = self.notifications.len().saturating_sub(1)
+                ..self.notifications.len().saturating_sub(1) + self.config.max_visible as usize;
+        }
 
-        if self.notifications.selected == Some(id) {
-            self.deselect_notification();
+        self.notification_view
+            .update_notification_count(self.height(), self.notifications.len());
+
+        if self.selected() == Some(id) {
+            self.deselect();
         }
 
         if self.config.queue == Queue::Ordered {
-            if let Some(notification) = self.notifications.notifications.first_mut() {
+            if let Some(notification) = self.notifications.first_mut() {
                 if !notification.hovered() {
                     if let Some(timeout) = notification.timeout() {
                         let timer = Timer::from_duration(Duration::from_millis(timeout));
@@ -458,15 +444,14 @@ impl Moxnotify {
             }
         }
 
-        self.notifications.notification_view.visible.clone().fold(
-            self.notifications
-                .notification_view
+        self.notification_view.visible.clone().fold(
+            self.notification_view
                 .prev
                 .as_ref()
                 .map(|p| p.extents().height)
                 .unwrap_or(0.),
             |acc, i| {
-                if let Some(notification) = self.notifications.notifications.get_mut(i) {
+                if let Some(notification) = self.notifications.get_mut(i) {
                     notification.set_y(acc);
                     acc + notification.extents().height
                 } else {
@@ -474,6 +459,12 @@ impl Moxnotify {
                 }
             },
         );
+    }
+}
+
+impl Moxnotify {
+    pub fn dismiss_notification(&mut self, id: NotificationId) {
+        self.notifications.dismiss(id);
 
         if self.notifications.height()
             == self

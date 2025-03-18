@@ -186,7 +186,7 @@ impl Vertex {
 
 pub struct VertexBuffer {
     buffer: wgpu::Buffer,
-    vertices: Box<[Vertex]>,
+    _vertices: Box<[Vertex]>,
 }
 
 impl VertexBuffer {
@@ -197,7 +197,7 @@ impl VertexBuffer {
                 usage: wgpu::BufferUsages::VERTEX,
                 contents: bytemuck::cast_slice(vertices),
             }),
-            vertices: vertices.into(),
+            _vertices: vertices.into(),
         }
     }
 }

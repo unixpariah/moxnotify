@@ -66,7 +66,6 @@ impl NotificationView {
                 notification.set_text(&summary, "", &mut self.font_system);
             } else {
                 self.prev = Some(Notification::new(
-                    0.,
                     Arc::clone(&self.config),
                     &mut self.font_system,
                     NotificationData {
@@ -102,8 +101,7 @@ impl NotificationView {
                 notification.set_text(&summary, "", &mut self.font_system);
                 notification.set_y(total_height - notification.extents().height);
             } else {
-                self.next = Some(Notification::new(
-                    total_height,
+                let mut next = Notification::new(
                     Arc::clone(&self.config),
                     &mut self.font_system,
                     NotificationData {
@@ -111,7 +109,9 @@ impl NotificationView {
                         summary: summary.into(),
                         ..Default::default()
                     },
-                ));
+                );
+                next.set_y(total_height);
+                self.next = Some(next);
             }
         } else {
             self.next = None;

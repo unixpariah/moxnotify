@@ -20,7 +20,7 @@ struct Xkb {
 }
 
 pub struct Keyboard {
-    wl_keyboard: wl_keyboard::WlKeyboard,
+    _wl_keyboard: wl_keyboard::WlKeyboard,
     repeat: RepeatInfo,
     xkb: Xkb,
     pub key_combination: KeyCombination,
@@ -45,7 +45,7 @@ impl Keyboard {
                 context: xkb_context,
                 state: None,
             },
-            wl_keyboard,
+            _wl_keyboard: wl_keyboard,
             repeat: RepeatInfo::default(),
         }
     }

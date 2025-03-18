@@ -67,8 +67,6 @@ impl Text {
         summary: &str,
         body: &str,
         max_width: f32,
-        x: f32,
-        y: f32,
     ) -> Self {
         let attrs = Attrs::new().family(glyphon::Family::Name(&font.family));
         let mut spans = vec![];
@@ -187,8 +185,8 @@ impl Text {
         Self {
             buffer,
             anchors,
-            x,
-            y,
+            x: 0.,
+            y: 0.,
         }
     }
 

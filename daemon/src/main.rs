@@ -109,13 +109,13 @@ impl Moxnotify {
                         .map(|notification| notification.id())
                         .collect();
 
-                    ids.iter().for_each(|id| self.dismiss_notification(*id));
+                    ids.iter().for_each(|id| self.notifications.dismiss(*id));
                     return Ok(());
                 }
 
                 if id == 0 {
                     if let Some(notification) = self.notifications.notifications().first() {
-                        self.dismiss_notification(notification.id());
+                        self.notifications.dismiss(notification.id());
                     }
                     return Ok(());
                 }
@@ -169,7 +169,7 @@ pub enum Image {
     Data(ImageData),
 }
 
-#[derive(PartialEq, Eq, Serialize, Deserialize, Default, Debug)]
+#[derive(PartialEq, Eq, Serialize, Deserialize, Default, Debug, Clone, Copy)]
 pub enum Urgency {
     #[default]
     Low,

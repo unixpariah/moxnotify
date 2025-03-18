@@ -22,7 +22,7 @@ pub struct Pointer {
     state: PointerState,
     x: f64,
     y: f64,
-    wl_pointer: wl_pointer::WlPointer,
+    _wl_pointer: wl_pointer::WlPointer,
     scroll_accumulator: f64,
     cursor_device: wp_cursor_shape_device_v1::WpCursorShapeDeviceV1,
     serial: u32,
@@ -48,7 +48,7 @@ impl Pointer {
             state: PointerState::Default,
             x: 0.,
             y: 0.,
-            wl_pointer,
+            _wl_pointer: wl_pointer,
             scroll_accumulator: 0.,
         })
     }

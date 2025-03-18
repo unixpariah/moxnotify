@@ -10,12 +10,89 @@ use serde::{Deserialize, Deserializer};
 use std::{collections::HashMap, fmt, fs, path::PathBuf, str::FromStr};
 use xkbcommon::xkb::Keysym;
 
+#[derive(Deserialize)]
+#[serde(default)]
+pub struct Config {
+    pub scroll_sensitivity: f64,
+    pub max_visible: u32,
+    pub icon_size: u32,
+    pub app_icon_size: u32,
+    pub anchor: Anchor,
+    pub layer: Layer,
+    pub queue: Queue,
+    pub output: Box<str>,
+    pub default_timeout: Timeout,
+    pub ignore_timeout: bool,
+    pub styles: Styles,
+    pub notification: Vec<NotificationStyleEntry>,
+    #[serde(deserialize_with = "deserialize_keycombination_map")]
+    pub keymaps: HashMap<KeyCombination, KeyAction>,
+    pub prev: NotificationCounter,
+    pub next: NotificationCounter,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        let mut keymaps: HashMap<KeyCombination, KeyAction> = HashMap::new();
+
+        let mut insert_default = |key: Key, default_action: KeyAction| {
+            let key_combination = KeyCombination {
+                modifiers: Modifiers {
+                    control: false,
+                    shift: false,
+                    alt: false,
+                    meta: false,
+                },
+                key,
+            };
+
+            if !keymaps.values().any(|action| *action == default_action) {
+                keymaps.insert(key_combination, default_action);
+            }
+        };
+
+        insert_default(Key::Character('j'), KeyAction::NextNotification);
+        insert_default(Key::Character('k'), KeyAction::PreviousNotification);
+        insert_default(Key::Character('x'), KeyAction::DismissNotification);
+        insert_default(Key::SpecialKey(SpecialKeyCode::Escape), KeyAction::Unfocus);
+
+        Self {
+            scroll_sensitivity: 20.,
+            max_visible: 5,
+            icon_size: 64,
+            app_icon_size: 24,
+            anchor: Anchor::default(),
+            layer: Layer::default(),
+            queue: Queue::default(),
+            output: "".into(),
+            default_timeout: Timeout::default(),
+            ignore_timeout: false,
+            styles: Styles::default(),
+            notification: Vec::new(),
+            keymaps,
+            prev: NotificationCounter::default(),
+            next: NotificationCounter::default(),
+        }
+    }
+}
+
 #[derive(Default, Clone, Copy)]
 pub struct Insets {
     pub left: f32,
     pub right: f32,
     pub top: f32,
     pub bottom: f32,
+}
+
+impl Insets {
+    pub fn size(value: f32) -> Self {
+        Self {
+            left: value,
+            right: value,
+            top: value,
+            bottom: value,
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for Insets {
@@ -33,62 +110,27 @@ impl<'de> Deserialize<'de> for Insets {
             }
 
             fn visit_f32<E>(self, value: f32) -> Result<Self::Value, E> {
-                Ok(Insets {
-                    left: value,
-                    right: value,
-                    top: value,
-                    bottom: value,
-                })
+                Ok(Insets::size(value))
             }
 
-            fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E> {
-                let value = v as f32;
-                Ok(Insets {
-                    left: value,
-                    right: value,
-                    top: value,
-                    bottom: value,
-                })
+            fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E> {
+                Ok(Insets::size(value as f32))
             }
 
-            fn visit_i32<E>(self, v: i32) -> Result<Self::Value, E> {
-                let value = v as f32;
-                Ok(Insets {
-                    left: value,
-                    right: value,
-                    top: value,
-                    bottom: value,
-                })
+            fn visit_i32<E>(self, value: i32) -> Result<Self::Value, E> {
+                Ok(Insets::size(value as f32))
             }
 
-            fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E> {
-                let value = v as f32;
-                Ok(Insets {
-                    left: value,
-                    right: value,
-                    top: value,
-                    bottom: value,
-                })
+            fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
+                Ok(Insets::size(value as f32))
             }
 
-            fn visit_u32<E>(self, v: u32) -> Result<Self::Value, E> {
-                let value = v as f32;
-                Ok(Insets {
-                    left: value,
-                    right: value,
-                    top: value,
-                    bottom: value,
-                })
+            fn visit_u32<E>(self, value: u32) -> Result<Self::Value, E> {
+                Ok(Insets::size(value as f32))
             }
 
-            fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E> {
-                let value = v as f32;
-                Ok(Insets {
-                    left: value,
-                    right: value,
-                    top: value,
-                    bottom: value,
-                })
+            fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
+                Ok(Insets::size(value as f32))
             }
 
             fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
@@ -135,7 +177,6 @@ impl From<Insets> for [f32; 4] {
 }
 
 #[derive(Deserialize)]
-#[serde(default)]
 pub struct Font {
     pub size: f32,
     pub family: Box<str>,
@@ -161,7 +202,6 @@ pub enum Queue {
 }
 
 #[derive(Deserialize)]
-#[serde(default)]
 pub struct Icon {
     pub border: Border,
 }
@@ -171,12 +211,7 @@ impl Default for Icon {
         Self {
             border: Border {
                 color: Color::default(),
-                size: Insets {
-                    left: 0.,
-                    right: 0.,
-                    top: 0.,
-                    bottom: 0.,
-                },
+                size: Insets::size(0.),
                 radius: BorderRadius::circle(),
             },
         }
@@ -193,7 +228,6 @@ pub enum Size {
 }
 
 #[derive(Deserialize)]
-#[serde(default)]
 pub struct Progress {
     pub height: f32,
     pub border: Border,
@@ -206,12 +240,6 @@ impl Default for Progress {
         Self {
             height: 20.,
             border: Border {
-                size: Insets {
-                    left: 2.,
-                    right: 2.,
-                    top: 2.,
-                    bottom: 2.,
-                },
                 radius: BorderRadius {
                     top_left: 5.,
                     top_right: 5.,
@@ -235,7 +263,6 @@ impl Default for Progress {
 }
 
 #[derive(Deserialize)]
-#[serde(default)]
 pub struct StyleState {
     pub background: Color,
     pub width: f32,
@@ -265,26 +292,9 @@ impl Default for StyleState {
             max_height: Size::Auto,
             height: Size::Auto,
             font: Font::default(),
-            border: Border {
-                color: Color {
-                    urgency_low: [158, 205, 106, 255],
-                    urgency_normal: [187, 154, 247, 255],
-                    urgency_critical: [192, 202, 245, 255],
-                },
-                ..Default::default()
-            },
-            margin: Insets {
-                left: 5.,
-                right: 5.,
-                top: 5.,
-                bottom: 5.,
-            },
-            padding: Insets {
-                left: 10.,
-                right: 10.,
-                top: 10.,
-                bottom: 10.,
-            },
+            border: Border::default(),
+            margin: Insets::size(5.),
+            padding: Insets::size(10.),
             icon: Icon::default(),
             app_icon: Icon::default(),
             progress: Progress::default(),
@@ -294,7 +304,6 @@ impl Default for StyleState {
 }
 
 #[derive(Deserialize)]
-#[serde(default)]
 pub struct Styles {
     pub default: StyleState,
     pub hover: StyleState,
@@ -331,6 +340,10 @@ impl Default for Styles {
             },
             hover: StyleState {
                 background: Color::rgba([47, 53, 73, 255]),
+                progress: Progress {
+                    incomplete_color: Color::rgba([47, 53, 73, 255]),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         }
@@ -597,7 +610,6 @@ impl<'de> Deserialize<'de> for Timeout {
 }
 
 #[derive(Deserialize, Default)]
-#[serde(default)]
 pub struct NotificationStyleEntry {
     pub app: Box<str>,
     pub styles: Styles,
@@ -606,73 +618,6 @@ pub struct NotificationStyleEntry {
 }
 
 #[derive(Deserialize)]
-#[serde(default)]
-pub struct Config {
-    pub scroll_sensitivity: f64,
-    pub max_visible: u32,
-    pub icon_size: u32,
-    pub app_icon_size: u32,
-    pub anchor: Anchor,
-    pub layer: Layer,
-    pub queue: Queue,
-    pub output: Box<str>,
-    pub default_timeout: Timeout,
-    pub ignore_timeout: bool,
-    pub styles: Styles,
-    pub notification: Vec<NotificationStyleEntry>,
-    #[serde(deserialize_with = "deserialize_keycombination_map")]
-    pub keymaps: HashMap<KeyCombination, KeyAction>,
-    pub prev: NotificationCounter,
-    pub next: NotificationCounter,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        let mut keymaps: HashMap<KeyCombination, KeyAction> = HashMap::new();
-
-        let mut insert_default = |key: Key, default_action: KeyAction| {
-            let key_combination = KeyCombination {
-                modifiers: Modifiers {
-                    control: false,
-                    shift: false,
-                    alt: false,
-                    meta: false,
-                },
-                key,
-            };
-
-            if !keymaps.values().any(|action| *action == default_action) {
-                keymaps.insert(key_combination, default_action);
-            }
-        };
-
-        insert_default(Key::Character('j'), KeyAction::NextNotification);
-        insert_default(Key::Character('k'), KeyAction::PreviousNotification);
-        insert_default(Key::Character('x'), KeyAction::DismissNotification);
-        insert_default(Key::SpecialKey(SpecialKeyCode::Escape), KeyAction::Unfocus);
-
-        Self {
-            scroll_sensitivity: 20.,
-            max_visible: 5,
-            icon_size: 64,
-            app_icon_size: 16,
-            anchor: Anchor::default(),
-            layer: Layer::default(),
-            queue: Queue::default(),
-            output: "".into(),
-            default_timeout: Timeout::default(),
-            ignore_timeout: false,
-            styles: Styles::default(),
-            notification: Vec::new(),
-            keymaps,
-            prev: NotificationCounter::default(),
-            next: NotificationCounter::default(),
-        }
-    }
-}
-
-#[derive(Deserialize)]
-#[serde(default)]
 pub struct NotificationCounter {
     pub format: Box<str>,
     pub border: Border,
@@ -686,25 +631,7 @@ impl Default for NotificationCounter {
     fn default() -> Self {
         Self {
             format: "({} more)".into(),
-            border: Border {
-                color: Color {
-                    urgency_low: [158, 206, 106, 255],
-                    urgency_normal: [187, 154, 247, 255],
-                    urgency_critical: [192, 202, 245, 255],
-                },
-                size: Insets {
-                    left: 2.,
-                    right: 2.,
-                    top: 2.,
-                    bottom: 2.,
-                },
-                radius: BorderRadius {
-                    top_left: 5.,
-                    top_right: 5.,
-                    bottom_left: 5.,
-                    bottom_right: 5.,
-                },
-            },
+            border: Border::default(),
             border_color: Color::rgba([158, 206, 106, 255]),
             background_color: Color::rgba([26, 27, 38, 255]),
             margin: Insets::default(),

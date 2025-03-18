@@ -175,6 +175,7 @@ mod tests {
     async fn urgency_test() {
         let mut hints = HashMap::new();
         hints.insert("urgency", zbus::zvariant::Value::U8(0));
+        hints.insert("value", zbus::zvariant::Value::I32(75));
         let notification = Notification {
             summary: "urgency test",
             body: "Urgency low",
@@ -185,6 +186,7 @@ mod tests {
 
         let mut hints = HashMap::new();
         hints.insert("urgency", zbus::zvariant::Value::U8(1));
+        hints.insert("value", zbus::zvariant::Value::I32(75));
         let notification = Notification {
             summary: "urgency test",
             body: "Urgency normal",
@@ -195,6 +197,7 @@ mod tests {
 
         let mut hints = HashMap::new();
         hints.insert("urgency", zbus::zvariant::Value::U8(2));
+        hints.insert("value", zbus::zvariant::Value::I32(75));
         let notification = Notification {
             summary: "urgency test",
             body: "Urgency critical",

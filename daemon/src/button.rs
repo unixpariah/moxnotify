@@ -72,8 +72,6 @@ pub struct Button {
 
 impl Button {
     pub fn new(
-        x: f32,
-        y: f32,
         action: Action,
         button_type: ButtonType,
         config: Arc<Config>,
@@ -84,13 +82,13 @@ impl Button {
             ButtonType::Action => &config.styles.default.buttons.action.default.font,
         };
 
-        let text = Text::new(font, font_system, "X", x, y);
+        let text = Text::new(font, font_system, "X", 0., 0.);
 
         Self {
             text,
             hovered: false,
-            x,
-            y,
+            x: 0.,
+            y: 0.,
             config,
             action,
             button_type,

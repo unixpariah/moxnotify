@@ -3,7 +3,6 @@ use serde::{Deserialize, Deserializer};
 use std::fmt;
 
 #[derive(Deserialize)]
-#[serde(default)]
 pub struct Border {
     pub size: Insets,
     pub radius: BorderRadius,
@@ -14,10 +13,10 @@ impl Default for Border {
     fn default() -> Self {
         Self {
             size: Insets {
-                left: 2.,
-                right: 2.,
-                top: 2.,
-                bottom: 2.,
+                left: 1.,
+                right: 1.,
+                top: 1.,
+                bottom: 1.,
             },
             radius: BorderRadius::default(),
             color: Color {
