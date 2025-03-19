@@ -325,7 +325,7 @@ impl Notification {
             font_system,
             &data.summary,
             &data.body,
-            config.styles.default.width - icon_width - dismiss_button.extents().width,
+            config.styles.default.width - icon_width - dismiss_button.extents(false).width,
         );
 
         buttons.push(dismiss_button);
@@ -378,9 +378,7 @@ impl Notification {
     pub fn set_y(&mut self, y: f32) {
         self.y = y;
         let extents = self.rendered_extents();
-        let app_name = &self.app_name;
-        let hovered = self.hovered();
-        let style = self.config.find_style(app_name, hovered);
+        let style = self.config.find_style(&self.app_name, self.hovered());
 
         if let Some(progress) = self.progress.as_mut() {
             progress.set_position(&extents, style);
@@ -389,16 +387,15 @@ impl Notification {
         self.icons.set_position(&extents, style, &self.progress);
 
         let extents = self.rendered_extents();
+        let hovered = self.hovered();
         self.buttons.iter_mut().for_each(|button| {
             let (x, y) = match button.button_type {
                 ButtonType::Action => todo!(),
                 ButtonType::Dismiss => (
-                    extents.x
-                        + style.margin.left
-                        + style.border.size.left
-                        + style.padding.left
-                        + style.width
-                        - button.extents().width,
+                    extents.x + extents.width
+                        - style.border.size.right
+                        - style.padding.right
+                        - button.extents(hovered).width,
                     y + style.margin.top + style.border.size.top + style.padding.top,
                 ),
             };
@@ -426,7 +423,7 @@ impl Notification {
             width: style.width
                 - icon_extents.0
                 - dismiss_button
-                    .map(|b| b.extents().width)
+                    .map(|b| b.extents(self.hovered()).width)
                     .unwrap_or_default(),
             height: 0.,
         }
@@ -452,7 +449,7 @@ impl Notification {
             .buttons
             .iter()
             .find(|button| button.button_type == ButtonType::Dismiss)
-            .map(|b| b.extents().height)
+            .map(|b| b.extents(self.hovered()).height)
             .unwrap_or(0.0);
 
         let progress = if self.progress.is_some() {

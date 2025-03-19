@@ -127,9 +127,11 @@ impl NotificationManager {
 
     pub fn get_button_by_coordinates(&mut self, x: f64, y: f64) -> Option<Action> {
         self.notification_view.visible.clone().find_map(|index| {
-            self.notifications
-                .get_mut(index)
-                .and_then(|notification| notification.buttons.get_by_coordinates(x, y))
+            self.notifications.get_mut(index).and_then(|notification| {
+                notification
+                    .buttons
+                    .get_by_coordinates(notification.hovered(), x, y)
+            })
         })
     }
 
@@ -184,7 +186,7 @@ impl NotificationManager {
                 .buttons
                 .iter()
                 .find(|button| button.button_type == ButtonType::Dismiss)
-                .map(|b| b.extents().width)
+                .map(|b| b.extents(new_notification.hovered()).width)
                 .unwrap_or(0.0);
 
             new_notification.text.buffer.set_size(
@@ -241,8 +243,7 @@ impl NotificationManager {
             },
         );
 
-        if let Some(notification) = self.notifications.get(next_notification_index) {
-            self.select(notification.id());
+        if self.notifications.get(next_notification_index).is_some() {
             self.notification_view.next(
                 self.height(),
                 next_notification_index,
@@ -292,8 +293,7 @@ impl NotificationManager {
             },
         );
 
-        if let Some(notification) = self.notifications.get(notification_index) {
-            self.select(notification.id());
+        if self.notifications.get(notification_index).is_some() {
             self.notification_view.prev(
                 self.height(),
                 notification_index,

@@ -42,9 +42,9 @@ impl DerefMut for ButtonManager {
 }
 
 impl ButtonManager {
-    pub fn get_by_coordinates(&mut self, x: f64, y: f64) -> Option<Action> {
+    pub fn get_by_coordinates(&mut self, hovered: bool, x: f64, y: f64) -> Option<Action> {
         self.buttons.iter_mut().find_map(|button| {
-            let extents = button.extents();
+            let extents = button.extents(hovered);
             if x >= extents.x as f64
                 && y >= extents.y as f64
                 && x <= (extents.x as f64 + extents.width as f64)
@@ -100,19 +100,24 @@ impl Button {
         self.y = y;
     }
 
-    pub fn extents(&self) -> Extents {
+    pub fn extents(&self, hovered: bool) -> Extents {
         let button = match self.button_type {
             ButtonType::Action => &self.config.styles.default.buttons.action,
             ButtonType::Dismiss => &self.config.styles.default.buttons.dismiss,
         };
+        let style = self.style(hovered);
 
         let text_extents = self.text.extents();
 
         Extents {
             x: self.x,
             y: self.y,
-            width: button.width.max(text_extents.0),
-            height: button.height.max(text_extents.1),
+            width: button.width.max(text_extents.0)
+                + style.border.size.left
+                + style.border.size.right,
+            height: button.height.max(text_extents.1)
+                + style.border.size.top
+                + style.border.size.bottom,
         }
     }
 
@@ -132,19 +137,23 @@ impl Button {
     }
 
     pub fn text_area(&self, urgency: &Urgency, hovered: bool, scale: f32) -> glyphon::TextArea {
-        let extents = self.extents();
+        let extents = self.extents(hovered);
         let style = self.style(hovered);
 
         let text_extents = self.text.extents();
         glyphon::TextArea {
             buffer: &self.text.buffer,
-            left: extents.x + (extents.width - text_extents.0) / 2.,
+            left: extents.x - style.border.size.left - style.border.size.right
+                + (extents.width - text_extents.0) / 2.,
             top: extents.y + (extents.height - text_extents.1) / 2.,
             scale,
             bounds: glyphon::TextBounds {
-                left: (extents.x + (extents.width - text_extents.0) / 2.) as i32,
+                left: (extents.x - style.border.size.left - style.border.size.right
+                    + (extents.width - text_extents.0) / 2.) as i32,
                 top: (extents.y + (extents.height - text_extents.1) / 2.) as i32,
-                right: ((extents.x + (extents.width - text_extents.0) / 2.) + extents.width) as i32,
+                right: ((extents.x - style.border.size.left - style.border.size.right
+                    + (extents.width - text_extents.0) / 2.)
+                    + extents.width) as i32,
                 bottom: ((extents.y + (extents.height - text_extents.1) / 2.) + extents.height)
                     as i32,
             },
@@ -155,11 +164,17 @@ impl Button {
 
     pub fn get_instance(&self, hovered: bool, scale: f32, urgency: &Urgency) -> buffers::Instance {
         let style = self.style(hovered);
-        let extents = self.extents();
+        let extents = self.extents(hovered);
 
         buffers::Instance {
-            rect_pos: [extents.x, extents.y],
-            rect_size: [extents.width, extents.height],
+            rect_pos: [
+                extents.x - style.border.size.left - style.border.size.right,
+                extents.y,
+            ],
+            rect_size: [
+                extents.width - style.border.size.left - style.border.size.right,
+                extents.height - style.border.size.top - style.border.size.bottom,
+            ],
             rect_color: style.background_color.to_linear(urgency),
             border_radius: style.border.radius.into(),
             border_size: style.border.size.into(),
