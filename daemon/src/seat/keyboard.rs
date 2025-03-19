@@ -28,6 +28,7 @@ pub struct Keyboard {
 
 #[derive(Default)]
 struct RepeatInfo {
+    key: Option<Key>,
     rate: i32,
     delay: i32,
     registration_token: Option<RegistrationToken>,
@@ -119,6 +120,7 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
 
                 match value {
                     wl_keyboard::KeyState::Released => {
+                        state.seat.keyboard.repeat.key = None;
                         if let Some(xkb_state) = state.seat.keyboard.xkb.state.as_ref() {
                             if Some(&vec![Key::from_keycode(xkb_state, keycode.into())])
                                 != Some(&state.seat.keyboard.key_combination.keys)
@@ -134,15 +136,8 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
                     wl_keyboard::KeyState::Pressed => {
                         if let Some(xkb_state) = state.seat.keyboard.xkb.state.as_ref() {
                             let key = Key::from_keycode(xkb_state, keycode.into());
+                            state.seat.keyboard.repeat.key = Some(key);
                             state.seat.keyboard.key_combination.keys.push(key);
-
-                            if !state
-                                .config
-                                .keymaps
-                                .matches(&state.seat.keyboard.key_combination.keys)
-                            {
-                                state.seat.keyboard.key_combination.clear();
-                            }
 
                             if xkb_state.get_keymap().key_repeats(keycode.into()) {
                                 if let Some(token) =
@@ -158,6 +153,9 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
                                 state.seat.keyboard.repeat.registration_token = state
                                     .loop_handle
                                     .insert_source(timer, move |_, _, moxnotify| {
+                                        if let Some(key) = moxnotify.seat.keyboard.repeat.key {
+                                            moxnotify.seat.keyboard.key_combination.keys.push(key);
+                                        }
                                         if moxnotify.handle_key().is_err() {
                                             return TimeoutAction::Drop;
                                         }
@@ -196,19 +194,38 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
 
 impl Moxnotify {
     fn handle_key(&mut self) -> anyhow::Result<()> {
+        if !self
+            .config
+            .keymaps
+            .matches(&self.seat.keyboard.key_combination.keys)
+        {
+            self.seat.keyboard.key_combination.keys.drain(
+                ..self
+                    .seat
+                    .keyboard
+                    .key_combination
+                    .keys
+                    .len()
+                    .saturating_sub(1),
+            );
+        }
+
         if let Some(action) = self.config.keymaps.get(&self.seat.keyboard.key_combination) {
             match action {
                 KeyAction::Noop => return Ok(()),
                 KeyAction::NextNotification => self.notifications.next(),
                 KeyAction::PreviousNotification => self.notifications.prev(),
                 KeyAction::FirstNotification => {
-                    if let Some(notification) = self.notifications.first() {
-                        self.notifications.select(notification.id());
+                    while self.notifications.selected()
+                        != self.notifications.first().map(|n| n.id())
+                    {
+                        self.notifications.prev();
                     }
                 }
                 KeyAction::LastNotification => {
-                    if let Some(notification) = self.notifications.last() {
-                        self.notifications.select(notification.id());
+                    while self.notifications.selected() != self.notifications.last().map(|n| n.id())
+                    {
+                        self.notifications.next();
                     }
                 }
                 KeyAction::DismissNotification => {
@@ -242,7 +259,16 @@ impl Moxnotify {
                 }
             }
         } else {
-            return Ok(());
+            return Err(anyhow::anyhow!(""));
+        }
+
+        self.update_surface_size();
+        if let Some(surface) = self.surface.as_mut() {
+            _ = surface.render(
+                &self.wgpu_state.device,
+                &self.wgpu_state.queue,
+                &self.notifications,
+            );
         }
 
         self.seat.keyboard.key_combination.clear();

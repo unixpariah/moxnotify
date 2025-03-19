@@ -52,6 +52,11 @@ impl Default for Keymaps {
             KeyAction::DismissNotification,
         );
         insert_default(
+            vec![Key::Character('d'), Key::Character('d')],
+            Modifiers::default(),
+            KeyAction::DismissNotification,
+        );
+        insert_default(
             vec![Key::Character('g')],
             Modifiers {
                 shift: true,
@@ -731,6 +736,11 @@ where
     );
     insert_default(
         vec![Key::Character('x')],
+        Modifiers::default(),
+        KeyAction::DismissNotification,
+    );
+    insert_default(
+        vec![Key::Character('d'), Key::Character('d')],
         Modifiers::default(),
         KeyAction::DismissNotification,
     );

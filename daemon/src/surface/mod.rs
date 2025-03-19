@@ -1,7 +1,7 @@
 pub mod wgpu_surface;
 
 use crate::{
-    config::{self, Anchor, Config, Key},
+    config::{self, Anchor, Config},
     notification_manager::NotificationManager,
     wgpu_state, Moxnotify, Output,
 };
