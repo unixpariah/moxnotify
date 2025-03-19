@@ -59,7 +59,7 @@ impl Default for Button {
                         bottom: 0.,
                     },
                     radius: BorderRadius::circle(),
-                    color: Color::rgba([255, 0, 0, 255]),
+                    ..Default::default()
                 },
                 ..Default::default()
             },

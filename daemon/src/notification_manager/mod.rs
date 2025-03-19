@@ -4,8 +4,7 @@ mod notification_view;
 use crate::{
     buffers,
     button::{Action, ButtonType},
-    config::{self, Config, Key, Queue},
-    surface::Surface,
+    config::{self, Config, Queue},
     texture_renderer::TextureArea,
     Moxnotify, NotificationData,
 };
@@ -16,11 +15,7 @@ use calloop::{
 use glyphon::{FontSystem, TextArea};
 use notification::{Notification, NotificationId};
 use notification_view::NotificationView;
-use std::{
-    ops::{Deref, Range},
-    sync::Arc,
-    time::Duration,
-};
+use std::{ops::Deref, sync::Arc, time::Duration};
 
 pub struct NotificationManager {
     notifications: Vec<Notification>,
@@ -49,10 +44,6 @@ impl NotificationManager {
             selected: None,
             config,
         }
-    }
-
-    pub fn view(&self) -> &Range<usize> {
-        &self.notification_view.visible
     }
 
     pub fn notifications(&self) -> &[Notification] {
@@ -336,7 +327,15 @@ impl NotificationManager {
                         notification.registration_token = self
                             .loop_handle
                             .insert_source(timer, move |_, _, moxnotify| {
-                                moxnotify.dismiss_notification(id);
+                                moxnotify.notifications.dismiss(id);
+                                moxnotify.update_surface_size();
+                                if let Some(surface) = moxnotify.surface.as_mut() {
+                                    _ = surface.render(
+                                        &moxnotify.wgpu_state.device,
+                                        &moxnotify.wgpu_state.queue,
+                                        &moxnotify.notifications,
+                                    );
+                                }
                                 TimeoutAction::Drop
                             })
                             .ok();
@@ -349,7 +348,15 @@ impl NotificationManager {
                     notification.registration_token = self
                         .loop_handle
                         .insert_source(timer, move |_, _, moxnotify| {
-                            moxnotify.dismiss_notification(id);
+                            moxnotify.notifications.dismiss(id);
+                            moxnotify.update_surface_size();
+                            if let Some(surface) = moxnotify.surface.as_mut() {
+                                _ = surface.render(
+                                    &moxnotify.wgpu_state.device,
+                                    &moxnotify.wgpu_state.queue,
+                                    &moxnotify.notifications,
+                                );
+                            }
                             TimeoutAction::Drop
                         })
                         .ok();
@@ -391,7 +398,7 @@ impl NotificationManager {
                     notification.registration_token = self
                         .loop_handle
                         .insert_source(timer, move |_, _, moxnotify| {
-                            moxnotify.dismiss_notification(id);
+                            moxnotify.notifications.dismiss(id);
                             TimeoutAction::Drop
                         })
                         .ok();
@@ -435,7 +442,7 @@ impl NotificationManager {
                         notification.registration_token = self
                             .loop_handle
                             .insert_source(timer, move |_, _, moxnotify| {
-                                moxnotify.dismiss_notification(id);
+                                moxnotify.notifications.dismiss(id);
                                 TimeoutAction::Drop
                             })
                             .ok();
@@ -459,86 +466,5 @@ impl NotificationManager {
                 }
             },
         );
-    }
-}
-
-impl Moxnotify {
-    pub fn dismiss_notification(&mut self, id: NotificationId) {
-        self.notifications.dismiss(id);
-
-        if self.notifications.height()
-            == self
-                .surface
-                .as_ref()
-                .map(|s| s.wgpu_surface.config.height)
-                .unwrap_or(0) as f32
-        {
-            if let Some(surface) = self.surface.as_mut() {
-                _ = surface.render(
-                    &self.wgpu_state.device,
-                    &self.wgpu_state.queue,
-                    &self.notifications,
-                );
-            }
-            return;
-        }
-
-        self.update_surface_size();
-    }
-
-    pub fn update_surface_size(&mut self) {
-        let total_height = self.notifications.height();
-        let total_width = self.notifications.width();
-
-        if self.surface.is_none() {
-            let wl_surface = self.compositor.create_surface(&self.qh, ());
-            self.surface = Surface::new(
-                &self.wgpu_state,
-                wl_surface,
-                &self.layer_shell,
-                &self.qh,
-                &self.globals,
-                &self.outputs,
-                Arc::clone(&self.config),
-            )
-            .ok();
-        }
-
-        if total_width == 0. || total_height == 0. {
-            if let Some(surface) = self.surface.take() {
-                drop(surface);
-            }
-            self.seat.keyboard.key_combination.key = Key::Character('\0');
-            return;
-        }
-
-        if let Some(surface) = self.surface.as_ref() {
-            surface
-                .layer_surface
-                .set_size(total_width as u32, total_height as u32);
-            surface.wl_surface.commit();
-        }
-    }
-
-    pub fn deselect_notification(&mut self) {
-        self.notifications.deselect();
-        if let Some(surface) = self.surface.as_mut() {
-            _ = surface.render(
-                &self.wgpu_state.device,
-                &self.wgpu_state.queue,
-                &self.notifications,
-            );
-        }
-    }
-
-    pub fn select_notification(&mut self, id: NotificationId) {
-        self.notifications.select(id);
-        if let Some(surface) = self.surface.as_mut() {
-            _ = surface.render(
-                &self.wgpu_state.device,
-                &self.wgpu_state.queue,
-                &self.notifications,
-            );
-        }
     }
 }

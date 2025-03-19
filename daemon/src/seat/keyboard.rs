@@ -174,6 +174,15 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
             }
             _ => {}
         }
+
+        state.update_surface_size();
+        if let Some(surface) = state.surface.as_mut() {
+            _ = surface.render(
+                &state.wgpu_state.device,
+                &state.wgpu_state.queue,
+                &state.notifications,
+            );
+        }
     }
 }
 
@@ -190,7 +199,7 @@ impl Moxnotify {
                             .iter()
                             .position(|notification| notification.id() == id)
                         {
-                            self.dismiss_notification(id);
+                            self.notifications.dismiss(id);
                             let adjusted_index = if index == self.notifications.len() {
                                 index.saturating_sub(1)
                             } else {
@@ -200,7 +209,7 @@ impl Moxnotify {
                             if let Some(notification) =
                                 self.notifications.get(adjusted_index).map(|n| n.id())
                             {
-                                self.select_notification(notification);
+                                self.notifications.select(notification);
                             }
                         }
                     }
@@ -212,15 +221,6 @@ impl Moxnotify {
                         self.notifications.deselect();
                     }
                 }
-            }
-
-            self.update_surface_size();
-            if let Some(surface) = self.surface.as_mut() {
-                _ = surface.render(
-                    &self.wgpu_state.device,
-                    &self.wgpu_state.queue,
-                    &self.notifications,
-                )?;
             }
         }
 

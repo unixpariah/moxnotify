@@ -1,7 +1,7 @@
 pub mod wgpu_surface;
 
 use crate::{
-    config::{self, Anchor, Config},
+    config::{self, Anchor, Config, Key},
     notification_manager::NotificationManager,
     wgpu_state, Moxnotify, Output,
 };
@@ -300,3 +300,39 @@ impl Dispatch<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1, ()> for Moxnotify {
 
 delegate_noop!(Moxnotify: zxdg_exporter_v2::ZxdgExporterV2);
 delegate_noop!(Moxnotify: ignore wl_surface::WlSurface);
+
+impl Moxnotify {
+    pub fn update_surface_size(&mut self) {
+        let total_height = self.notifications.height();
+        let total_width = self.notifications.width();
+
+        if self.surface.is_none() {
+            let wl_surface = self.compositor.create_surface(&self.qh, ());
+            self.surface = Surface::new(
+                &self.wgpu_state,
+                wl_surface,
+                &self.layer_shell,
+                &self.qh,
+                &self.globals,
+                &self.outputs,
+                Arc::clone(&self.config),
+            )
+            .ok();
+        }
+
+        if total_width == 0. || total_height == 0. {
+            if let Some(surface) = self.surface.take() {
+                drop(surface);
+            }
+            self.seat.keyboard.key_combination.key = Key::Character('\0');
+            return;
+        }
+
+        if let Some(surface) = self.surface.as_ref() {
+            surface
+                .layer_surface
+                .set_size(total_width as u32, total_height as u32);
+            surface.wl_surface.commit();
+        }
+    }
+}

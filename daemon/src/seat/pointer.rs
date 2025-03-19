@@ -79,10 +79,6 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
         _: &Connection,
         _: &QueueHandle<Self>,
     ) {
-        let Some(surface) = state.surface.as_mut() else {
-            return;
-        };
-
         match event {
             wl_pointer::Event::Motion {
                 surface_x,
@@ -108,18 +104,8 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     .get_button_by_coordinates(pointer.x, pointer.y)
                     .is_some()
                 {
-                    _ = surface.render(
-                        &state.wgpu_state.device,
-                        &state.wgpu_state.queue,
-                        &state.notifications,
-                    );
                     state.seat.pointer.change_state(PointerState::Hover);
                 } else {
-                    _ = surface.render(
-                        &state.wgpu_state.device,
-                        &state.wgpu_state.queue,
-                        &state.notifications,
-                    );
                     state.seat.pointer.change_state(PointerState::Default);
                 }
 
@@ -146,15 +132,15 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                 match (hovered_id, state.notifications.selected()) {
                     (Some(new_id), Some(old_id)) if new_id != old_id => {
-                        state.select_notification(new_id);
+                        state.notifications.select(new_id);
                         state.update_surface_size();
                     }
                     (Some(new_id), None) => {
-                        state.select_notification(new_id);
+                        state.notifications.select(new_id);
                         state.update_surface_size();
                     }
                     (None, Some(_)) => {
-                        state.deselect_notification();
+                        state.notifications.deselect();
                         state.update_surface_size();
                     }
                     _ => {}
@@ -209,29 +195,31 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                         };
 
                         if let Some(href) = href {
-                            let handle = surface.handle.as_ref().map_or("".into(), Arc::clone);
-                            let token = surface.token.as_ref().map(Arc::clone);
-                            if state
-                                .emit_sender
-                                .send(EmitEvent::Open {
-                                    uri: href,
-                                    token,
-                                    handle,
-                                })
-                                .is_ok()
-                            {
-                                state.deselect_notification();
+                            if let Some(surface) = state.surface.as_ref() {
+                                let handle = surface.handle.as_ref().map_or("".into(), Arc::clone);
+                                let token = surface.token.as_ref().map(Arc::clone);
+                                if state
+                                    .emit_sender
+                                    .send(EmitEvent::Open {
+                                        uri: href,
+                                        token,
+                                        handle,
+                                    })
+                                    .is_ok()
+                                {
+                                    state.notifications.deselect();
+                                }
                             }
                         }
 
                         if let Some(notification_id) = notification_id {
                             if dismiss_button {
-                                state.dismiss_notification(notification_id);
+                                state.notifications.dismiss(notification_id);
                             }
                         }
 
                         if let Some(notification) = state.notifications.get_by_coordinates(x, y) {
-                            state.select_notification(notification.id());
+                            state.notifications.select(notification.id());
                         }
 
                         if state
@@ -246,10 +234,12 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 }
             }
             wl_pointer::Event::Leave { .. } => {
-                if surface.focus_reason == Some(FocusReason::MouseEnter) {
-                    surface.unfocus();
-                    state.seat.pointer.change_state(PointerState::Default);
-                    state.deselect_notification();
+                if let Some(surface) = state.surface.as_mut() {
+                    if surface.focus_reason == Some(FocusReason::MouseEnter) {
+                        surface.unfocus();
+                        state.seat.pointer.change_state(PointerState::Default);
+                        state.notifications.deselect();
+                    }
                 }
             }
             wl_pointer::Event::Enter {
@@ -260,7 +250,10 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
             } => {
                 state.seat.pointer.serial = serial;
 
-                surface.focus(FocusReason::MouseEnter);
+                state
+                    .surface
+                    .as_mut()
+                    .map(|s| s.focus(FocusReason::MouseEnter));
 
                 state.seat.pointer.x = surface_x;
                 state.seat.pointer.y = surface_y;
@@ -284,20 +277,20 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                             state.notifications.prev();
                         }
 
-                        state.update_surface_size();
-                        if let Some(surface) = state.surface.as_mut() {
-                            _ = surface.render(
-                                &state.wgpu_state.device,
-                                &state.wgpu_state.queue,
-                                &state.notifications,
-                            );
-                        }
-
                         state.seat.pointer.scroll_accumulator = 0.0;
                     }
                 }
             }
             _ => {}
+        }
+
+        state.update_surface_size();
+        if let Some(surface) = state.surface.as_mut() {
+            _ = surface.render(
+                &state.wgpu_state.device,
+                &state.wgpu_state.queue,
+                &state.notifications,
+            );
         }
     }
 }

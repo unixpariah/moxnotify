@@ -120,44 +120,31 @@ impl Moxnotify {
                     return Ok(());
                 }
 
-                self.dismiss_notification(id);
+                self.notifications.dismiss(id);
             }
             Event::Notify(data) => {
                 self.notifications.add(data)?;
                 self.update_surface_size();
-                if self.notifications.view().end <= self.notifications.len() {
-                    if let Some(surface) = self.surface.as_mut() {
-                        surface.render(
-                            &self.wgpu_state.device,
-                            &self.wgpu_state.queue,
-                            &self.notifications,
-                        )?;
-                    }
-                }
-
-                if let Some(surface) = self.surface.as_mut() {
-                    surface.render(
-                        &self.wgpu_state.device,
-                        &self.wgpu_state.queue,
-                        &self.notifications,
-                    )?;
-                }
             }
-            Event::CloseNotification(id) => self.dismiss_notification(id),
+            Event::CloseNotification(id) => self.notifications.dismiss(id),
             Event::FocusSurface => {
                 if let Some(surface) = self.surface.as_mut() {
                     surface.focus(FocusReason::Ctl);
                     if self.notifications.selected().is_none() {
                         self.notifications.next();
                     }
-                    surface.render(
-                        &self.wgpu_state.device,
-                        &self.wgpu_state.queue,
-                        &self.notifications,
-                    )?;
                 }
             }
         };
+
+        if let Some(surface) = self.surface.as_mut() {
+            surface.render(
+                &self.wgpu_state.device,
+                &self.wgpu_state.queue,
+                &self.notifications,
+            )?;
+        }
+
         Ok(())
     }
 }
