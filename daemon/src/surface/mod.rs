@@ -324,7 +324,7 @@ impl Moxnotify {
             if let Some(surface) = self.surface.take() {
                 drop(surface);
             }
-            self.seat.keyboard.key_combination.key = Key::Character('\0');
+            self.seat.keyboard.key_combination.keys.clear();
             return;
         }
 

@@ -7,8 +7,80 @@ use button::{Button, ButtonState, Buttons};
 use color::Color;
 use mlua::{Lua, LuaSerdeExt};
 use serde::{Deserialize, Deserializer};
-use std::{collections::HashMap, fmt, fs, path::PathBuf, str::FromStr};
+use std::{collections::HashMap, fmt, fs, ops::Deref, path::PathBuf, str::FromStr};
 use xkbcommon::xkb::Keysym;
+
+#[derive(Deserialize, Debug)]
+#[serde(default)]
+pub struct Keymaps(
+    #[serde(deserialize_with = "deserialize_keycombination_map")]
+    HashMap<KeyCombination, KeyAction>,
+);
+
+impl Keymaps {
+    pub fn matches(&self, sequence: &[Key]) -> bool {
+        self.0.keys().any(|kc| kc.keys.starts_with(sequence))
+    }
+}
+
+impl Default for Keymaps {
+    fn default() -> Self {
+        let mut keymaps: HashMap<KeyCombination, KeyAction> = HashMap::new();
+
+        let mut insert_default =
+            |keys: Vec<Key>, modifiers: Modifiers, default_action: KeyAction| {
+                let key_combination = KeyCombination { modifiers, keys };
+
+                if !keymaps.values().any(|action| *action == default_action) {
+                    keymaps.insert(key_combination, default_action);
+                }
+            };
+
+        insert_default(
+            vec![Key::Character('j')],
+            Modifiers::default(),
+            KeyAction::NextNotification,
+        );
+        insert_default(
+            vec![Key::Character('k')],
+            Modifiers::default(),
+            KeyAction::PreviousNotification,
+        );
+        insert_default(
+            vec![Key::Character('x')],
+            Modifiers::default(),
+            KeyAction::DismissNotification,
+        );
+        insert_default(
+            vec![Key::Character('g')],
+            Modifiers {
+                shift: true,
+                ..Default::default()
+            },
+            KeyAction::LastNotification,
+        );
+        insert_default(
+            vec![Key::Character('g'), Key::Character('g')],
+            Modifiers::default(),
+            KeyAction::FirstNotification,
+        );
+        insert_default(
+            vec![Key::SpecialKey(SpecialKeyCode::Escape)],
+            Modifiers::default(),
+            KeyAction::Unfocus,
+        );
+
+        Self(keymaps)
+    }
+}
+
+impl Deref for Keymaps {
+    type Target = HashMap<KeyCombination, KeyAction>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
 
 #[derive(Deserialize)]
 #[serde(default)]
@@ -25,37 +97,13 @@ pub struct Config {
     pub ignore_timeout: bool,
     pub styles: Styles,
     pub notification: Vec<NotificationStyleEntry>,
-    #[serde(deserialize_with = "deserialize_keycombination_map")]
-    pub keymaps: HashMap<KeyCombination, KeyAction>,
+    pub keymaps: Keymaps,
     pub prev: NotificationCounter,
     pub next: NotificationCounter,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        let mut keymaps: HashMap<KeyCombination, KeyAction> = HashMap::new();
-
-        let mut insert_default = |key: Key, default_action: KeyAction| {
-            let key_combination = KeyCombination {
-                modifiers: Modifiers {
-                    control: false,
-                    shift: false,
-                    alt: false,
-                    meta: false,
-                },
-                key,
-            };
-
-            if !keymaps.values().any(|action| *action == default_action) {
-                keymaps.insert(key_combination, default_action);
-            }
-        };
-
-        insert_default(Key::Character('j'), KeyAction::NextNotification);
-        insert_default(Key::Character('k'), KeyAction::PreviousNotification);
-        insert_default(Key::Character('x'), KeyAction::DismissNotification);
-        insert_default(Key::SpecialKey(SpecialKeyCode::Escape), KeyAction::Unfocus);
-
         Self {
             scroll_sensitivity: 20.,
             max_visible: 5,
@@ -69,7 +117,7 @@ impl Default for Config {
             ignore_timeout: false,
             styles: Styles::default(),
             notification: Vec::new(),
-            keymaps,
+            keymaps: Keymaps::default(),
             prev: NotificationCounter::default(),
             next: NotificationCounter::default(),
         }
@@ -352,8 +400,15 @@ impl Default for Styles {
 
 #[derive(Deserialize, PartialEq, Eq, Hash, Debug, Default)]
 pub struct KeyCombination {
+    pub keys: Vec<Key>,
     pub modifiers: Modifiers,
-    pub key: Key,
+}
+
+impl KeyCombination {
+    pub fn clear(&mut self) {
+        self.keys.clear();
+        self.modifiers = Modifiers::default();
+    }
 }
 
 impl FromStr for KeyCombination {
@@ -376,17 +431,16 @@ impl FromStr for KeyCombination {
             Ok(())
         })?;
 
-        let key = match key_str.to_lowercase().as_str() {
-            "enter" => Key::SpecialKey(SpecialKeyCode::Enter),
-            "backspace" => Key::SpecialKey(SpecialKeyCode::Backspace),
-            "tab" => Key::SpecialKey(SpecialKeyCode::Tab),
-            "space" => Key::SpecialKey(SpecialKeyCode::Space),
-            "escape" => Key::SpecialKey(SpecialKeyCode::Escape),
-            key_str if key_str.len() == 1 => Key::Character(key_str.chars().next().unwrap()),
-            _ => return Err(format!("Invalid key: {}", key_str)),
+        let keys: Vec<Key> = match key_str.to_lowercase().as_str() {
+            "enter" => vec![Key::SpecialKey(SpecialKeyCode::Enter)],
+            "backspace" => vec![Key::SpecialKey(SpecialKeyCode::Backspace)],
+            "tab" => vec![Key::SpecialKey(SpecialKeyCode::Tab)],
+            "space" => vec![Key::SpecialKey(SpecialKeyCode::Space)],
+            "escape" => vec![Key::SpecialKey(SpecialKeyCode::Escape)],
+            _ => key_str.chars().map(Key::Character).collect(),
         };
 
-        Ok(KeyCombination { modifiers, key })
+        Ok(KeyCombination { modifiers, keys })
     }
 }
 
@@ -415,7 +469,7 @@ impl Key {
                 }
                 let key_char_code = xkb_state.key_get_utf32(keycode);
                 if let Some(character) = char::from_u32(key_char_code) {
-                    Key::Character(character)
+                    Key::Character(character.to_ascii_lowercase())
                 } else {
                     Key::default()
                 }
@@ -446,10 +500,13 @@ pub enum KeyAction {
     NextNotification,
     PreviousNotification,
     DismissNotification,
+    FirstNotification,
+    LastNotification,
     Unfocus,
+    Noop,
 }
 
-#[derive(Deserialize, PartialEq, Eq, Hash, Debug, Default)]
+#[derive(Deserialize, PartialEq, Eq, Hash, Debug, Default, Clone)]
 pub struct Modifiers {
     pub control: bool,
     pub shift: bool,
@@ -654,26 +711,47 @@ where
         keymaps.insert(key_combination, action);
     }
 
-    let mut insert_default = |key: Key, default_action: KeyAction| {
-        let key_combination = KeyCombination {
-            modifiers: Modifiers {
-                control: false,
-                shift: false,
-                alt: false,
-                meta: false,
-            },
-            key,
-        };
+    let mut insert_default = |keys: Vec<Key>, modifiers: Modifiers, default_action: KeyAction| {
+        let key_combination = KeyCombination { modifiers, keys };
 
         if !keymaps.values().any(|action| *action == default_action) {
             keymaps.insert(key_combination, default_action);
         }
     };
 
-    insert_default(Key::Character('j'), KeyAction::NextNotification);
-    insert_default(Key::Character('k'), KeyAction::PreviousNotification);
-    insert_default(Key::Character('x'), KeyAction::DismissNotification);
-    insert_default(Key::SpecialKey(SpecialKeyCode::Escape), KeyAction::Unfocus);
+    insert_default(
+        vec![Key::Character('j')],
+        Modifiers::default(),
+        KeyAction::NextNotification,
+    );
+    insert_default(
+        vec![Key::Character('k')],
+        Modifiers::default(),
+        KeyAction::PreviousNotification,
+    );
+    insert_default(
+        vec![Key::Character('x')],
+        Modifiers::default(),
+        KeyAction::DismissNotification,
+    );
+    insert_default(
+        vec![Key::Character('g')],
+        Modifiers {
+            shift: true,
+            ..Default::default()
+        },
+        KeyAction::LastNotification,
+    );
+    insert_default(
+        vec![Key::Character('g'), Key::Character('g')],
+        Modifiers::default(),
+        KeyAction::FirstNotification,
+    );
+    insert_default(
+        vec![Key::SpecialKey(SpecialKeyCode::Escape)],
+        Modifiers::default(),
+        KeyAction::Unfocus,
+    );
 
     Ok(keymaps)
 }

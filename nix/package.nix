@@ -78,7 +78,7 @@ rustPlatform.buildRustPackage rec {
   meta = with lib; {
     description = "Mox desktop environment notification system";
     homepage = "https://github.com/unixpariah/moxnotify";
-    license = licenses.gpl3;
+    license = licenses.mit;
     maintainers = [ maintainers.unixpariah ];
     platforms = platforms.linux;
     mainProgram = "moxnotify";

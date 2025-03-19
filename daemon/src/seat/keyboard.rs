@@ -120,14 +120,13 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
                 match value {
                     wl_keyboard::KeyState::Released => {
                         if let Some(xkb_state) = state.seat.keyboard.xkb.state.as_ref() {
-                            if Some(Key::from_keycode(xkb_state, keycode.into()))
-                                != Some(state.seat.keyboard.key_combination.key)
+                            if Some(&vec![Key::from_keycode(xkb_state, keycode.into())])
+                                != Some(&state.seat.keyboard.key_combination.keys)
                             {
                                 return;
                             }
                         }
 
-                        state.seat.keyboard.key_combination.key = Key::Character('\0');
                         if let Some(token) = state.seat.keyboard.repeat.registration_token.take() {
                             state.loop_handle.remove(token);
                         }
@@ -135,7 +134,16 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
                     wl_keyboard::KeyState::Pressed => {
                         if let Some(xkb_state) = state.seat.keyboard.xkb.state.as_ref() {
                             let key = Key::from_keycode(xkb_state, keycode.into());
-                            state.seat.keyboard.key_combination.key = key;
+                            state.seat.keyboard.key_combination.keys.push(key);
+
+                            if !state
+                                .config
+                                .keymaps
+                                .matches(&state.seat.keyboard.key_combination.keys)
+                            {
+                                state.seat.keyboard.key_combination.clear();
+                            }
+
                             if xkb_state.get_keymap().key_repeats(keycode.into()) {
                                 if let Some(token) =
                                     state.seat.keyboard.repeat.registration_token.take()
@@ -190,8 +198,19 @@ impl Moxnotify {
     fn handle_key(&mut self) -> anyhow::Result<()> {
         if let Some(action) = self.config.keymaps.get(&self.seat.keyboard.key_combination) {
             match action {
+                KeyAction::Noop => return Ok(()),
                 KeyAction::NextNotification => self.notifications.next(),
                 KeyAction::PreviousNotification => self.notifications.prev(),
+                KeyAction::FirstNotification => {
+                    if let Some(notification) = self.notifications.first() {
+                        self.notifications.select(notification.id());
+                    }
+                }
+                KeyAction::LastNotification => {
+                    if let Some(notification) = self.notifications.last() {
+                        self.notifications.select(notification.id());
+                    }
+                }
                 KeyAction::DismissNotification => {
                     if let Some(id) = self.notifications.selected() {
                         if let Some(index) = self
@@ -217,12 +236,16 @@ impl Moxnotify {
                 KeyAction::Unfocus => {
                     if let Some(surface) = self.surface.as_mut() {
                         surface.unfocus();
-                        self.seat.keyboard.key_combination.key = Key::Character('\0');
+                        self.seat.keyboard.key_combination.keys.clear();
                         self.notifications.deselect();
                     }
                 }
             }
+        } else {
+            return Ok(());
         }
+
+        self.seat.keyboard.key_combination.clear();
 
         Ok(())
     }
