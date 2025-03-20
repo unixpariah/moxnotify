@@ -180,15 +180,6 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
             }
             _ => {}
         }
-
-        state.update_surface_size();
-        if let Some(surface) = state.surface.as_mut() {
-            _ = surface.render(
-                &state.wgpu_state.device,
-                &state.wgpu_state.queue,
-                &state.notifications,
-            );
-        }
     }
 }
 

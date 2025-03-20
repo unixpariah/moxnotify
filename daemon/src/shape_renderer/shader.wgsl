@@ -49,11 +49,12 @@ fn vs_main(
         instance.rect_size.x + instance.border_size[0] + instance.border_size[1],
         instance.rect_size.y + instance.border_size[2] + instance.border_size[3],
     ) * 0.5;
+
     out.border_radius = vec4<f32>(
-        min(instance.border_radius[0] + instance.border_size[0], outer_max_radius),
-        min(instance.border_radius[1] + instance.border_size[1], outer_max_radius),
-        min(instance.border_radius[2] + instance.border_size[2], outer_max_radius),
-        min(instance.border_radius[3] + instance.border_size[3], outer_max_radius)
+        min(instance.border_radius[0] + instance.border_size[0] + instance.border_size[2], outer_max_radius),
+        min(instance.border_radius[1] + instance.border_size[1] + instance.border_size[2], outer_max_radius),
+        min(instance.border_radius[2] + instance.border_size[0] + instance.border_size[3], outer_max_radius),
+        min(instance.border_radius[3] + instance.border_size[1] + instance.border_size[3], outer_max_radius)
     ) * instance.scale;
 
     out.border_size = instance.border_size * instance.scale;

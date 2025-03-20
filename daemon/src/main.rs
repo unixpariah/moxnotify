@@ -195,7 +195,6 @@ pub enum EmitEvent {
     },
     Open {
         uri: Arc<str>,
-        handle: Arc<str>,
         token: Option<Arc<str>>,
     },
 }

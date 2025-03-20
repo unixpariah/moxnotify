@@ -85,7 +85,7 @@ pub async fn serve(mut receiver: broadcast::Receiver<EmitEvent>) -> zbus::Result
 
     tokio::spawn(async move {
         loop {
-            if let Ok(EmitEvent::Open { uri, handle, token }) = receiver.recv().await {
+            if let Ok(EmitEvent::Open { uri, token }) = receiver.recv().await {
                 let mut options = HashMap::new();
                 if let Some(token) = &token {
                     options.insert("activation_token", zbus::zvariant::Value::new(&**token));
@@ -94,16 +94,16 @@ pub async fn serve(mut receiver: broadcast::Receiver<EmitEvent>) -> zbus::Result
                 if let Some(uri_type) = detect_target_type(&uri) {
                     match uri_type {
                         TargetType::Uri => {
-                            let _ = open_uri.open_URI(&handle, &uri, options).await;
+                            let _ = open_uri.open_URI("", &uri, options).await;
                         }
                         TargetType::File => {
                             if let Ok(fd) = path_to_fd(&uri) {
-                                let _ = open_uri.open_file(&handle, fd, options).await;
+                                let _ = open_uri.open_file("", fd, options).await;
                             }
                         }
                         TargetType::Directory => {
                             if let Ok(fd) = path_to_fd(&uri) {
-                                let _ = open_uri.open_directory(&handle, fd, options).await;
+                                let _ = open_uri.open_directory("", fd, options).await;
                             }
                         }
                     }

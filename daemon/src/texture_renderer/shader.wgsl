@@ -66,13 +66,11 @@ var t_diffuse: texture_2d_array<f32>;
 var s_diffuse: sampler;
 
 fn sdf_rounded_rect(p: vec2<f32>, b: vec2<f32>, r: vec4<f32>) -> f32 {
-    var x = r.x;
-    var y = r.y;
-    x = select(r.z, r.x, p.x > 0.0);
-    y = select(r.w, r.y, p.x > 0.0);
-    x = select(y, x, p.y > 0.0);
-    let q = abs(p) - b + x;
-    return min(max(q.x, q.y), 0.0) + length(max(q, vec2<f32>(0.0))) - x;
+    var x = select(r.x, r.y, p.x > 0.0);
+    var y = select(r.z, r.w, p.x > 0.0);
+    let radius = select(y, x, p.y > 0.0);
+    let q = abs(p) - b + radius;
+    return min(max(q.x, q.y), 0.0) + length(max(q, vec2<f32>(0.0))) - radius;
 }
 
 @fragment

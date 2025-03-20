@@ -196,15 +196,10 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                         if let Some(href) = href {
                             if let Some(surface) = state.surface.as_ref() {
-                                let handle = surface.handle.as_ref().map_or("".into(), Arc::clone);
                                 let token = surface.token.as_ref().map(Arc::clone);
                                 if state
                                     .emit_sender
-                                    .send(EmitEvent::Open {
-                                        uri: href,
-                                        token,
-                                        handle,
-                                    })
+                                    .send(EmitEvent::Open { uri: href, token })
                                     .is_ok()
                                 {
                                     state.notifications.deselect();
