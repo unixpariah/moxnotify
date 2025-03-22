@@ -3,13 +3,13 @@ struct InstanceInput {
     @location(3) size: vec2<f32>,
     @location(4) radius: vec4<f32>,
     @location(5) container_rect: vec4<f32>,
-    @location(6) border_width: f32,
+    @location(6) border_width: vec4<f32>,
     @location(7) scale: f32,
 };
 
 struct VertexInput {
     @location(0) position: vec2<f32>,
-}
+};
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
@@ -19,7 +19,7 @@ struct VertexOutput {
     @location(3) size: vec2<f32>,
     @location(4) container_rect: vec4<f32>,
     @location(5) surface_position: vec2<f32>,
-    @location(6) border_width: f32,
+    @location(6) border_width: vec4<f32>,
 };
 
 struct ProjectionUniform {
@@ -89,7 +89,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let aa = fwidth(d) * 0.6;
 
     let outer = smoothstep(-aa, aa, -d);
-    let inner = smoothstep(-aa, aa, -(d + in.border_width));
+    let inner = smoothstep(-aa, aa, -(d + in.border_width.x));
     let border_alpha = clamp(outer - inner, 0.0, 1.0);
     
     let color = mix(tex_color, vec4<f32>(0., 0., 0., 0.), border_alpha);

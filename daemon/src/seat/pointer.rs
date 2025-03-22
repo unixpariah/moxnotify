@@ -245,10 +245,9 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
             } => {
                 state.seat.pointer.serial = serial;
 
-                state
-                    .surface
-                    .as_mut()
-                    .map(|s| s.focus(FocusReason::MouseEnter));
+                if let Some(surface) = state.surface.as_mut() {
+                    surface.focus(FocusReason::MouseEnter)
+                }
 
                 state.seat.pointer.x = surface_x;
                 state.seat.pointer.y = surface_y;

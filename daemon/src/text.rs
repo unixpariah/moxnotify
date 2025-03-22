@@ -47,7 +47,7 @@ pub struct Text {
 }
 
 impl Text {
-    pub fn new(font: &Font, font_system: &mut FontSystem, body: &str, x: f32, y: f32) -> Self {
+    pub fn new(font: &Font, font_system: &mut FontSystem, body: &str) -> Self {
         let attrs = Attrs::new()
             .family(glyphon::Family::Name(&font.family))
             .weight(Weight::BOLD);
@@ -56,8 +56,8 @@ impl Text {
         Self {
             buffer,
             anchors: Vec::new(),
-            x,
-            y,
+            x: 0.,
+            y: 0.,
         }
     }
 

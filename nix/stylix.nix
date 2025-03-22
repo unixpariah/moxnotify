@@ -1,8 +1,4 @@
-{
-  lib,
-  config,
-  ...
-}:
+{ lib, config, ... }:
 with config.lib.stylix.colors.withHashtag;
 with config.stylix.fonts;
 let
@@ -31,15 +27,27 @@ in
             };
           };
 
-          buttons.dismiss = {
-            default = {
-              background_color = base08 + "00";
-              border.color = base08 + "00";
-              font.color = base05 + "00";
+          buttons = {
+            dismiss = {
+              default = {
+                background_color = base08 + "00";
+                border.color = base08 + "00";
+                font.color = base05 + "00";
+              };
+              hover = {
+                background_color = base08;
+                border.color = base08;
+              };
             };
-            hover = {
-              background_color = base08;
-              border.color = base08;
+            action = {
+              default = {
+                background_color = base01;
+                font.color = base05;
+              };
+              hover = {
+                background_color = base0F;
+                font.color = base05;
+              };
             };
           };
 

@@ -18,6 +18,7 @@ struct Notification<'a> {
     default_path = "/org/freedesktop/Notifications"
 )]
 trait Notifications {
+    #[allow(clippy::too_many_arguments)]
     async fn notify(
         &self,
         app_name: &str,
@@ -213,18 +214,27 @@ mod tests {
         hints.insert("value", zbus::zvariant::Value::I32(25));
         hints.insert("image-path", "zen-beta".into());
 
-        let body = r#"
-<u>underline</u>
+        let body = r#"<u>underline</u>
 <i>italic</i>
 <b>bold</b>
 <a href="https://github.com/unixpariah/moxnotify">github</a>
-<img alt="image" href=""/>
-"#;
+<img alt="image" href=""/>"#;
 
         let notification = Notification {
             summary: "everything test",
             body,
             hints,
+            actions: ["default", "OK"].into(),
+            ..Default::default()
+        };
+        assert!(emit(notification).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn action_test() {
+        let notification = Notification {
+            summary: "actions test",
+            actions: ["default", "OK"].into(),
             ..Default::default()
         };
         assert!(emit(notification).await.is_ok());

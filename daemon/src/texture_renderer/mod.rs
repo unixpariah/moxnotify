@@ -22,7 +22,7 @@ pub struct TextureArea<'a> {
     pub data: &'a [u8],
     pub width: f32,
     pub height: f32,
-    pub border_size: f32,
+    pub border_size: [f32; 4],
 }
 
 #[derive(Clone)]

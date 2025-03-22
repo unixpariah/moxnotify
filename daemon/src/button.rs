@@ -14,12 +14,13 @@ use std::{
 #[derive(PartialEq)]
 pub enum ButtonType {
     Dismiss,
-    Action,
+    Action { text: Arc<str>, action: Arc<str> },
 }
 
-#[derive(PartialEq, Copy, Clone)]
+#[derive(PartialEq, Clone)]
 pub enum Action {
     DismissNotification,
+    Action,
 }
 
 #[derive(Default)]
@@ -51,7 +52,7 @@ impl ButtonManager {
                 && y <= (extents.y as f64 + extents.height as f64)
             {
                 button.hovered = true;
-                Some(button.action)
+                Some(button.action.clone())
             } else {
                 button.hovered = false;
                 None
@@ -62,12 +63,12 @@ impl ButtonManager {
 
 pub struct Button {
     pub hovered: bool,
+    pub button_type: ButtonType,
     x: f32,
     y: f32,
     config: Arc<Config>,
     text: Text,
-    pub action: Action,
-    pub button_type: ButtonType,
+    action: Action,
 }
 
 impl Button {
@@ -79,10 +80,13 @@ impl Button {
     ) -> Self {
         let font = match button_type {
             ButtonType::Dismiss => &config.styles.default.buttons.dismiss.default.font,
-            ButtonType::Action => &config.styles.default.buttons.action.default.font,
+            ButtonType::Action { .. } => &config.styles.default.buttons.action.default.font,
         };
 
-        let text = Text::new(font, font_system, "X", 0., 0.);
+        let text = match &button_type {
+            ButtonType::Dismiss => Text::new(font, font_system, "X"),
+            ButtonType::Action { text, .. } => Text::new(font, font_system, text),
+        };
 
         Self {
             text,
@@ -98,23 +102,30 @@ impl Button {
     pub fn set_position(&mut self, x: f32, y: f32) {
         self.x = x;
         self.y = y;
+        self.text.set_buffer_position(x, y);
     }
 
     pub fn extents(&self, hovered: bool) -> Extents {
         let button = match self.button_type {
-            ButtonType::Action => &self.config.styles.default.buttons.action,
+            ButtonType::Action { .. } => &self.config.styles.default.buttons.action,
             ButtonType::Dismiss => &self.config.styles.default.buttons.dismiss,
         };
         let style = self.style(hovered);
 
         let text_extents = self.text.extents();
 
+        let width = match (&self.button_type, hovered) {
+            (ButtonType::Dismiss, _) => {
+                button.width.max(text_extents.0) + style.border.size.left + style.border.size.right
+            }
+            (ButtonType::Action { .. }, true) => self.config.styles.hover.width,
+            (ButtonType::Action { .. }, false) => self.config.styles.default.width,
+        };
+
         Extents {
             x: self.x,
             y: self.y,
-            width: button.width.max(text_extents.0)
-                + style.border.size.left
-                + style.border.size.right,
+            width,
             height: button.height.max(text_extents.1)
                 + style.border.size.top
                 + style.border.size.bottom,
@@ -125,8 +136,8 @@ impl Button {
         let button = match (&self.button_type, hovered) {
             (ButtonType::Dismiss, true) => &self.config.styles.hover.buttons.dismiss,
             (ButtonType::Dismiss, false) => &self.config.styles.default.buttons.dismiss,
-            (ButtonType::Action, true) => &self.config.styles.hover.buttons.action,
-            (ButtonType::Action, false) => &self.config.styles.default.buttons.action,
+            (ButtonType::Action { .. }, true) => &self.config.styles.hover.buttons.action,
+            (ButtonType::Action { .. }, false) => &self.config.styles.default.buttons.action,
         };
 
         if self.hovered {

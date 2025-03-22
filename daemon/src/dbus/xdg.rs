@@ -27,7 +27,7 @@ impl NotificationsImpl {
     async fn get_capabilities(&self) -> &[&'static str] {
         &[
             // "action-icons",
-            //"actions",
+            "actions",
             "body",
             "body-hyperlinks",
             "body-images",

@@ -21,7 +21,21 @@ impl Default for Buttons {
                         top: 0.,
                         bottom: 0.,
                     },
-                    radius: BorderRadius::circle(),
+                    radius: BorderRadius::default(),
+                    color: Color::rgba([0, 0, 0, 0]),
+                },
+            },
+            hover: ButtonState {
+                font: Font::default(),
+                background_color: Color::rgba([255, 255, 255, 255]),
+                border: Border {
+                    size: Insets {
+                        left: 0.,
+                        right: 0.,
+                        top: 0.,
+                        bottom: 0.,
+                    },
+                    radius: BorderRadius::default(),
                     color: Color::rgba([0, 0, 0, 0]),
                 },
             },

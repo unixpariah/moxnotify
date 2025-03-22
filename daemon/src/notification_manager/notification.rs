@@ -13,7 +13,7 @@ use glyphon::{FontSystem, TextArea, TextBounds};
 use std::path::Path;
 use std::sync::Arc;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Extents {
     pub x: f32,
     pub y: f32,
@@ -204,7 +204,6 @@ pub struct Notification {
     timeout: Option<u64>,
     hovered: bool,
     config: Arc<Config>,
-    actions: Box<[(Arc<str>, Arc<str>)]>,
     icons: Icons,
     urgency: Urgency,
     progress: Option<Progress>,
@@ -315,6 +314,15 @@ impl Notification {
             font_system,
         );
 
+        data.actions.iter().cloned().for_each(|(text, action)| {
+            buttons.push(Button::new(
+                Action::Action,
+                ButtonType::Action { text, action },
+                Arc::clone(&config),
+                font_system,
+            ))
+        });
+
         let icon_width = icons
             .icon
             .as_ref()
@@ -369,7 +377,6 @@ impl Notification {
             timeout,
             config,
             hovered: false,
-            actions: data.actions,
             urgency,
             registration_token: None,
         }
@@ -388,16 +395,49 @@ impl Notification {
 
         let extents = self.rendered_extents();
         let hovered = self.hovered();
+
+        if let Some(button) = self
+            .buttons
+            .iter_mut()
+            .find(|button| button.button_type == ButtonType::Dismiss)
+        {
+            let (x, y) = (
+                extents.x + extents.width
+                    - style.border.size.right
+                    - style.padding.right
+                    - button.extents(hovered).width,
+                extents.y + style.margin.top + style.border.size.top + style.padding.top,
+            );
+
+            button.set_position(x, y)
+        }
+
+        let height = self
+            .buttons
+            .iter_mut()
+            .find(|button| button.button_type == ButtonType::Dismiss)
+            .map(|b| {
+                let extents = b.extents(hovered);
+                extents.y + extents.height + style.padding.top
+            })
+            .unwrap_or(0.);
+
         self.buttons.iter_mut().for_each(|button| {
-            let (x, y) = match button.button_type {
-                ButtonType::Action => todo!(),
-                ButtonType::Dismiss => (
-                    extents.x + extents.width
-                        - style.border.size.right
-                        - style.padding.right
-                        - button.extents(hovered).width,
-                    y + style.margin.top + style.border.size.top + style.padding.top,
-                ),
+            let (x, y) = if let ButtonType::Action { .. } = button.button_type {
+                (
+                    extents.x + style.border.size.left + style.padding.left,
+                    (extents.y + extents.height
+                        - style.border.size.bottom
+                        - style.padding.bottom
+                        - self
+                            .progress
+                            .map(|p| p.extents(&extents, style).height + style.padding.top)
+                            .unwrap_or_default()
+                        - button.extents(hovered).height)
+                        .max(height),
+                )
+            } else {
+                return;
             };
 
             button.set_position(x, y);
@@ -449,8 +489,26 @@ impl Notification {
             .buttons
             .iter()
             .find(|button| button.button_type == ButtonType::Dismiss)
-            .map(|b| b.extents(self.hovered()).height)
+            .map(|b| b.extents(self.hovered()).height + style.margin.top + style.margin.bottom)
             .unwrap_or(0.0);
+
+        let action_button = self
+            .buttons
+            .iter()
+            .filter_map(|button| match button.button_type {
+                ButtonType::Action { .. } => {
+                    let mut extents = button.extents(self.hovered());
+                    extents.height += style.margin.bottom;
+                    Some(extents)
+                }
+                _ => None,
+            })
+            .max_by(|a, b| {
+                a.height
+                    .partial_cmp(&b.height)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .unwrap_or_default();
 
         let progress = if self.progress.is_some() {
             style.progress.height + style.padding.top + style.padding.bottom
@@ -473,7 +531,9 @@ impl Notification {
             Size::Auto => {
                 let text_height = self.text.extents().1 + progress;
                 let icon_height = self.icon_extents().1 + progress;
-                let base_height = text_height.max(icon_height).max(dismiss_button);
+                let base_height = (text_height.max(icon_height).max(dismiss_button)
+                    + action_button.height)
+                    .max(dismiss_button + action_button.height);
                 base_height.clamp(min_height, max_height)
             }
         }
@@ -633,7 +693,7 @@ impl Notification {
                 width: icon_size,
                 height: icon_size,
                 scale,
-                border_size: style.icon.border.size.top, // TODO: make it use each of the edges
+                border_size: style.icon.border.size.into(),
                 bounds: TextureBounds {
                     left: icon_extents.x as u32,
                     top: (total_height - icon_extents.y - height) as u32,
@@ -658,7 +718,7 @@ impl Notification {
                 width: app_icon_size,
                 height: app_icon_size,
                 scale,
-                border_size: style.icon.border.size.top, // TODO: make it use each of the edges
+                border_size: style.icon.border.size.into(),
                 bounds: TextureBounds {
                     left: icon_extents.x as u32,
                     top: (total_height - icon_extents.y - height) as u32,
