@@ -128,10 +128,10 @@ impl NotificationView {
                     extents.width - style.border.size.left - style.border.size.right,
                     extents.height - style.border.size.top - style.border.size.bottom,
                 ],
-                rect_color: style.background_color.to_linear(&crate::Urgency::Low),
+                rect_color: style.background.to_linear(&crate::Urgency::Low),
                 border_radius: style.border.radius.into(),
                 border_size: style.border.size.into(),
-                border_color: style.border_color.to_linear(&crate::Urgency::Low),
+                border_color: style.border.color.to_linear(&crate::Urgency::Low),
                 scale,
             };
 
@@ -151,10 +151,10 @@ impl NotificationView {
                     extents.width - style.border.size.left - style.border.size.right,
                     extents.height - style.border.size.top - style.border.size.bottom,
                 ],
-                rect_color: style.background_color.to_linear(&crate::Urgency::Low),
+                rect_color: style.background.to_linear(&crate::Urgency::Low),
                 border_radius: style.border.radius.into(),
                 border_size: style.border.size.into(),
-                border_color: style.border_color.to_linear(&crate::Urgency::Low),
+                border_color: style.border.color.to_linear(&crate::Urgency::Low),
                 scale,
             };
 

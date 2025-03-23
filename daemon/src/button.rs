@@ -1,6 +1,6 @@
 use crate::{
     buffers,
-    config::{button::ButtonState, Config},
+    config::{button::ButtonState, Config, Size},
     notification_manager::notification::Extents,
     text::Text,
     Urgency,
@@ -115,20 +115,49 @@ impl Button {
         let text_extents = self.text.extents();
 
         let width = match (&self.button_type, hovered) {
-            (ButtonType::Dismiss, _) => {
-                button.width.max(text_extents.0) + style.border.size.left + style.border.size.right
+            (ButtonType::Dismiss, true) => {
+                let width = match button.hover.width {
+                    Size::Auto => text_extents.0,
+                    Size::Value(value) => value,
+                };
+
+                width + style.border.size.left + style.border.size.right
             }
-            (ButtonType::Action { .. }, true) => self.config.styles.hover.width,
-            (ButtonType::Action { .. }, false) => self.config.styles.default.width,
+            (ButtonType::Dismiss, false) => {
+                let width = match button.default.width {
+                    Size::Auto => text_extents.0,
+                    Size::Value(value) => value,
+                };
+
+                width + style.border.size.left + style.border.size.right
+            }
+            (ButtonType::Action { .. }, true) => match button.hover.width {
+                Size::Auto => self.config.styles.hover.width,
+                Size::Value(value) => value,
+            },
+            (ButtonType::Action { .. }, false) => match button.default.width {
+                Size::Auto => self.config.styles.default.width,
+                Size::Value(value) => value,
+            },
         };
+
+        let height = match hovered {
+            true => match button.hover.height {
+                Size::Auto => text_extents.1,
+                Size::Value(value) => value,
+            },
+            false => match button.default.height {
+                Size::Auto => text_extents.1,
+                Size::Value(value) => value,
+            },
+        } + style.border.size.top
+            + style.border.size.bottom;
 
         Extents {
             x: self.x,
             y: self.y,
             width,
-            height: button.height.max(text_extents.1)
-                + style.border.size.top
-                + style.border.size.bottom,
+            height,
         }
     }
 
@@ -179,14 +208,14 @@ impl Button {
 
         buffers::Instance {
             rect_pos: [
-                extents.x - style.border.size.left - style.border.size.right,
-                extents.y,
+                extents.x + style.border.size.left,
+                extents.y + style.border.size.top,
             ],
             rect_size: [
                 extents.width - style.border.size.left - style.border.size.right,
                 extents.height - style.border.size.top - style.border.size.bottom,
             ],
-            rect_color: style.background_color.to_linear(urgency),
+            rect_color: style.background.to_linear(urgency),
             border_radius: style.border.radius.into(),
             border_size: style.border.size.into(),
             border_color: style.border.color.to_linear(urgency),

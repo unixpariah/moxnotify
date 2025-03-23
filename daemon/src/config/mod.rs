@@ -301,11 +301,7 @@ impl Default for Progress {
                 },
                 ..Default::default()
             },
-            incomplete_color: Color {
-                urgency_low: [26, 27, 38, 255],
-                urgency_normal: [22, 22, 30, 255],
-                urgency_critical: [22, 22, 30, 255],
-            },
+            incomplete_color: Color::default(),
             complete_color: Color {
                 urgency_low: [247, 118, 142, 255],
                 urgency_normal: [247, 118, 142, 255],
@@ -369,7 +365,9 @@ impl Default for Styles {
                 buttons: Buttons {
                     dismiss: Button {
                         default: ButtonState {
-                            background_color: Color::rgba([0, 0, 0, 0]),
+                            width: Size::Value(20.),
+                            height: Size::Value(20.),
+                            background: Color::rgba([0, 0, 0, 0]),
                             border: Border {
                                 size: Insets {
                                     left: 0.,
@@ -393,8 +391,8 @@ impl Default for Styles {
             },
             hover: StyleState {
                 background: Color::rgba([47, 53, 73, 255]),
-                progress: Progress {
-                    incomplete_color: Color::rgba([47, 53, 73, 255]),
+                progress: Progress::default(),
+                buttons: Buttons {
                     ..Default::default()
                 },
                 ..Default::default()
@@ -683,8 +681,7 @@ pub struct NotificationStyleEntry {
 pub struct NotificationCounter {
     pub format: Box<str>,
     pub border: Border,
-    pub border_color: Color,
-    pub background_color: Color,
+    pub background: Color,
     pub margin: Insets,
     pub padding: Insets,
 }
@@ -694,8 +691,7 @@ impl Default for NotificationCounter {
         Self {
             format: "({} more)".into(),
             border: Border::default(),
-            border_color: Color::rgba([158, 206, 106, 255]),
-            background_color: Color::rgba([26, 27, 38, 255]),
+            background: Color::rgba([26, 27, 38, 255]),
             margin: Insets::default(),
             padding: Insets::default(),
         }

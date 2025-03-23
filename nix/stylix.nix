@@ -30,22 +30,22 @@ in
           buttons = {
             dismiss = {
               default = {
-                background_color = base08 + "00";
+                background = base08 + "00";
                 border.color = base08 + "00";
                 font.color = base05 + "00";
               };
               hover = {
-                background_color = base08;
+                background = base08;
                 border.color = base08;
               };
             };
             action = {
               default = {
-                background_color = base01;
+                background = base01;
                 font.color = base05;
               };
               hover = {
-                background_color = base0F;
+                background = base0F;
                 font.color = base05;
               };
             };
@@ -84,11 +84,11 @@ in
 
           buttons.dismiss = {
             default = {
-              background_color = base08 + "aa";
+              background = base08 + "aa";
               border_color = base08 + "aa";
             };
             hover = {
-              background_color = base08;
+              background = base08;
               border_color = base08;
             };
           };

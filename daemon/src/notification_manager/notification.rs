@@ -217,6 +217,7 @@ impl PartialEq for Notification {
     }
 }
 
+#[derive(Default)]
 pub struct Icons {
     icon: Option<ImageData>,
     app_icon: Option<ImageData>,
@@ -288,6 +289,30 @@ impl Notification {
     pub fn new(config: Arc<Config>, font_system: &mut FontSystem, data: NotificationData) -> Self {
         let mut urgency = None;
         let mut progress = None;
+
+        if data.app_name == "next_notification_count".into()
+            || data.app_name == "prev_notification_count".into()
+        {
+            return Self {
+                id: 0,
+                y: 0.,
+                app_name: data.app_name,
+                text: text::Text::new(&config.styles.default.font, font_system, ""),
+                timeout: None,
+                hovered: false,
+                config: Arc::clone(&config),
+                icons: Icons {
+                    icon: None,
+                    app_icon: None,
+                    x: 0.,
+                    y: 0.,
+                },
+                urgency: Urgency::default(),
+                progress: None,
+                registration_token: None,
+                buttons: ButtonManager::default(),
+            };
+        }
 
         data.hints.iter().for_each(|hint| match hint {
             Hint::Urgency(level) if urgency.is_none() => urgency = Some(*level),

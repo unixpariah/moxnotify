@@ -180,6 +180,7 @@ mod tests {
         let notification = Notification {
             summary: "urgency test",
             body: "Urgency low",
+            actions: ["default", "OK"].into(),
             hints,
             ..Default::default()
         };
@@ -191,6 +192,7 @@ mod tests {
         let notification = Notification {
             summary: "urgency test",
             body: "Urgency normal",
+            actions: ["default", "OK"].into(),
             hints,
             ..Default::default()
         };
@@ -202,6 +204,7 @@ mod tests {
         let notification = Notification {
             summary: "urgency test",
             body: "Urgency critical",
+            actions: ["default", "OK"].into(),
             hints,
             ..Default::default()
         };
