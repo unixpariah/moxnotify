@@ -3,7 +3,7 @@ mod notification_view;
 
 use crate::{
     buffers,
-    button::{Action, ButtonType},
+    button::ButtonType,
     config::{self, Config, Queue},
     texture_renderer::TextureArea,
     Moxnotify, NotificationData,
@@ -116,7 +116,7 @@ impl NotificationManager {
             .next()
     }
 
-    pub fn get_button_by_coordinates(&mut self, x: f64, y: f64) -> Option<Action> {
+    pub fn get_button_by_coordinates(&mut self, x: f64, y: f64) -> Option<ButtonType> {
         self.notification_view.visible.clone().find_map(|index| {
             self.notifications.get_mut(index).and_then(|notification| {
                 notification

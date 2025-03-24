@@ -30,6 +30,9 @@ trait Notifications {
         hints: HashMap<&str, zbus::zvariant::Value<'_>>,
         expire_timeout: i32,
     ) -> zbus::Result<u32>;
+
+    #[zbus(signal)]
+    async fn action_invoked(&self, nid: u32, action_key: String) -> zbus::Result<()>;
 }
 
 async fn emit(notification: Notification<'_>) -> zbus::Result<u32> {
@@ -52,6 +55,8 @@ async fn emit(notification: Notification<'_>) -> zbus::Result<u32> {
 
 #[cfg(test)]
 mod tests {
+    use futures_lite::StreamExt;
+
     use super::*;
     use std::time::Duration;
 
@@ -116,7 +121,11 @@ mod tests {
                 ..Default::default()
             };
             id = emit(notification).await.ok();
-            std::thread::sleep(Duration::from_secs(1));
+
+            async {
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            }
+            .await;
         }
     }
 
@@ -180,7 +189,7 @@ mod tests {
         let notification = Notification {
             summary: "urgency test",
             body: "Urgency low",
-            actions: ["default", "OK", "test", "TEST"].into(),
+            actions: ["default", "OK"].into(),
             hints,
             ..Default::default()
         };
@@ -227,7 +236,7 @@ mod tests {
             summary: "everything test",
             body,
             hints,
-            actions: ["default", "OK"].into(),
+            actions: ["default", "OK", "cancel", "Cancel", "retry", "Retry"].into(),
             ..Default::default()
         };
         assert!(emit(notification).await.is_ok());
@@ -240,6 +249,56 @@ mod tests {
             actions: ["default", "OK"].into(),
             ..Default::default()
         };
+
+        let id = emit(notification).await.unwrap();
+
+        let conn = zbus::Connection::session().await.unwrap();
+        let proxy = NotificationsProxy::new(&conn).await.unwrap();
+
+        let mut stream = proxy.receive_action_invoked().await.unwrap();
+
+        while let Some(signal) = stream.next().await {
+            let args = signal.args().unwrap();
+            if args.nid == id {
+                assert!(args.action_key() == "default");
+                break;
+            }
+        }
+
+        
+        let notification = Notification {
+            summary: "actions icon test",
+            actions: ["default", "OK"].into(),
+            app_icon: "zen-beta",
+            ..Default::default()
+        };
+
         assert!(emit(notification).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn transient_test() {
+        let mut hints = HashMap::new();
+        hints.insert("transient", zbus::zvariant::Value::Bool(true));
+        let notification = Notification {
+            summary: "transient test",
+            actions: ["default", "OK"].into(),
+            hints,
+            ..Default::default()
+        };
+        let id = emit(notification).await.unwrap();
+
+        let conn = zbus::Connection::session().await.unwrap();
+        let proxy = NotificationsProxy::new(&conn).await.unwrap();
+
+        let mut stream = proxy.receive_action_invoked().await.unwrap();
+
+        while let Some(signal) = stream.next().await {
+            let args = signal.args().unwrap();
+            if args.nid == id {
+                assert!(args.action_key() == "default");
+                break;
+            }
+        }
     }
 }

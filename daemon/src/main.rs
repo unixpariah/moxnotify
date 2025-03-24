@@ -158,8 +158,8 @@ pub enum Image {
 
 #[derive(PartialEq, Eq, Serialize, Deserialize, Default, Debug, Clone, Copy)]
 pub enum Urgency {
-    #[default]
     Low,
+    #[default]
     Normal,
     Critical,
 }
@@ -187,7 +187,7 @@ pub enum EmitEvent {
     ActionInvoked {
         id: u32,
         action_key: Arc<str>,
-        token: Box<str>,
+        token: Arc<str>,
     },
     NotificationClosed {
         id: u32,

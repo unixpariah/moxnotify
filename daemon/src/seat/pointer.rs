@@ -1,4 +1,4 @@
-use crate::{button::Action, surface::FocusReason, EmitEvent, Moxnotify};
+use crate::{button::ButtonType, surface::FocusReason, EmitEvent, Moxnotify};
 use std::sync::Arc;
 use wayland_client::{
     delegate_noop,
@@ -164,7 +164,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                         let (x, y) = (state.seat.pointer.x, state.seat.pointer.y);
 
-                        let (href, notification_id, dismiss_button) = {
+                        let (href, notification_id, button) = {
                             if let Some(under_pointer) =
                                 state.notifications.get_by_coordinates(x, y)
                             {
@@ -182,15 +182,11 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                                     .hit(x as f32, y as f32 - acc)
                                     .map(|anchor| Arc::clone(&anchor.href));
 
-                                let dismiss_button = state
-                                    .notifications
-                                    .get_button_by_coordinates(x, y)
-                                    .map(|button| button == Action::DismissNotification)
-                                    .unwrap_or(false);
+                                let button = state.notifications.get_button_by_coordinates(x, y);
 
-                                (href, Some(notification_id), dismiss_button)
+                                (href, Some(notification_id), button)
                             } else {
-                                (None, None, false)
+                                (None, None, None)
                             }
                         };
 
@@ -208,8 +204,31 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                         }
 
                         if let Some(notification_id) = notification_id {
-                            if dismiss_button {
-                                state.notifications.dismiss(notification_id);
+                            match button {
+                                Some(ButtonType::Dismiss) => {
+                                    state.notifications.dismiss(notification_id);
+                                }
+                                Some(ButtonType::Action { action, .. }) => {
+                                    if !state
+                                        .notifications
+                                        .iter()
+                                        .find(|notification| notification.id() == notification_id)
+                                        .map(|n| n.transient)
+                                        .unwrap_or_default()
+                                    {
+                                        state.notifications.dismiss(notification_id);
+                                    }
+
+                                    if let Some(surface) = state.surface.as_ref() {
+                                        let token = surface.token.as_ref().map(Arc::clone);
+                                        _ = state.emit_sender.send(EmitEvent::ActionInvoked {
+                                            id: notification_id,
+                                            action_key: action,
+                                            token: token.unwrap_or_default(),
+                                        });
+                                    }
+                                }
+                                _ => {}
                             }
                         }
 

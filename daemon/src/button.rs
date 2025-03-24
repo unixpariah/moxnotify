@@ -8,16 +8,10 @@ use crate::{
 use glyphon::{FontSystem, TextArea};
 use std::sync::Arc;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum ButtonType {
     Dismiss,
     Action { text: Arc<str>, action: Arc<str> },
-}
-
-#[derive(PartialEq, Clone)]
-pub enum Action {
-    DismissNotification,
-    Action,
 }
 
 #[derive(Default)]
@@ -43,7 +37,7 @@ impl ButtonManager {
         container_hovered: bool,
         x: f64,
         y: f64,
-    ) -> Option<Action> {
+    ) -> Option<ButtonType> {
         self.buttons.iter_mut().find_map(|button| {
             let extents = button.extents(container_hovered);
             if x >= extents.x as f64
@@ -52,7 +46,7 @@ impl ButtonManager {
                 && y <= (extents.y + extents.height) as f64
             {
                 button.hovered = true;
-                Some(button.action.clone())
+                Some(button.button_type.clone())
             } else {
                 button.hovered = false;
                 None
@@ -117,16 +111,10 @@ pub struct Button {
     pub width: f32,
     config: Arc<Config>,
     text: Text,
-    action: Action,
 }
 
 impl Button {
-    pub fn new(
-        action: Action,
-        button_type: ButtonType,
-        config: Arc<Config>,
-        font_system: &mut FontSystem,
-    ) -> Self {
+    pub fn new(button_type: ButtonType, config: Arc<Config>, font_system: &mut FontSystem) -> Self {
         let font = match button_type {
             ButtonType::Dismiss => &config.styles.default.buttons.dismiss.default.font,
             ButtonType::Action { .. } => &config.styles.default.buttons.action.default.font,
@@ -144,7 +132,6 @@ impl Button {
             y: 0.,
             width: 0.,
             config,
-            action,
             button_type,
         }
     }

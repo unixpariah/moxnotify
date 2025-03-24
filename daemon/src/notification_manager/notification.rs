@@ -1,7 +1,7 @@
 use super::config::Config;
 use crate::{
     buffers,
-    button::{Action, Button, ButtonManager, ButtonType},
+    button::{Button, ButtonManager, ButtonType},
     config::{border::BorderRadius, Insets, Size, StyleState},
     image_data::ImageData,
     text,
@@ -207,6 +207,7 @@ pub struct Notification {
     icons: Icons,
     urgency: Urgency,
     progress: Option<Progress>,
+    pub transient: bool,
     pub registration_token: Option<RegistrationToken>,
     pub buttons: ButtonManager,
 }
@@ -256,6 +257,8 @@ impl Icons {
         container_extents: &Extents,
         style: &StyleState,
         progress: &Option<Progress>,
+        buttons: &ButtonManager,
+        container_hovered: bool,
     ) {
         let icon_size = 64.0;
 
@@ -267,6 +270,18 @@ impl Icons {
             - progress
                 .as_ref()
                 .map(|p| p.extents(container_extents, style).height)
+                .unwrap_or_default()
+            - buttons
+                .buttons()
+                .iter()
+                .filter_map(|button| {
+                    if matches!(button.button_type, ButtonType::Action { .. }) {
+                        Some(button.extents(container_hovered).height)
+                    } else {
+                        None
+                    }
+                })
+                .max_by(|a, b| a.partial_cmp(b).unwrap())
                 .unwrap_or_default();
 
         let vertical_offset = (available_height - icon_size) / 2.0;
@@ -289,6 +304,7 @@ impl Notification {
     pub fn new(config: Arc<Config>, font_system: &mut FontSystem, data: NotificationData) -> Self {
         let mut urgency = None;
         let mut progress = None;
+        let mut transient = None;
 
         if data.app_name == "next_notification_count".into()
             || data.app_name == "prev_notification_count".into()
@@ -311,12 +327,14 @@ impl Notification {
                 progress: None,
                 registration_token: None,
                 buttons: ButtonManager::default(),
+                transient: false,
             };
         }
 
         data.hints.iter().for_each(|hint| match hint {
             Hint::Urgency(level) if urgency.is_none() => urgency = Some(*level),
             Hint::Value(value) => progress = Some(Progress::new(*value)),
+            Hint::Transient(value) => transient = Some(*value),
             _ => {}
         });
 
@@ -332,16 +350,10 @@ impl Notification {
 
         let style = &config.styles.default;
         let mut buttons = ButtonManager::default();
-        let dismiss_button = Button::new(
-            Action::DismissNotification,
-            ButtonType::Dismiss,
-            Arc::clone(&config),
-            font_system,
-        );
+        let dismiss_button = Button::new(ButtonType::Dismiss, Arc::clone(&config), font_system);
 
-        data.actions.iter().cloned().for_each(|(text, action)| {
+        data.actions.iter().cloned().for_each(|(action, text)| {
             buttons.add(Button::new(
-                Action::Action,
                 ButtonType::Action { text, action },
                 Arc::clone(&config),
                 font_system,
@@ -403,6 +415,7 @@ impl Notification {
             config,
             hovered: false,
             urgency,
+            transient: transient.unwrap_or_default(),
             registration_token: None,
         }
     }
@@ -416,7 +429,13 @@ impl Notification {
             progress.set_position(&extents, style);
         }
 
-        self.icons.set_position(&extents, style, &self.progress);
+        self.icons.set_position(
+            &extents,
+            style,
+            &self.progress,
+            &self.buttons,
+            self.hovered(),
+        );
 
         let extents = self.rendered_extents();
         let hovered = self.hovered();
