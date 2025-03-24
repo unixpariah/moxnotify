@@ -19,7 +19,7 @@ in
               urgency_normal = base0F;
               urgency_critical = base08;
             };
-            incomplete_color = base03;
+            incomplete_color = "#000000";
             border.color = {
               urgency_low = base0B;
               urgency_normal = base0E;
@@ -30,9 +30,9 @@ in
           buttons = {
             dismiss = {
               default = {
-                background = base08 + "00";
-                border.color = base08 + "00";
-                font.color = base05 + "00";
+                background = "#000000";
+                border.color = "#000000";
+                font.color = "#000000";
               };
               hover = {
                 background = base08;
@@ -43,6 +43,11 @@ in
               default = {
                 background = base01;
                 font.color = base05;
+                border.color = {
+                  urgency_low = base0B;
+                  urgency_normal = base0E;
+                  urgency_critical = base08;
+                };
               };
               hover = {
                 background = base0F;

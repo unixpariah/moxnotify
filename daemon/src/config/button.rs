@@ -3,32 +3,17 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 pub struct Buttons {
+    #[serde(default)]
     pub dismiss: Button,
+    #[serde(default = "Button::default_action")]
     pub action: Button,
 }
 
 impl Default for Buttons {
     fn default() -> Self {
-        let action = Button {
-            default: ButtonState {
-                width: Size::Auto,
-                height: Size::Value(20.),
-                font: Font::default(),
-                background: Color::rgba([22, 22, 30, 0]),
-                border: Border::default(),
-            },
-            hover: ButtonState {
-                width: Size::Auto,
-                height: Size::Value(20.),
-                font: Font::default(),
-                background: Color::rgba([247, 118, 142, 255]),
-                border: Border::default(),
-            },
-        };
-
         Self {
             dismiss: Button::default(),
-            action,
+            action: Button::default_action(),
         }
     }
 }
@@ -39,26 +24,32 @@ pub struct Button {
     pub hover: ButtonState,
 }
 
+impl Button {
+    fn default_action() -> Self {
+        Self {
+            default: ButtonState {
+                width: Size::Auto,
+                height: Size::Value(30.),
+                font: Font::default(),
+                background: Color::rgba([22, 22, 30, 0]),
+                border: Border::default(),
+            },
+            hover: ButtonState {
+                width: Size::Auto,
+                height: Size::Value(30.),
+                font: Font::default(),
+                background: Color::rgba([247, 118, 142, 255]),
+                border: Border::default(),
+            },
+        }
+    }
+}
+
 impl Default for Button {
     fn default() -> Self {
         Self {
             default: ButtonState::default(),
-            hover: ButtonState {
-                width: Size::Value(20.),
-                height: Size::Value(20.),
-                background: Color::rgba([255, 255, 255, 255]),
-                border: Border {
-                    size: Insets {
-                        left: 0.,
-                        right: 0.,
-                        top: 0.,
-                        bottom: 0.,
-                    },
-                    radius: BorderRadius::circle(),
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
+            hover: ButtonState::default_hover(),
         }
     }
 }
@@ -70,6 +61,15 @@ pub struct ButtonState {
     pub background: Color,
     pub border: Border,
     pub font: Font,
+}
+
+impl ButtonState {
+    fn default_hover() -> Self {
+        Self {
+            background: Color::rgba([255, 255, 255, 255]),
+            ..Default::default()
+        }
+    }
 }
 
 impl Default for ButtonState {

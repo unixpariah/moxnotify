@@ -2,7 +2,6 @@ use crate::{
     config::{Key, KeyAction, KeyCombination, Modifiers},
     Moxnotify,
 };
-use ::xkbcommon::xkb::Context;
 use calloop::{
     timer::{TimeoutAction, Timer},
     RegistrationToken,
@@ -12,6 +11,7 @@ use wayland_client::{
     protocol::{wl_keyboard, wl_seat},
     Connection, Dispatch, QueueHandle, WEnum,
 };
+use xkbcommon::xkb::Context;
 use xkbcommon::xkb::{Keymap, State};
 
 struct Xkb {
@@ -246,6 +246,7 @@ impl Moxnotify {
                         surface.unfocus();
                         self.seat.keyboard.key_combination.keys.clear();
                         self.notifications.deselect();
+                        self.seat.keyboard.repeat.key = None;
                     }
                 }
             }

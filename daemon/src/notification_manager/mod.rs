@@ -175,6 +175,7 @@ impl NotificationManager {
 
             let dismiss_button = new_notification
                 .buttons
+                .buttons()
                 .iter()
                 .find(|button| button.button_type == ButtonType::Dismiss)
                 .map(|b| b.extents(new_notification.hovered()).width)

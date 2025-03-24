@@ -340,7 +340,7 @@ impl Notification {
         );
 
         data.actions.iter().cloned().for_each(|(text, action)| {
-            buttons.push(Button::new(
+            buttons.add(Button::new(
                 Action::Action,
                 ButtonType::Action { text, action },
                 Arc::clone(&config),
@@ -361,7 +361,7 @@ impl Notification {
             config.styles.default.width - icon_width - dismiss_button.extents(false).width,
         );
 
-        buttons.push(dismiss_button);
+        buttons.add(dismiss_button);
 
         let notification_style_entry = config
             .notification
@@ -423,6 +423,7 @@ impl Notification {
 
         if let Some(button) = self
             .buttons
+            .buttons_mut()
             .iter_mut()
             .find(|button| button.button_type == ButtonType::Dismiss)
         {
@@ -439,6 +440,7 @@ impl Notification {
 
         let height = self
             .buttons
+            .buttons_mut()
             .iter_mut()
             .find(|button| button.button_type == ButtonType::Dismiss)
             .map(|b| {
@@ -447,11 +449,37 @@ impl Notification {
             })
             .unwrap_or(0.);
 
-        self.buttons.iter_mut().for_each(|button| {
-            let (x, y) = if let ButtonType::Action { .. } = button.button_type {
-                (
-                    extents.x + style.border.size.left + style.padding.left,
-                    (extents.y + extents.height
+        let actions_count = self
+            .buttons
+            .buttons()
+            .iter()
+            .filter(|button| matches!(button.button_type, ButtonType::Action { .. }))
+            .count() as f32;
+
+        self.buttons
+            .buttons_mut()
+            .iter_mut()
+            .filter(|b| matches!(b.button_type, ButtonType::Action { .. }))
+            .enumerate()
+            .for_each(|(i, button)| {
+                let available_width = extents.width
+                    - style.border.size.left
+                    - style.border.size.right
+                    - style.padding.left
+                    - style.padding.right;
+
+                let spacing_between = style.padding.left + style.padding.right;
+
+                let total_spacing = (actions_count - 1.) * spacing_between;
+
+                let button_width = (available_width - total_spacing) / actions_count;
+                button.width = button_width;
+
+                let (x, y) = if let ButtonType::Action { .. } = button.button_type {
+                    let base_x = extents.x + style.border.size.left + style.padding.left;
+                    let x_position = base_x + (button_width + spacing_between) * i as f32;
+
+                    let y_position = (extents.y + extents.height
                         - style.border.size.bottom
                         - style.padding.bottom
                         - self
@@ -459,14 +487,15 @@ impl Notification {
                             .map(|p| p.extents(&extents, style).height + style.padding.top)
                             .unwrap_or_default()
                         - button.extents(hovered).height)
-                        .max(height),
-                )
-            } else {
-                return;
-            };
+                        .max(height);
 
-            button.set_position(x, y);
-        });
+                    (x_position, y_position)
+                } else {
+                    return;
+                };
+
+                button.set_position(x, y);
+            });
     }
 
     pub fn timeout(&self) -> Option<u64> {
@@ -479,6 +508,7 @@ impl Notification {
 
         let dismiss_button = self
             .buttons
+            .buttons()
             .iter()
             .find(|button| button.button_type == ButtonType::Dismiss);
 
@@ -512,6 +542,7 @@ impl Notification {
 
         let dismiss_button = self
             .buttons
+            .buttons()
             .iter()
             .find(|button| button.button_type == ButtonType::Dismiss)
             .map(|b| b.extents(self.hovered()).height + style.margin.top + style.margin.bottom)
@@ -519,6 +550,7 @@ impl Notification {
 
         let action_button = self
             .buttons
+            .buttons()
             .iter()
             .filter_map(|button| match button.button_type {
                 ButtonType::Action { .. } => {
@@ -635,11 +667,12 @@ impl Notification {
             ));
         }
 
-        let button_instances: Box<[buffers::Instance]> = self
-            .buttons
-            .iter()
-            .map(|button| button.get_instance(self.hovered(), scale, &self.urgency))
-            .collect();
+        let button_instances = self.buttons.instances(
+            &self.rendered_extents(),
+            self.hovered(),
+            &self.urgency,
+            scale,
+        );
 
         instances.extend_from_slice(&button_instances);
 
@@ -805,11 +838,12 @@ impl Notification {
             custom_glyphs: &[],
         }];
 
-        let button_areas: Box<[TextArea]> = self
-            .buttons
-            .iter()
-            .map(|button| button.text_area(self.urgency(), self.hovered(), scale))
-            .collect();
+        let button_areas = self.buttons.text_areas(
+            &self.rendered_extents(),
+            self.hovered(),
+            &self.urgency,
+            scale,
+        );
 
         res.extend_from_slice(&button_areas);
         res

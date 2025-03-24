@@ -180,7 +180,7 @@ mod tests {
         let notification = Notification {
             summary: "urgency test",
             body: "Urgency low",
-            actions: ["default", "OK"].into(),
+            actions: ["default", "OK", "test", "TEST"].into(),
             hints,
             ..Default::default()
         };

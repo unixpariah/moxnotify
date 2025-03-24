@@ -230,6 +230,7 @@ impl From<Insets> for [f32; 4] {
 }
 
 #[derive(Deserialize)]
+#[serde(default)]
 pub struct Font {
     pub size: f32,
     pub family: Box<str>,
@@ -255,6 +256,7 @@ pub enum Queue {
 }
 
 #[derive(Deserialize)]
+#[serde(default)]
 pub struct Icon {
     pub border: Border,
 }
@@ -280,7 +282,17 @@ pub enum Size {
     Value(f32),
 }
 
+impl Size {
+    pub fn resolve(&self, auto: f32) -> f32 {
+        match self {
+            Size::Auto => auto,
+            Size::Value(v) => *v,
+        }
+    }
+}
+
 #[derive(Deserialize)]
+#[serde(default)]
 pub struct Progress {
     pub height: f32,
     pub border: Border,
@@ -312,6 +324,7 @@ impl Default for Progress {
 }
 
 #[derive(Deserialize)]
+#[serde(default)]
 pub struct StyleState {
     pub background: Color,
     pub width: f32,
@@ -326,6 +339,15 @@ pub struct StyleState {
     pub app_icon: Icon,
     pub progress: Progress,
     pub buttons: Buttons,
+}
+
+impl StyleState {
+    fn default_hover() -> Self {
+        Self {
+            background: Color::rgba([47, 53, 73, 255]),
+            ..Default::default()
+        }
+    }
 }
 
 impl Default for StyleState {
@@ -353,8 +375,11 @@ impl Default for StyleState {
 }
 
 #[derive(Deserialize)]
+#[serde(default)]
 pub struct Styles {
+    #[serde(default)]
     pub default: StyleState,
+    #[serde(default = "StyleState::default_hover")]
     pub hover: StyleState,
 }
 
@@ -365,8 +390,6 @@ impl Default for Styles {
                 buttons: Buttons {
                     dismiss: Button {
                         default: ButtonState {
-                            width: Size::Value(20.),
-                            height: Size::Value(20.),
                             background: Color::rgba([0, 0, 0, 0]),
                             border: Border {
                                 size: Insets {
@@ -382,6 +405,7 @@ impl Default for Styles {
                                 color: Color::rgba([0, 0, 0, 0]),
                                 ..Default::default()
                             },
+                            ..Default::default()
                         },
                         ..Default::default()
                     },
@@ -389,14 +413,7 @@ impl Default for Styles {
                 },
                 ..Default::default()
             },
-            hover: StyleState {
-                background: Color::rgba([47, 53, 73, 255]),
-                progress: Progress::default(),
-                buttons: Buttons {
-                    ..Default::default()
-                },
-                ..Default::default()
-            },
+            hover: StyleState::default_hover(),
         }
     }
 }
