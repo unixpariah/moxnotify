@@ -294,7 +294,8 @@ impl Size {
 #[derive(Deserialize)]
 #[serde(default)]
 pub struct Progress {
-    pub height: f32,
+    pub height: Size,
+    pub width: Size,
     pub border: Border,
     pub incomplete_color: Color,
     pub complete_color: Color,
@@ -303,7 +304,8 @@ pub struct Progress {
 impl Default for Progress {
     fn default() -> Self {
         Self {
-            height: 20.,
+            height: Size::Value(20.),
+            width: Size::Auto,
             border: Border {
                 radius: BorderRadius {
                     top_left: 5.,

@@ -28,15 +28,39 @@ impl Button {
     fn default_action() -> Self {
         Self {
             default: ButtonState {
+                padding: Insets {
+                    left: 0.,
+                    right: 0.,
+                    top: 5.,
+                    bottom: 5.,
+                },
+                margin: Insets {
+                    left: 0.,
+                    right: 0.,
+                    top: 0.,
+                    bottom: 0.,
+                },
                 width: Size::Auto,
-                height: Size::Value(30.),
+                height: Size::Auto,
                 font: Font::default(),
                 background: Color::rgba([22, 22, 30, 0]),
                 border: Border::default(),
             },
             hover: ButtonState {
+                padding: Insets {
+                    left: 0.,
+                    right: 0.,
+                    top: 5.,
+                    bottom: 5.,
+                },
+                margin: Insets {
+                    left: 0.,
+                    right: 0.,
+                    top: 0.,
+                    bottom: 0.,
+                },
                 width: Size::Auto,
-                height: Size::Value(30.),
+                height: Size::Auto,
                 font: Font::default(),
                 background: Color::rgba([247, 118, 142, 255]),
                 border: Border::default(),
@@ -58,6 +82,8 @@ impl Default for Button {
 pub struct ButtonState {
     pub width: Size,
     pub height: Size,
+    pub padding: Insets,
+    pub margin: Insets,
     pub background: Color,
     pub border: Border,
     pub font: Font,
@@ -75,6 +101,18 @@ impl ButtonState {
 impl Default for ButtonState {
     fn default() -> Self {
         Self {
+            padding: Insets {
+                left: 0.,
+                right: 0.,
+                top: 0.,
+                bottom: 0.,
+            },
+            margin: Insets {
+                left: 0.,
+                right: 0.,
+                top: 0.,
+                bottom: 0.,
+            },
             width: Size::Value(20.),
             height: Size::Value(20.),
             background: Color::rgba([192, 202, 245, 255]),

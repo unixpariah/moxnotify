@@ -39,7 +39,7 @@ impl ButtonManager {
         y: f64,
     ) -> Option<ButtonType> {
         self.buttons.iter_mut().find_map(|button| {
-            let extents = button.extents(container_hovered);
+            let extents = button.rendered_extents(container_hovered);
             if x >= extents.x as f64
                 && y >= extents.y as f64
                 && x <= (extents.x + extents.width) as f64
@@ -56,49 +56,25 @@ impl ButtonManager {
 
     pub fn instances(
         &self,
-        container_extents: &Extents,
         container_hovered: bool,
         urgency: &Urgency,
         scale: f32,
     ) -> Vec<buffers::Instance> {
         self.buttons
             .iter()
-            .filter_map(|button| {
-                let extents = button.extents(container_hovered);
-                if container_extents.x <= extents.x
-                    && container_extents.y <= extents.y
-                    && container_extents.x + container_extents.width >= extents.x
-                    && container_extents.y + container_extents.height >= extents.y
-                {
-                    Some(button.instance(container_hovered, scale, urgency))
-                } else {
-                    None
-                }
-            })
+            .map(|button| button.instance(container_hovered, scale, urgency))
             .collect()
     }
 
     pub fn text_areas(
         &self,
-        container_extents: &Extents,
         container_hovered: bool,
         urgency: &Urgency,
         scale: f32,
     ) -> Vec<TextArea> {
         self.buttons
             .iter()
-            .filter_map(|button| {
-                let extents = button.extents(container_hovered);
-                if container_extents.x <= extents.x
-                    && container_extents.y <= extents.y
-                    && container_extents.x + container_extents.width >= extents.x
-                    && container_extents.y + container_extents.height >= extents.y
-                {
-                    Some(button.text_area(container_hovered, scale, urgency))
-                } else {
-                    None
-                }
-            })
+            .map(|button| button.text_area(container_hovered, scale, urgency))
             .collect()
     }
 }
@@ -143,39 +119,45 @@ impl Button {
     }
 
     pub fn extents(&self, container_hovered: bool) -> Extents {
-        let button = match self.button_type {
-            ButtonType::Action { .. } => &self.config.styles.default.buttons.action,
-            ButtonType::Dismiss => &self.config.styles.default.buttons.dismiss,
-        };
         let style = self.style(container_hovered);
 
         let text_extents = self.text.extents();
 
-        let width = match (&self.button_type, container_hovered) {
-            (ButtonType::Dismiss, true) => {
-                button.hover.width.resolve(text_extents.0)
-                    + style.border.size.left
-                    + style.border.size.right
-            }
-            (ButtonType::Dismiss, false) => {
-                button.default.width.resolve(text_extents.0)
-                    + style.border.size.left
-                    + style.border.size.right
-            }
-            (ButtonType::Action { .. }, true) => button.hover.width.resolve(self.width),
-            (ButtonType::Action { .. }, false) => button.default.width.resolve(self.width),
-        };
-        let height = match container_hovered {
-            true => button.hover.height.resolve(text_extents.1),
-            false => button.default.height.resolve(text_extents.1),
-        } + style.border.size.top
-            + style.border.size.bottom;
+        let width = match &self.button_type {
+            ButtonType::Dismiss => style.width.resolve(text_extents.0),
+            ButtonType::Action { .. } => style.width.resolve(self.width),
+        } + style.border.size.left
+            + style.border.size.right
+            + style.padding.left
+            + style.padding.right
+            + style.margin.left
+            + style.margin.right;
+
+        let height = style.height.resolve(text_extents.1)
+            + style.border.size.top
+            + style.border.size.bottom
+            + style.padding.top
+            + style.padding.bottom
+            + style.margin.top
+            + style.margin.bottom;
 
         Extents {
             x: self.x,
             y: self.y,
             width,
             height,
+        }
+    }
+
+    pub fn rendered_extents(&self, container_hovered: bool) -> Extents {
+        let extents = self.extents(container_hovered);
+        let style = self.style(container_hovered);
+
+        Extents {
+            x: extents.x + style.margin.left,
+            y: extents.y + style.margin.top,
+            width: extents.width - style.margin.left - style.margin.right,
+            height: extents.height - style.margin.top - style.margin.bottom,
         }
     }
 
@@ -200,7 +182,7 @@ impl Button {
         scale: f32,
         urgency: &Urgency,
     ) -> glyphon::TextArea {
-        let extents = self.extents(container_hovered);
+        let extents = self.rendered_extents(container_hovered);
         let style = self.style(container_hovered);
 
         let text_extents = self.text.extents();
@@ -231,7 +213,7 @@ impl Button {
         urgency: &Urgency,
     ) -> buffers::Instance {
         let style = self.style(container_hovered);
-        let extents = self.extents(container_hovered);
+        let extents = self.rendered_extents(container_hovered);
 
         match self.button_type {
             ButtonType::Dismiss => buffers::Instance {

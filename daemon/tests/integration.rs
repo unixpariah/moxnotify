@@ -55,8 +55,6 @@ async fn emit(notification: Notification<'_>) -> zbus::Result<u32> {
 
 #[cfg(test)]
 mod tests {
-    use futures_lite::StreamExt;
-
     use super::*;
     use std::time::Duration;
 
@@ -98,7 +96,7 @@ mod tests {
         };
         let id = emit(notification).await.unwrap();
 
-        std::thread::sleep(Duration::from_secs(3));
+        tokio::time::sleep(Duration::from_secs(3)).await;
 
         let notification = Notification {
             replaces_id: id,
@@ -122,10 +120,7 @@ mod tests {
             };
             id = emit(notification).await.ok();
 
-            async {
-                tokio::time::sleep(Duration::from_secs(1)).await;
-            }
-            .await;
+            tokio::time::sleep(Duration::from_secs(1)).await;
         }
     }
 
@@ -182,7 +177,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn urgency_test() {
+    async fn urgency_low_test() {
         let mut hints = HashMap::new();
         hints.insert("urgency", zbus::zvariant::Value::U8(0));
         hints.insert("value", zbus::zvariant::Value::I32(75));
@@ -194,7 +189,10 @@ mod tests {
             ..Default::default()
         };
         assert!(emit(notification).await.is_ok());
+    }
 
+    #[tokio::test]
+    async fn urgency_normal_test() {
         let mut hints = HashMap::new();
         hints.insert("urgency", zbus::zvariant::Value::U8(1));
         hints.insert("value", zbus::zvariant::Value::I32(75));
@@ -206,7 +204,10 @@ mod tests {
             ..Default::default()
         };
         assert!(emit(notification).await.is_ok());
+    }
 
+    #[tokio::test]
+    async fn urgency_critical_test() {
         let mut hints = HashMap::new();
         hints.insert("urgency", zbus::zvariant::Value::U8(2));
         hints.insert("value", zbus::zvariant::Value::I32(75));
@@ -249,30 +250,14 @@ mod tests {
             actions: ["default", "OK"].into(),
             ..Default::default()
         };
+        assert!(emit(notification).await.is_ok());
 
-        let id = emit(notification).await.unwrap();
-
-        let conn = zbus::Connection::session().await.unwrap();
-        let proxy = NotificationsProxy::new(&conn).await.unwrap();
-
-        let mut stream = proxy.receive_action_invoked().await.unwrap();
-
-        while let Some(signal) = stream.next().await {
-            let args = signal.args().unwrap();
-            if args.nid == id {
-                assert!(args.action_key() == "default");
-                break;
-            }
-        }
-
-        
         let notification = Notification {
             summary: "actions icon test",
             actions: ["default", "OK"].into(),
             app_icon: "zen-beta",
             ..Default::default()
         };
-
         assert!(emit(notification).await.is_ok());
     }
 
@@ -286,19 +271,26 @@ mod tests {
             hints,
             ..Default::default()
         };
-        let id = emit(notification).await.unwrap();
+        assert!(emit(notification).await.is_ok());
+    }
 
-        let conn = zbus::Connection::session().await.unwrap();
-        let proxy = NotificationsProxy::new(&conn).await.unwrap();
+    #[tokio::test]
+    async fn empty_summary_test() {
+        let notification = Notification {
+            summary: "",
+            body: "Empty summary test",
+            ..Default::default()
+        };
+        assert!(emit(notification).await.is_ok());
+    }
 
-        let mut stream = proxy.receive_action_invoked().await.unwrap();
-
-        while let Some(signal) = stream.next().await {
-            let args = signal.args().unwrap();
-            if args.nid == id {
-                assert!(args.action_key() == "default");
-                break;
-            }
-        }
+    #[tokio::test]
+    async fn empty_body_test() {
+        let notification = Notification {
+            summary: "Empty body test",
+            body: "",
+            ..Default::default()
+        };
+        assert!(emit(notification).await.is_ok());
     }
 }

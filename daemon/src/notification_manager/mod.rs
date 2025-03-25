@@ -59,9 +59,14 @@ impl NotificationManager {
             .fold(
                 (Vec::new(), Vec::new(), Vec::new()),
                 |(mut instances, mut text_areas, mut textures), (_, notification)| {
-                    let instance = notification.get_instance(scale);
+                    let instance = notification.instances(scale);
                     let text = notification.text_area(scale);
-                    let texture = notification.textures(self.height(), scale);
+                    let texture = notification.icons.textures(
+                        notification.style(),
+                        &self.config,
+                        self.height(),
+                        scale,
+                    );
 
                     textures.extend_from_slice(&texture);
                     instances.extend_from_slice(&instance);
@@ -171,19 +176,19 @@ impl NotificationManager {
 
             let style = new_notification.style();
 
-            let icon_extents = new_notification.icon_extents();
+            let icon_extents = new_notification.icons.extents(new_notification.style());
 
             let dismiss_button = new_notification
                 .buttons
                 .buttons()
                 .iter()
                 .find(|button| button.button_type == ButtonType::Dismiss)
-                .map(|b| b.extents(new_notification.hovered()).width)
+                .map(|b| b.rendered_extents(new_notification.hovered()).width)
                 .unwrap_or(0.0);
 
             new_notification.text.buffer.set_size(
                 &mut self.font_system,
-                Some(style.width - icon_extents.0 - dismiss_button),
+                Some(style.width - icon_extents.width - dismiss_button),
                 None,
             );
 
