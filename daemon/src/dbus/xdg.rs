@@ -1,9 +1,108 @@
-use crate::{image_data::ImageData, EmitEvent, Event, Hint, Image, Urgency};
-use std::{collections::HashMap, path::Path, sync::Arc};
+use crate::{image_data::ImageData, EmitEvent, Event, Image, Urgency};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use tokio::sync::broadcast;
 use zbus::{fdo::RequestNameFlags, object_server::SignalEmitter, zvariant::Str};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+pub struct NotificationHints {
+    pub action_icons: bool,
+    pub category: Option<String>,
+    pub value: Option<i32>,
+    pub desktop_entry: Option<String>,
+    pub resident: bool,
+    pub sound_file: Option<PathBuf>,
+    pub sound_name: Option<String>,
+    pub suppress_sound: bool,
+    pub transient: bool,
+    pub x: i32,
+    pub y: Option<i32>,
+    pub urgency: Urgency,
+    pub image: Option<Image>,
+}
+
+impl Default for NotificationHints {
+    fn default() -> Self {
+        Self {
+            action_icons: false,
+            category: None,
+            value: None,
+            desktop_entry: None,
+            resident: false,
+            sound_file: None,
+            sound_name: None,
+            suppress_sound: false,
+            transient: false,
+            x: 0,
+            y: None,
+            urgency: Urgency::Normal,
+            image: None,
+        }
+    }
+}
+
+impl NotificationHints {
+    fn new(hints: HashMap<&str, zbus::zvariant::Value<'_>>) -> Self {
+        hints
+            .into_iter()
+            .fold(NotificationHints::default(), |mut nh, (k, v)| {
+                match k {
+                    "action-icons" => nh.action_icons = bool::try_from(v).unwrap_or_default(),
+                    "category" => nh.category = Str::try_from(v).ok().map(|s| s.as_str().into()),
+                    "value" => nh.value = i32::try_from(v).ok(),
+                    "desktop-entry" => {
+                        nh.desktop_entry = Str::try_from(v).ok().map(|s| s.as_str().into())
+                    }
+                    "resident" => nh.resident = bool::try_from(v).unwrap_or_default(),
+                    "sound-file" => {
+                        nh.sound_file = Str::try_from(v).ok().map(|s| Path::new(s.as_str()).into())
+                    }
+                    "sound-name" => {
+                        nh.sound_name = Str::try_from(v).ok().map(|s| s.as_str().into())
+                    }
+                    "suppress-sound" => nh.suppress_sound = bool::try_from(v).unwrap_or_default(),
+                    "transient" => nh.transient = bool::try_from(v).unwrap_or_default(),
+                    "x" => nh.x = i32::try_from(v).unwrap_or_default(),
+                    "y" => nh.y = i32::try_from(v).ok(),
+                    "urgency" => {
+                        nh.urgency = match u8::try_from(v) {
+                            Ok(0) => Urgency::Low,
+                            Ok(1) => Urgency::Normal,
+                            Ok(2) => Urgency::Critical,
+                            _ => {
+                                log::error!("Invalid urgency data");
+                                Urgency::Normal
+                            }
+                        }
+                    }
+                    "image-path" | "image_path" => {
+                        if let Ok(s) = Str::try_from(v) {
+                            nh.image = if let Ok(path) = url::Url::parse(&s) {
+                                Some(Image::File(Path::new(path.as_str()).into()))
+                            } else {
+                                Some(Image::Name(s.as_str().into()))
+                            };
+                        }
+                    }
+                    "image-data" | "image_data" | "icon_data" => {
+                        if let zbus::zvariant::Value::Structure(v) = v {
+                            if let Ok(image) = ImageData::try_from(v) {
+                                nh.image = Some(Image::Data(image));
+                            } else {
+                                log::warn!("Invalid image data");
+                            }
+                        }
+                    }
+                    _ => log::warn!("Unknown hint: {k}"),
+                }
+                nh
+            })
+    }
+}
 
 #[derive(Default)]
 pub struct NotificationData {
@@ -14,7 +113,7 @@ pub struct NotificationData {
     pub body: Box<str>,
     pub timeout: i32,
     pub actions: Box<[(Arc<str>, Arc<str>)]>,
-    pub hints: Vec<Hint>,
+    pub hints: NotificationHints,
 }
 
 struct NotificationsImpl {
@@ -60,68 +159,6 @@ impl NotificationsImpl {
             false => replaces_id,
         };
 
-        let hints: Vec<_> = hints
-            .into_iter()
-            .filter_map(|(k, v)| match k {
-                "action-icons" => bool::try_from(v).map(Hint::ActionIcons).ok(),
-                "category" => Str::try_from(v)
-                    .map(|s| Hint::Category(s.as_str().into()))
-                    .ok(),
-                "value" => i32::try_from(v).map(Hint::Value).ok(),
-                "desktop-entry" => Str::try_from(v)
-                    .map(|s| Hint::DesktopEntry(s.as_str().into()))
-                    .ok(),
-                "resident" => bool::try_from(v).map(Hint::Resident).ok(),
-                "sound-file" => Str::try_from(v)
-                    .map(|s| Hint::SoundFile(Path::new(s.as_str()).into()))
-                    .ok(),
-                "sound-name" => Str::try_from(v)
-                    .map(|v| Hint::SoundName(v.as_str().into()))
-                    .ok(),
-                "suppress-sound" => bool::try_from(v).map(Hint::SuppressSound).ok(),
-                "transient" => bool::try_from(v).map(Hint::Transient).ok(),
-                "x" => i32::try_from(v).map(Hint::X).ok(),
-                "y" => i32::try_from(v).map(Hint::Y).ok(),
-                "urgency" => match u8::try_from(v) {
-                    Ok(0) => Some(Hint::Urgency(Urgency::Low)),
-                    Ok(1) => Some(Hint::Urgency(Urgency::Normal)),
-                    Ok(2) => Some(Hint::Urgency(Urgency::Critical)),
-                    Err(_) => {
-                        log::error!("Invalid urgency data");
-                        Some(Hint::Urgency(Urgency::Low))
-                    }
-                    _ => {
-                        log::warn!("Unkown urgency level");
-                        Some(Hint::Urgency(Urgency::Low))
-                    }
-                },
-                "image-path" | "image_path" => Str::try_from(v).ok().map(|s| {
-                    if let Ok(path) = url::Url::parse(&s) {
-                        Hint::Image(Image::File(Path::new(path.as_str()).into()))
-                    } else {
-                        Hint::Image(Image::Name(s.as_str().into()))
-                    }
-                }),
-                "image-data" | "image_data" | "icon_data" => match v {
-                    zbus::zvariant::Value::Structure(v) => match ImageData::try_from(v) {
-                        Ok(image) => Some(Hint::Image(Image::Data(image))),
-                        Err(err) => {
-                            log::warn!("Invalid image data: {err}");
-                            None
-                        }
-                    },
-                    _ => {
-                        log::warn!("Invalid value for hint: {k}");
-                        None
-                    }
-                },
-                _ => {
-                    log::warn!("Unknown hint: {k}");
-                    None
-                }
-            })
-            .collect();
-
         let app_icon: Option<Box<str>> = if app_icon.is_empty() {
             None
         } else {
@@ -138,7 +175,7 @@ impl NotificationsImpl {
                 .chunks_exact(2)
                 .map(|action| (action[0].into(), action[1].into()))
                 .collect(),
-            hints,
+            hints: NotificationHints::new(hints),
             app_icon,
         })) {
             log::error!("{e}");

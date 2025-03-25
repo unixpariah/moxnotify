@@ -262,11 +262,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn transient_test() {
+    async fn resident_test() {
         let mut hints = HashMap::new();
-        hints.insert("transient", zbus::zvariant::Value::Bool(true));
+        hints.insert("resident", zbus::zvariant::Value::Bool(true));
         let notification = Notification {
-            summary: "transient test",
+            summary: "resident test",
             actions: ["default", "OK"].into(),
             hints,
             ..Default::default()
@@ -289,6 +289,29 @@ mod tests {
         let notification = Notification {
             summary: "Empty body test",
             body: "",
+            ..Default::default()
+        };
+        assert!(emit(notification).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn x_test() {
+        let mut hints = HashMap::new();
+        hints.insert("x", zbus::zvariant::Value::I32(100));
+        let notification = Notification {
+            summary: "positive x",
+            body: "",
+            hints,
+            ..Default::default()
+        };
+        assert!(emit(notification).await.is_ok());
+
+        let mut hints = HashMap::new();
+        hints.insert("x", zbus::zvariant::Value::I32(-100));
+        let notification = Notification {
+            summary: "negative x",
+            body: "",
+            hints,
             ..Default::default()
         };
         assert!(emit(notification).await.is_ok());

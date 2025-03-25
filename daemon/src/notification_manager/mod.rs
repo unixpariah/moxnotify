@@ -156,10 +156,21 @@ impl NotificationManager {
     }
 
     pub fn width(&self) -> f32 {
-        self.notifications.first().map_or(0.0, |notification| {
-            let extents = notification.extents();
-            extents.x + extents.width
-        })
+        let (min_x, max_x) =
+            self.notifications
+                .iter()
+                .fold((f32::MAX, f32::MIN), |(min_x, max_x), notification| {
+                    let extents = notification.extents();
+                    let left = extents.x + notification.hints.x as f32;
+                    let right = extents.x + extents.width + notification.hints.x as f32;
+                    (min_x.min(left), max_x.max(right))
+                });
+
+        if min_x == f32::MAX || max_x == f32::MIN {
+            0.0
+        } else {
+            max_x - min_x
+        }
     }
 
     pub fn selected(&self) -> Option<NotificationId> {
@@ -232,7 +243,7 @@ impl NotificationManager {
                 .unwrap_or(0.),
             |acc, i| {
                 if let Some(notification) = self.notifications.get_mut(i) {
-                    notification.set_y(acc);
+                    notification.set_position(0., acc);
                     acc + notification.extents().height
                 } else {
                     acc
@@ -282,7 +293,7 @@ impl NotificationManager {
                 .unwrap_or(0.),
             |acc, i| {
                 if let Some(notification) = self.notifications.get_mut(i) {
-                    notification.set_y(acc);
+                    notification.set_position(0., acc);
                     acc + notification.extents().height
                 } else {
                     acc
@@ -322,7 +333,7 @@ impl NotificationManager {
 
         let mut notification =
             Notification::new(Arc::clone(&self.config), &mut self.font_system, data);
-        notification.set_y(y);
+        notification.set_position(0., y);
 
         match self.config.queue {
             Queue::Ordered => {
@@ -465,7 +476,7 @@ impl NotificationManager {
                 .unwrap_or(0.),
             |acc, i| {
                 if let Some(notification) = self.notifications.get_mut(i) {
-                    notification.set_y(acc);
+                    notification.set_position(0., acc);
                     acc + notification.extents().height
                 } else {
                     acc

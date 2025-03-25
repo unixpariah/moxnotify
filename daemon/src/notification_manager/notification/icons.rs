@@ -19,9 +19,9 @@ pub struct Icons {
 }
 
 impl Icons {
-    pub fn new(image: Option<Image>, app_icon: Option<Box<str>>, config: &Config) -> Self {
+    pub fn new(image: Option<&Image>, app_icon: Option<Box<str>>, config: &Config) -> Self {
         let icon = match image {
-            Some(Image::Data(image_data)) => Some(image_data.into_rgba(config.icon_size)),
+            Some(Image::Data(image_data)) => Some(image_data.clone().into_rgba(config.icon_size)),
             Some(Image::File(file)) => get_icon(&file, config.icon_size as u16),
             Some(Image::Name(name)) => find_icon(&name, config.icon_size as u16),
             _ => None,

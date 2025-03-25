@@ -6,7 +6,8 @@ use crate::{
     buffers,
     button::{Button, ButtonManager, ButtonType},
     config::{Size, StyleState},
-    text, Hint, NotificationData, Urgency,
+    dbus::xdg::NotificationHints,
+    text, NotificationData, Urgency,
 };
 use calloop::RegistrationToken;
 use glyphon::{FontSystem, TextArea, TextBounds};
@@ -33,11 +34,10 @@ pub struct Notification {
     hovered: bool,
     config: Arc<Config>,
     pub icons: Icons,
-    urgency: Urgency,
     progress: Option<Progress>,
-    pub transient: bool,
     pub registration_token: Option<RegistrationToken>,
     pub buttons: ButtonManager,
+    pub hints: NotificationHints,
 }
 
 impl PartialEq for Notification {
@@ -48,14 +48,11 @@ impl PartialEq for Notification {
 
 impl Notification {
     pub fn new(config: Arc<Config>, font_system: &mut FontSystem, data: NotificationData) -> Self {
-        let mut urgency = None;
-        let mut progress = None;
-        let mut transient = None;
-
         if data.app_name == "next_notification_count".into()
             || data.app_name == "prev_notification_count".into()
         {
             return Self {
+                hints: NotificationHints::default(),
                 id: 0,
                 y: 0.,
                 app_name: data.app_name,
@@ -69,30 +66,13 @@ impl Notification {
                     x: 0.,
                     y: 0.,
                 },
-                urgency: Urgency::default(),
                 progress: None,
                 registration_token: None,
                 buttons: ButtonManager::default(),
-                transient: false,
             };
         }
 
-        data.hints.iter().for_each(|hint| match hint {
-            Hint::Urgency(level) if urgency.is_none() => urgency = Some(*level),
-            Hint::Value(value) => progress = Some(Progress::new(*value)),
-            Hint::Transient(value) => transient = Some(*value),
-            _ => {}
-        });
-
-        let icon = data.hints.into_iter().find_map(|hint| {
-            if let Hint::Image(image) = hint {
-                Some(image)
-            } else {
-                None
-            }
-        });
-
-        let icons = Icons::new(icon, data.app_icon, &config);
+        let icons = Icons::new(data.hints.image.as_ref(), data.app_icon, &config);
 
         let style = &config.styles.default;
         let mut buttons = ButtonManager::default();
@@ -134,23 +114,22 @@ impl Notification {
             .and_then(|entry| entry.default_timeout.as_ref())
             .unwrap_or(&config.default_timeout);
 
-        let urgency = urgency.unwrap_or_default();
-
         let timeout = if ignore_timeout {
-            (default_timeout.get(&urgency) > 0)
-                .then(|| (default_timeout.get(&urgency) as u64) * 1000)
+            (default_timeout.get(&data.hints.urgency) > 0)
+                .then(|| (default_timeout.get(&data.hints.urgency) as u64) * 1000)
         } else {
             match data.timeout {
                 0 => None,
-                -1 => (default_timeout.get(&urgency) > 0)
-                    .then(|| (default_timeout.get(&urgency) as u64) * 1000),
+                -1 => (default_timeout.get(&data.hints.urgency) > 0)
+                    .then(|| (default_timeout.get(&data.hints.urgency) as u64) * 1000),
                 t if t > 0 => Some(t as u64),
                 _ => None,
             }
         };
 
         Self {
-            progress,
+            progress: data.hints.value.map(|v| Progress::new(v)),
+            hints: data.hints,
             y: 0.,
             icons,
             buttons,
@@ -160,13 +139,11 @@ impl Notification {
             timeout,
             config,
             hovered: false,
-            urgency,
-            transient: transient.unwrap_or_default(),
             registration_token: None,
         }
     }
 
-    pub fn set_y(&mut self, y: f32) {
+    pub fn set_position(&mut self, _: f32, y: f32) {
         self.y = y;
         self.update_text_position();
         let extents = self.rendered_extents();
@@ -373,7 +350,7 @@ impl Notification {
     }
 
     pub fn urgency(&self) -> &Urgency {
-        &self.urgency
+        &self.hints.urgency
     }
 
     pub fn hovered(&self) -> bool {
@@ -391,7 +368,7 @@ impl Notification {
 
     pub fn hover(&mut self) {
         self.hovered = true;
-        self.set_y(self.y);
+        self.set_position(0., self.y);
     }
 
     pub fn unhover(&mut self) {
@@ -432,7 +409,9 @@ impl Notification {
             ));
         }
 
-        let button_instances = self.buttons.instances(self.hovered(), &self.urgency, scale);
+        let button_instances = self
+            .buttons
+            .instances(self.hovered(), self.urgency(), scale);
 
         instances.extend_from_slice(&button_instances);
 
@@ -483,7 +462,7 @@ impl Notification {
         let style = self.style();
 
         Extents {
-            x: extents.x + style.margin.left,
+            x: extents.x + style.margin.left + self.hints.x as f32,
             y: extents.y + style.margin.top,
             width: extents.width - style.margin.left - style.margin.right,
             height: extents.height - style.margin.top - style.margin.bottom,
@@ -530,7 +509,7 @@ impl Notification {
 
         let button_areas = self
             .buttons
-            .text_areas(self.hovered(), &self.urgency, scale);
+            .text_areas(self.hovered(), self.urgency(), scale);
 
         res.extend_from_slice(&button_areas);
         res

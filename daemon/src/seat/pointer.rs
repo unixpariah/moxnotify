@@ -213,7 +213,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                                         .notifications
                                         .iter()
                                         .find(|notification| notification.id() == notification_id)
-                                        .map(|n| n.transient)
+                                        .map(|n| n.hints.resident)
                                         .unwrap_or_default()
                                     {
                                         state.notifications.dismiss(notification_id);

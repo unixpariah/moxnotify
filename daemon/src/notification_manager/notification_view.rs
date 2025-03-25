@@ -99,7 +99,7 @@ impl NotificationView {
             );
             if let Some(notification) = &mut self.next {
                 notification.set_text(&summary, "", &mut self.font_system);
-                notification.set_y(total_height - notification.extents().height);
+                notification.set_position(0., total_height - notification.extents().height);
             } else {
                 let mut next = Notification::new(
                     Arc::clone(&self.config),
@@ -110,7 +110,7 @@ impl NotificationView {
                         ..Default::default()
                     },
                 );
-                next.set_y(total_height);
+                next.set_position(0., total_height);
                 self.next = Some(next);
             }
         } else {
