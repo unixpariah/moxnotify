@@ -24,12 +24,13 @@ impl Progress {
     pub fn set_position(&mut self, container_extents: &Extents, style: &StyleState) {
         let extents = self.extents(container_extents, style);
 
-        self.x = (container_extents.x + container_extents.width
-            - style.padding.left
-            - style.padding.right
-            - style.border.size.left
-            - style.border.size.right)
-            / 2.
+        self.x = container_extents.x
+            + (container_extents.width
+                - style.padding.left
+                - style.padding.right
+                - style.border.size.left
+                - style.border.size.right)
+                / 2.
             - extents.width / 2.
             + style.padding.left
             + style.border.size.left;

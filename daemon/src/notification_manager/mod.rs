@@ -76,12 +76,21 @@ impl NotificationManager {
                 },
             );
 
-        if let Some((instance, text_area)) = self.notification_view.prev_data(scale) {
+        let total_width = self
+            .notifications
+            .iter()
+            .map(|notification| {
+                notification.rendered_extents().x + notification.rendered_extents().width
+            })
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap_or_default();
+
+        if let Some((instance, text_area)) = self.notification_view.prev_data(total_width, scale) {
             instances.push(instance);
             text_areas.push(text_area);
         }
 
-        if let Some((instance, text_area)) = self.notification_view.next_data(scale) {
+        if let Some((instance, text_area)) = self.notification_view.next_data(total_width, scale) {
             instances.push(instance);
             text_areas.push(text_area);
         }
@@ -243,7 +252,7 @@ impl NotificationManager {
                 .unwrap_or(0.),
             |acc, i| {
                 if let Some(notification) = self.notifications.get_mut(i) {
-                    notification.set_position(0., acc);
+                    notification.set_position(notification.x, acc);
                     acc + notification.extents().height
                 } else {
                     acc
@@ -293,7 +302,7 @@ impl NotificationManager {
                 .unwrap_or(0.),
             |acc, i| {
                 if let Some(notification) = self.notifications.get_mut(i) {
-                    notification.set_position(0., acc);
+                    notification.set_position(notification.x, acc);
                     acc + notification.extents().height
                 } else {
                     acc
@@ -397,6 +406,17 @@ impl NotificationManager {
                 .update_notification_count(self.height(), self.notifications.len());
         }
 
+        let x_offset = self
+            .notifications
+            .iter()
+            .map(|notification| notification.hints.x)
+            .min()
+            .unwrap_or_default()
+            .abs();
+        self.notifications
+            .iter_mut()
+            .for_each(|notification| notification.set_position(x_offset as f32, notification.y));
+
         Ok(())
     }
 
@@ -476,12 +496,23 @@ impl NotificationManager {
                 .unwrap_or(0.),
             |acc, i| {
                 if let Some(notification) = self.notifications.get_mut(i) {
-                    notification.set_position(0., acc);
+                    notification.set_position(notification.x, acc);
                     acc + notification.extents().height
                 } else {
                     acc
                 }
             },
         );
+
+        let x_offset = self
+            .notifications
+            .iter()
+            .map(|notification| notification.hints.x)
+            .min()
+            .unwrap_or_default()
+            .abs();
+        self.notifications
+            .iter_mut()
+            .for_each(|notification| notification.set_position(x_offset as f32, notification.y));
     }
 }

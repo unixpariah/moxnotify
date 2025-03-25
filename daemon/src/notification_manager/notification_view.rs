@@ -99,7 +99,8 @@ impl NotificationView {
             );
             if let Some(notification) = &mut self.next {
                 notification.set_text(&summary, "", &mut self.font_system);
-                notification.set_position(0., total_height - notification.extents().height);
+                notification
+                    .set_position(notification.x, total_height - notification.extents().height);
             } else {
                 let mut next = Notification::new(
                     Arc::clone(&self.config),
@@ -110,7 +111,7 @@ impl NotificationView {
                         ..Default::default()
                     },
                 );
-                next.set_position(0., total_height);
+                next.set_position(next.x, total_height);
                 self.next = Some(next);
             }
         } else {
@@ -118,14 +119,14 @@ impl NotificationView {
         }
     }
 
-    pub fn prev_data(&self, scale: f32) -> Option<(buffers::Instance, TextArea)> {
+    pub fn prev_data(&self, total_width: f32, scale: f32) -> Option<(buffers::Instance, TextArea)> {
         if let Some(prev) = self.prev.as_ref() {
             let extents = prev.rendered_extents();
             let style = &self.config.prev;
             let instance = buffers::Instance {
                 rect_pos: [extents.x, extents.y],
                 rect_size: [
-                    extents.width - style.border.size.left - style.border.size.right,
+                    total_width - style.border.size.left - style.border.size.right,
                     extents.height - style.border.size.top - style.border.size.bottom,
                 ],
                 rect_color: style.background.to_linear(&crate::Urgency::Low),
@@ -141,14 +142,14 @@ impl NotificationView {
         None
     }
 
-    pub fn next_data(&self, scale: f32) -> Option<(buffers::Instance, TextArea)> {
+    pub fn next_data(&self, total_width: f32, scale: f32) -> Option<(buffers::Instance, TextArea)> {
         if let Some(next) = self.next.as_ref() {
             let extents = next.rendered_extents();
             let style = &self.config.prev;
             let instance = buffers::Instance {
                 rect_pos: [extents.x, extents.y],
                 rect_size: [
-                    extents.width - style.border.size.left - style.border.size.right,
+                    total_width - style.border.size.left - style.border.size.right,
                     extents.height - style.border.size.top - style.border.size.bottom,
                 ],
                 rect_color: style.background.to_linear(&crate::Urgency::Low),

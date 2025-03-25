@@ -28,6 +28,7 @@ pub type NotificationId = u32;
 pub struct Notification {
     id: NotificationId,
     pub y: f32,
+    pub x: f32,
     app_name: Box<str>,
     pub text: text::Text,
     timeout: Option<u64>,
@@ -55,6 +56,7 @@ impl Notification {
                 hints: NotificationHints::default(),
                 id: 0,
                 y: 0.,
+                x: 0.,
                 app_name: data.app_name,
                 text: text::Text::new(&config.styles.default.font, font_system, ""),
                 timeout: None,
@@ -128,9 +130,10 @@ impl Notification {
         };
 
         Self {
-            progress: data.hints.value.map(|v| Progress::new(v)),
+            progress: data.hints.value.map(Progress::new),
             hints: data.hints,
             y: 0.,
+            x: 0.,
             icons,
             buttons,
             id: data.id,
@@ -143,8 +146,9 @@ impl Notification {
         }
     }
 
-    pub fn set_position(&mut self, _: f32, y: f32) {
+    pub fn set_position(&mut self, x: f32, y: f32) {
         self.y = y;
+        self.x = x;
         self.update_text_position();
         let extents = self.rendered_extents();
         let style = self.config.find_style(&self.app_name, self.hovered());
@@ -368,7 +372,7 @@ impl Notification {
 
     pub fn hover(&mut self) {
         self.hovered = true;
-        self.set_position(0., self.y);
+        self.set_position(self.x, self.y);
     }
 
     pub fn unhover(&mut self) {
@@ -462,7 +466,7 @@ impl Notification {
         let style = self.style();
 
         Extents {
-            x: extents.x + style.margin.left + self.hints.x as f32,
+            x: extents.x + style.margin.left + self.x + self.hints.x as f32,
             y: extents.y + style.margin.top,
             width: extents.width - style.margin.left - style.margin.right,
             height: extents.height - style.margin.top - style.margin.bottom,
