@@ -1,4 +1,4 @@
-use crate::{config::Font, notification_manager::notification::get_icon};
+use crate::{config::Font, notification_manager::notification::icons::get_icon};
 use glyphon::{
     Attrs, Buffer, Cache, Color, FontSystem, Shaping, Style, SwashCache, TextArea, TextAtlas,
     TextRenderer, Viewport, Weight,

@@ -1,16 +1,17 @@
+pub mod icons;
+mod progress;
+
 use super::config::Config;
 use crate::{
     buffers,
     button::{Button, ButtonManager, ButtonType},
-    config::{border::BorderRadius, Insets, Size, StyleState},
-    image_data::ImageData,
-    text,
-    texture_renderer::{TextureArea, TextureBounds},
-    Hint, Image, NotificationData, Urgency,
+    config::{Size, StyleState},
+    text, Hint, NotificationData, Urgency,
 };
 use calloop::RegistrationToken;
 use glyphon::{FontSystem, TextArea, TextBounds};
-use std::path::Path;
+use icons::Icons;
+use progress::Progress;
 use std::sync::Arc;
 
 #[derive(Debug, Default)]
@@ -19,179 +20,6 @@ pub struct Extents {
     pub y: f32,
     pub width: f32,
     pub height: f32,
-}
-
-#[derive(Clone, Copy)]
-pub struct Progress {
-    value: i32,
-    x: f32,
-    y: f32,
-}
-
-impl Progress {
-    fn new(value: i32) -> Self {
-        Self {
-            value,
-            x: 0.,
-            y: 0.,
-        }
-    }
-
-    pub fn set_position(&mut self, container_extents: &Extents, style: &StyleState) {
-        self.x = container_extents.x + style.border.size.left + style.padding.left;
-        self.y = container_extents.y + container_extents.height
-            - style.border.size.bottom
-            - style.padding.bottom
-            - style.progress.height.resolve(0.);
-    }
-
-    fn extents(&self, container_extents: &Extents, style: &StyleState) -> Extents {
-        let width = container_extents.width
-            - style.border.size.left
-            - style.border.size.right
-            - style.padding.left
-            - style.padding.right;
-
-        Extents {
-            x: self.x,
-            y: self.y,
-            width: style.progress.width.resolve(width),
-            height: style.progress.height.resolve(0.),
-        }
-    }
-
-    fn instances(
-        &self,
-        urgency: &Urgency,
-        notification_extents: &Extents,
-        style: &StyleState,
-        scale: f32,
-    ) -> Vec<buffers::Instance> {
-        let extents = self.extents(notification_extents, style);
-
-        let progress_ratio = (self.value as f32 / 100.0).min(1.0);
-
-        let mut instances = Vec::new();
-        let complete_width = (extents.width * progress_ratio).max(0.);
-
-        if complete_width > 0.0 {
-            let border_size = if self.value < 100 {
-                Insets {
-                    right: 0.,
-                    ..style.progress.border.size
-                }
-            } else {
-                style.progress.border.size
-            };
-
-            let border_radius = if self.value < 100 {
-                BorderRadius {
-                    top_right: 0.0,
-                    bottom_right: 0.0,
-                    ..style.progress.border.radius
-                }
-            } else {
-                style.progress.border.radius
-            };
-
-            instances.push(buffers::Instance {
-                rect_pos: [extents.x, extents.y],
-                rect_size: [complete_width, extents.height],
-                rect_color: style.progress.complete_color.to_linear(urgency),
-                border_radius: border_radius.into(),
-                border_size: border_size.into(),
-                border_color: style.progress.border.color.to_linear(urgency),
-                scale,
-            });
-        }
-
-        if self.value < 100 {
-            let incomplete_width = extents.width - complete_width;
-
-            if incomplete_width > 0.0 {
-                let border_size = if self.value > 0 {
-                    Insets {
-                        left: 0.,
-                        ..style.progress.border.size
-                    }
-                } else {
-                    style.progress.border.size
-                };
-
-                let border_radius = if self.value > 0 {
-                    BorderRadius {
-                        top_left: 0.0,
-                        bottom_left: 0.0,
-                        ..style.progress.border.radius
-                    }
-                } else {
-                    style.progress.border.radius
-                };
-
-                instances.push(buffers::Instance {
-                    rect_pos: [extents.x + complete_width, extents.y],
-                    rect_size: [incomplete_width, extents.height],
-                    rect_color: style.progress.incomplete_color.to_linear(urgency),
-                    border_radius: border_radius.into(),
-                    border_size: border_size.into(),
-                    border_color: style.progress.border.color.to_linear(urgency),
-                    scale,
-                });
-            }
-        }
-
-        instances
-    }
-}
-
-fn svg_to_rgba(file: &Path, max_icon_size: u32) -> Option<ImageData> {
-    let svg_data = std::fs::read_to_string(file).ok()?;
-
-    let mut options = usvg::Options::default();
-    options.fontdb_mut().load_system_fonts();
-
-    let tree = usvg::Tree::from_str(&svg_data, &options).ok()?;
-
-    let (width, height) = {
-        let size = tree.size();
-        let ratio = size.width() / size.height();
-        if size.width() > size.height() {
-            (max_icon_size, (max_icon_size as f32 / ratio) as u32)
-        } else {
-            ((max_icon_size as f32 * ratio) as u32, max_icon_size)
-        }
-    };
-
-    let mut pixmap = tiny_skia::Pixmap::new(width, height)?;
-    resvg::render(
-        &tree,
-        tiny_skia::Transform::identity(),
-        &mut pixmap.as_mut(),
-    );
-
-    let rgba_image = image::RgbaImage::from_raw(width, height, pixmap.data().to_vec())?;
-
-    ImageData::try_from(image::DynamicImage::ImageRgba8(rgba_image))
-        .ok()
-        .map(|d| d.into_rgba(max_icon_size))
-}
-
-fn find_icon(name: &str, icon_size: u16) -> Option<ImageData> {
-    let icon_path = freedesktop_icons::lookup(name)
-        .with_size(icon_size)
-        .find()?;
-
-    get_icon(&icon_path, icon_size)
-}
-
-pub fn get_icon(icon_path: &Path, icon_size: u16) -> Option<ImageData> {
-    if icon_path.extension().and_then(|s| s.to_str()) == Some("svg") {
-        svg_to_rgba(icon_path, icon_size as u32)
-    } else {
-        let image = image::open(icon_path).ok()?;
-        let image_data = ImageData::try_from(image);
-        image_data.ok().map(|i| i.into_rgba(icon_size as u32))
-    }
 }
 
 pub type NotificationId = u32;
@@ -215,158 +43,6 @@ pub struct Notification {
 impl PartialEq for Notification {
     fn eq(&self, other: &Self) -> bool {
         self.id() == other.id()
-    }
-}
-
-#[derive(Default)]
-pub struct Icons {
-    icon: Option<ImageData>,
-    app_icon: Option<ImageData>,
-    x: f32,
-    y: f32,
-}
-
-impl Icons {
-    fn new(image: Option<Image>, app_icon: Option<Box<str>>, config: &Config) -> Self {
-        let icon = match image {
-            Some(Image::Data(image_data)) => Some(image_data.into_rgba(config.icon_size)),
-            Some(Image::File(file)) => get_icon(&file, config.icon_size as u16),
-            Some(Image::Name(name)) => find_icon(&name, config.icon_size as u16),
-            _ => None,
-        };
-
-        let app_icon = app_icon
-            .as_ref()
-            .and_then(|icon| find_icon(icon, config.icon_size as u16));
-
-        let (final_app_icon, final_icon) = match icon.is_some() {
-            true => (app_icon, icon),
-            false => (None, app_icon),
-        };
-
-        Self {
-            icon: final_icon,
-            app_icon: final_app_icon,
-            x: 0.,
-            y: 0.,
-        }
-    }
-
-    fn set_position(
-        &mut self,
-        container_extents: &Extents,
-        style: &StyleState,
-        progress: &Option<Progress>,
-        buttons: &ButtonManager,
-        container_hovered: bool,
-    ) {
-        let icon_size = 64.0;
-
-        let available_height = container_extents.height
-            - style.border.size.top
-            - style.border.size.bottom
-            - style.padding.top
-            - style.padding.bottom
-            - progress
-                .as_ref()
-                .map(|p| p.extents(container_extents, style).height)
-                .unwrap_or_default()
-            - buttons
-                .buttons()
-                .iter()
-                .filter_map(|button| {
-                    if matches!(button.button_type, ButtonType::Action { .. }) {
-                        Some(button.extents(container_hovered).height)
-                    } else {
-                        None
-                    }
-                })
-                .max_by(|a, b| a.partial_cmp(b).unwrap())
-                .unwrap_or_default();
-
-        let vertical_offset = (available_height - icon_size) / 2.0;
-
-        self.x = container_extents.x + style.border.size.left + style.padding.left;
-        self.y = container_extents.y + style.border.size.top + style.padding.top + vertical_offset;
-    }
-
-    pub fn extents(&self, style: &StyleState) -> Extents {
-        let (width, height) = self
-            .icon
-            .as_ref()
-            .map(|i| (i.width as f32 + style.padding.right, i.height as f32))
-            .unwrap_or((0., 0.));
-
-        Extents {
-            x: self.x,
-            y: self.y,
-            width,
-            height,
-        }
-    }
-
-    pub fn textures(
-        &self,
-        style: &StyleState,
-        config: &Config,
-        total_height: f32,
-        scale: f32,
-    ) -> Vec<TextureArea> {
-        let mut texture_areas = Vec::new();
-
-        let width = config.icon_size as f32;
-        let height = config.icon_size as f32;
-
-        let mut icon_extents = self.extents(style);
-
-        if let Some(icon) = self.icon.as_ref() {
-            let icon_size = config.icon_size as f32;
-            let image_y = icon_extents.y + (height - icon_size) / 2.0;
-
-            texture_areas.push(TextureArea {
-                left: icon_extents.x,
-                top: total_height - image_y - icon_size,
-                width: icon_size,
-                height: icon_size,
-                scale,
-                border_size: style.icon.border.size.into(),
-                bounds: TextureBounds {
-                    left: icon_extents.x as u32,
-                    top: (total_height - icon_extents.y - height) as u32,
-                    right: (icon_extents.x + width) as u32,
-                    bottom: (total_height - icon_extents.y) as u32,
-                },
-                data: &icon.data,
-                radius: style.icon.border.radius.into(),
-            });
-
-            icon_extents.x += (icon.height - config.app_icon_size) as f32;
-            icon_extents.y += (icon.height as f32 / 2.) - config.app_icon_size as f32 / 2.;
-        }
-
-        if let Some(app_icon) = self.app_icon.as_ref() {
-            let app_icon_size = config.app_icon_size as f32;
-            let image_y = icon_extents.y + (height - app_icon_size) / 2.0;
-
-            texture_areas.push(TextureArea {
-                left: icon_extents.x,
-                top: total_height - image_y - app_icon_size,
-                width: app_icon_size,
-                height: app_icon_size,
-                scale,
-                border_size: style.icon.border.size.into(),
-                bounds: TextureBounds {
-                    left: icon_extents.x as u32,
-                    top: (total_height - icon_extents.y - height) as u32,
-                    right: (icon_extents.x + width) as u32,
-                    bottom: (total_height - icon_extents.y) as u32,
-                },
-                data: &app_icon.data,
-                radius: style.app_icon.border.radius.into(),
-            });
-        }
-
-        texture_areas
     }
 }
 
@@ -552,13 +228,16 @@ impl Notification {
             .filter(|b| matches!(b.button_type, ButtonType::Action { .. }))
             .enumerate()
             .for_each(|(i, button)| {
+                let button_style = button.style(hovered);
+
                 let available_width = extents.width
                     - style.border.size.left
                     - style.border.size.right
                     - style.padding.left
-                    - style.padding.right;
+                    - style.padding.right
+                    - button_style.margin.left
+                    - button_style.margin.right;
 
-                let button_style = button.style(hovered);
                 let spacing_between = button_style.margin.left + button_style.margin.right;
 
                 let total_spacing = (actions_count - 1.) * spacing_between;
@@ -575,7 +254,7 @@ impl Notification {
                         - style.padding.bottom
                         - self
                             .progress
-                            .map(|p| p.extents(&extents, style).height + style.padding.top)
+                            .map(|p| p.extents(&extents, style).height)
                             .unwrap_or_default()
                         - button.extents(hovered).height)
                         .max(height);
@@ -655,7 +334,9 @@ impl Notification {
             .unwrap_or_default();
 
         let progress = if self.progress.is_some() {
-            style.progress.height.resolve(0.) + style.padding.top + style.padding.bottom
+            style.progress.height.resolve(0.)
+                + style.progress.margin.top
+                + style.progress.margin.bottom
         } else {
             0.0
         };

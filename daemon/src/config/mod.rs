@@ -294,6 +294,7 @@ impl Size {
 #[derive(Deserialize)]
 #[serde(default)]
 pub struct Progress {
+    pub margin: Insets,
     pub height: Size,
     pub width: Size,
     pub border: Border,
@@ -304,6 +305,12 @@ pub struct Progress {
 impl Default for Progress {
     fn default() -> Self {
         Self {
+            margin: Insets {
+                left: 0.,
+                right: 0.,
+                top: 10.,
+                bottom: 0.,
+            },
             height: Size::Value(20.),
             width: Size::Auto,
             border: Border {

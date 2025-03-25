@@ -35,8 +35,8 @@ impl Button {
                     bottom: 5.,
                 },
                 margin: Insets {
-                    left: 0.,
-                    right: 0.,
+                    left: 5.,
+                    right: 5.,
                     top: 0.,
                     bottom: 0.,
                 },
@@ -54,8 +54,8 @@ impl Button {
                     bottom: 5.,
                 },
                 margin: Insets {
-                    left: 0.,
-                    right: 0.,
+                    left: 5.,
+                    right: 5.,
                     top: 0.,
                     bottom: 0.,
                 },
