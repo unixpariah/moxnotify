@@ -175,7 +175,7 @@ impl Surface {
     ) -> (zwlr_layer_surface_v1::ZwlrLayerSurfaceV1, f32) {
         let output = outputs
             .iter()
-            .find(|output| output.name.as_ref() == Some(&config.output));
+            .find(|output| output.name.as_ref() == config.output.as_ref());
 
         let layer_surface = layer_shell.get_layer_surface(
             wl_surface,

@@ -97,14 +97,17 @@ pub struct Config {
     pub anchor: Anchor,
     pub layer: Layer,
     pub queue: Queue,
-    pub output: Box<str>,
+    pub output: Option<Box<str>>,
     pub default_timeout: Timeout,
     pub ignore_timeout: bool,
+
     pub styles: Styles,
     pub notification: Vec<NotificationStyleEntry>,
     pub keymaps: Keymaps,
     pub prev: NotificationCounter,
     pub next: NotificationCounter,
+
+    pub new_styles: NewStyles,
 }
 
 impl Default for Config {
@@ -117,17 +120,104 @@ impl Default for Config {
             anchor: Anchor::default(),
             layer: Layer::default(),
             queue: Queue::default(),
-            output: "".into(),
+            output: None,
             default_timeout: Timeout::default(),
             ignore_timeout: false,
-            styles: Styles::default(),
-            notification: Vec::new(),
             keymaps: Keymaps::default(),
+
+            notification: Vec::new(),
+            styles: Styles::default(),
             prev: NotificationCounter::default(),
             next: NotificationCounter::default(),
+
+            new_styles: NewStyles::default(),
         }
     }
 }
+
+// START of reimplementation of styles
+#[derive(Deserialize, Default)]
+pub struct NewStyles(Vec<Style>);
+
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum State {
+    #[default]
+    Default,
+    Hover,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Selector {
+    All,
+    Category(Box<str>),
+    Notification(Box<str>),
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Component {
+    ActionButton,
+    DismissButton,
+    Icon,
+    Progress,
+}
+
+#[derive(Deserialize)]
+pub struct Style {
+    pub selector: Selector,
+    pub component: Option<Component>,
+    #[serde(default)]
+    pub state: State,
+    pub style: PartialStyle,
+}
+
+#[derive(Deserialize, Default)]
+pub struct PartialStyle {
+    pub background: Option<Color>,
+    pub min_width: Option<Size>,
+    pub width: Option<Size>,
+    pub max_width: Option<Size>,
+    pub min_height: Option<Size>,
+    pub height: Option<Size>,
+    pub max_height: Option<Size>,
+    pub font: Option<PartialFont>,
+    pub border: Option<PartialBorder>,
+    pub margin: Option<PartialInsets>,
+    pub padding: Option<PartialInsets>,
+}
+
+#[derive(Deserialize)]
+pub struct PartialFont {
+    pub size: Option<f32>,
+    pub family: Option<Box<str>>,
+    pub color: Option<Color>,
+}
+
+#[derive(Default, Clone, Copy, Deserialize)]
+pub struct PartialInsets {
+    pub left: Option<f32>,
+    pub right: Option<f32>,
+    pub top: Option<f32>,
+    pub bottom: Option<f32>,
+}
+
+#[derive(Deserialize)]
+pub struct PartialBorder {
+    pub size: Option<PartialInsets>,
+    pub radius: Option<PartialBorderRadius>,
+    pub color: Option<Color>,
+}
+
+#[derive(Deserialize, Default, Clone, Copy)]
+pub struct PartialBorderRadius {
+    pub top_left: Option<f32>,
+    pub top_right: Option<f32>,
+    pub bottom_left: Option<f32>,
+    pub bottom_right: Option<f32>,
+}
+// END
 
 #[derive(Default, Clone, Copy)]
 pub struct Insets {
@@ -704,6 +794,7 @@ pub struct NotificationStyleEntry {
 }
 
 #[derive(Deserialize)]
+#[serde(default)]
 pub struct NotificationCounter {
     pub format: Box<str>,
     pub border: Border,
@@ -804,98 +895,15 @@ impl Config {
         let lua = Lua::new();
 
         let lua_result = lua
-            .load(format!(
-                r#"
-                local function deep_merge(base, override)
-                    local function is_array(t)
-                        if type(t) ~= 'table' then
-                            return false
-                        end
-                        local i = 0
-                        for _ in pairs(t) do
-                            i = i + 1
-                            if t[i] == nil then
-                                return false
-                            end
-                        end
-                        return true
-                    end
-
-                    local merged = {{}}
-                    for k, v in pairs(base) do
-                        if type(v) == 'table' and not is_array(v) then
-                            merged[k] = deep_merge(v, {{}})
-                        else
-                            merged[k] = v
-                        end
-                    end
-                    for k, v in pairs(override) do
-                        if type(v) == 'table' and not is_array(v) and type(merged[k]) == 'table' and not is_array(merged[k]) then
-                            merged[k] = deep_merge(merged[k], v)
-                        else
-                            merged[k] = v
-                        end
-                    end
-                    return merged
-                end
-
-                local user_config = (function()
-                    local config = {{}}
-                    local env = {{
-                        config = config,
-                    }}
-                    local user_return = (function()
-                        local _ENV = env
-                        {lua_code}
-                    end)()
-
-                    if type(user_return) == 'table' then
-                        for k, v in pairs(user_return) do
-                            config[k] = v
-                        end
-                    end
-                    return config
-                end)()
-
-                if user_config.styles then
-                    user_config.styles.default = user_config.styles.default or {{}}
-
-                    user_config.styles.hover = deep_merge(
-                        user_config.styles.default,
-                        user_config.styles.hover or {{}}
-                    )
-                end
-
-                if user_config.notification then
-                    for _, entry in ipairs(user_config.notification) do
-                        local styles = entry.styles or {{}}
-
-                        styles.hover = deep_merge(
-                            deep_merge(
-                                user_config.styles.hover or {{}},
-                                styles.default or {{}}
-                            ),
-                            styles.hover or {{}}
-                        )
-                        
-                        styles.default = deep_merge(
-                            user_config.styles.default or {{}},
-                            styles.default or {{}}
-                        )
-                        
-                    end
-                end
-
-                return user_config
-                "#,
-                lua_code = lua_code
-            ))
+            .load(lua_code)
             .eval()
             .map_err(|e| anyhow::anyhow!("Lua evaluation error: {}", e))?;
 
-        let config: Config = lua
+        let mut config: Config = lua
             .from_value(lua_result)
             .map_err(|e| anyhow::anyhow!("Config deserialization error: {}", e))?;
+        config.styles = Styles::default();
+        println!("{}", config.new_styles.0.len());
 
         Ok(config)
     }
