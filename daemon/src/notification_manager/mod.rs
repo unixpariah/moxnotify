@@ -327,76 +327,51 @@ impl NotificationManager {
 
     pub fn add(&mut self, data: NotificationData) -> anyhow::Result<()> {
         let id = data.id;
-        let mut existing_index = None;
-        let y = if let Some(index) = self
-            .notifications
-            .iter()
-            .position(|notification| notification.id() == id)
-        {
-            let notification = self.notifications.remove(index);
-            existing_index = Some(index);
-            notification.extents().y
-        } else {
-            self.height()
-        };
+
+        let (y, existing_index) =
+            if let Some(index) = self.notifications.iter().position(|n| n.id() == id) {
+                let old_notification = self.notifications.remove(index);
+                (old_notification.extents().y, Some(index))
+            } else {
+                (self.height(), None)
+            };
 
         let mut notification =
             Notification::new(Arc::clone(&self.config), &mut self.font_system, data);
-        notification.set_position(0., y);
+        notification.set_position(0.0, y);
 
-        match self.config.queue {
-            Queue::Ordered => {
-                if self.notifications.is_empty() {
-                    if let Some(timeout) = notification.timeout() {
-                        let timer = Timer::from_duration(Duration::from_millis(timeout));
+        if let Some(timeout) = notification.timeout() {
+            let should_set_timer = match self.config.queue {
+                Queue::Ordered => self.notifications.is_empty(),
+                Queue::Unordered => true,
+            };
 
-                        notification.registration_token = self
-                            .loop_handle
-                            .insert_source(timer, move |_, _, moxnotify| {
-                                moxnotify.notifications.dismiss(id);
-                                moxnotify.update_surface_size();
-                                if let Some(surface) = moxnotify.surface.as_mut() {
-                                    _ = surface.render(
-                                        &moxnotify.wgpu_state.device,
-                                        &moxnotify.wgpu_state.queue,
-                                        &moxnotify.notifications,
-                                    );
-                                }
-                                TimeoutAction::Drop
-                            })
-                            .ok();
-                    }
-                }
-            }
-            Queue::Unordered => {
-                if let Some(timeout) = notification.timeout() {
-                    let timer = Timer::from_duration(Duration::from_millis(timeout));
-                    notification.registration_token = self
-                        .loop_handle
-                        .insert_source(timer, move |_, _, moxnotify| {
-                            moxnotify.notifications.dismiss(id);
-                            moxnotify.update_surface_size();
-                            if let Some(surface) = moxnotify.surface.as_mut() {
-                                _ = surface.render(
-                                    &moxnotify.wgpu_state.device,
-                                    &moxnotify.wgpu_state.queue,
-                                    &moxnotify.notifications,
-                                );
-                            }
-                            TimeoutAction::Drop
-                        })
-                        .ok();
-                }
+            if should_set_timer {
+                let timer = Timer::from_duration(Duration::from_millis(timeout));
+                notification.registration_token = self
+                    .loop_handle
+                    .insert_source(timer, move |_, _, moxnotify| {
+                        moxnotify.notifications.dismiss(id);
+                        moxnotify.update_surface_size();
+                        if let Some(surface) = moxnotify.surface.as_mut() {
+                            let _ = surface.render(
+                                &moxnotify.wgpu_state.device,
+                                &moxnotify.wgpu_state.queue,
+                                &moxnotify.notifications,
+                            );
+                        }
+                        TimeoutAction::Drop
+                    })
+                    .ok();
             }
         }
 
-        if let Some(index) = existing_index {
-            self.notifications.insert(index, notification);
-        } else {
-            self.notifications.push(notification);
+        match existing_index {
+            Some(index) => self.notifications.insert(index, notification),
+            None => self.notifications.push(notification),
         }
 
-        // If replacing notification select it
+        // Maintain selection if replacing
         if self.selected() == Some(id) {
             self.select(id);
         }
@@ -409,13 +384,14 @@ impl NotificationManager {
         let x_offset = self
             .notifications
             .iter()
-            .map(|notification| notification.hints.x)
+            .map(|n| n.hints.x)
             .min()
             .unwrap_or_default()
-            .abs();
+            .abs() as f32;
+
         self.notifications
             .iter_mut()
-            .for_each(|notification| notification.set_position(x_offset as f32, notification.y));
+            .for_each(|n| n.set_position(x_offset, n.y));
 
         Ok(())
     }

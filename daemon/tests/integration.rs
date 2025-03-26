@@ -277,7 +277,6 @@ mod tests {
     #[tokio::test]
     async fn empty_summary_test() {
         let notification = Notification {
-            summary: "",
             body: "Empty summary test",
             ..Default::default()
         };
@@ -288,7 +287,6 @@ mod tests {
     async fn empty_body_test() {
         let notification = Notification {
             summary: "Empty body test",
-            body: "",
             ..Default::default()
         };
         assert!(emit(notification).await.is_ok());
@@ -299,8 +297,8 @@ mod tests {
         let mut hints = HashMap::new();
         hints.insert("x", zbus::zvariant::Value::I32(100));
         let notification = Notification {
-            summary: "positive x",
-            body: "",
+            summary: "x test",
+            body: "positive value",
             hints,
             ..Default::default()
         };
@@ -309,8 +307,21 @@ mod tests {
         let mut hints = HashMap::new();
         hints.insert("x", zbus::zvariant::Value::I32(-100));
         let notification = Notification {
-            summary: "negative x",
-            body: "",
+            summary: "x test",
+            body: "negative value",
+            hints,
+            ..Default::default()
+        };
+        assert!(emit(notification).await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn y_test() {
+        let mut hints = HashMap::new();
+        hints.insert("y", zbus::zvariant::Value::I32(0));
+        let notification = Notification {
+            summary: "y test",
+            body: "y == 0",
             hints,
             ..Default::default()
         };

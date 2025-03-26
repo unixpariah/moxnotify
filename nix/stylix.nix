@@ -11,6 +11,15 @@ in
 
   config = lib.mkIf (config.stylix.enable && config.stylix.targets.moxnotify.enable) {
     services.moxnotify.settings = {
+      prev = {
+        background = base01 + moxnotifyOpacity;
+        border.color = base0E;
+      };
+      next = {
+        background = base01 + moxnotifyOpacity;
+        border.color = base0E;
+      };
+
       styles = {
         default = {
           progress = {
@@ -27,12 +36,6 @@ in
           };
 
           buttons = {
-            dismiss = {
-              hover = {
-                background = base08;
-                border.color = base08;
-              };
-            };
             action = {
               default = {
                 background = base01;
