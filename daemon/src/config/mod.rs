@@ -1,91 +1,15 @@
 pub mod border;
 pub mod button;
 pub mod color;
+pub mod keymaps;
 
 use border::{Border, BorderRadius};
 use button::{Button, ButtonState, Buttons};
 use color::Color;
+use keymaps::Keymaps;
 use mlua::{Lua, LuaSerdeExt};
 use serde::{Deserialize, Deserializer};
-use std::{collections::HashMap, fmt, fs, ops::Deref, path::PathBuf, str::FromStr};
-use xkbcommon::xkb::Keysym;
-
-#[derive(Deserialize, Debug)]
-#[serde(default)]
-pub struct Keymaps(
-    #[serde(deserialize_with = "deserialize_keycombination_map")]
-    HashMap<KeyCombination, KeyAction>,
-);
-
-impl Keymaps {
-    pub fn matches(&self, sequence: &[Key]) -> bool {
-        self.0.keys().any(|kc| kc.keys.starts_with(sequence))
-    }
-}
-
-impl Default for Keymaps {
-    fn default() -> Self {
-        let mut keymaps: HashMap<KeyCombination, KeyAction> = HashMap::new();
-
-        let mut insert_default =
-            |keys: Vec<Key>, modifiers: Modifiers, default_action: KeyAction| {
-                let key_combination = KeyCombination { modifiers, keys };
-
-                if !keymaps.values().any(|action| *action == default_action) {
-                    keymaps.insert(key_combination, default_action);
-                }
-            };
-
-        insert_default(
-            vec![Key::Character('j')],
-            Modifiers::default(),
-            KeyAction::NextNotification,
-        );
-        insert_default(
-            vec![Key::Character('k')],
-            Modifiers::default(),
-            KeyAction::PreviousNotification,
-        );
-        insert_default(
-            vec![Key::Character('x')],
-            Modifiers::default(),
-            KeyAction::DismissNotification,
-        );
-        insert_default(
-            vec![Key::Character('d'), Key::Character('d')],
-            Modifiers::default(),
-            KeyAction::DismissNotification,
-        );
-        insert_default(
-            vec![Key::Character('g')],
-            Modifiers {
-                shift: true,
-                ..Default::default()
-            },
-            KeyAction::LastNotification,
-        );
-        insert_default(
-            vec![Key::Character('g'), Key::Character('g')],
-            Modifiers::default(),
-            KeyAction::FirstNotification,
-        );
-        insert_default(
-            vec![Key::SpecialKey(SpecialKeyCode::Escape)],
-            Modifiers::default(),
-            KeyAction::Unfocus,
-        );
-
-        Self(keymaps)
-    }
-}
-
-impl Deref for Keymaps {
-    type Target = HashMap<KeyCombination, KeyAction>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+use std::{fmt, fs, path::PathBuf};
 
 #[derive(Deserialize)]
 #[serde(default)]
@@ -106,8 +30,6 @@ pub struct Config {
     pub keymaps: Keymaps,
     pub prev: NotificationCounter,
     pub next: NotificationCounter,
-
-    pub new_styles: NewStyles,
 }
 
 impl Default for Config {
@@ -129,15 +51,9 @@ impl Default for Config {
             styles: Styles::default(),
             prev: NotificationCounter::default(),
             next: NotificationCounter::default(),
-
-            new_styles: NewStyles::default(),
         }
     }
 }
-
-// START of reimplementation of styles
-#[derive(Deserialize, Default)]
-pub struct NewStyles(Vec<Style>);
 
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -147,12 +63,44 @@ pub enum State {
     Hover,
 }
 
-#[derive(Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub enum Selector {
     All,
+    AllNotifications,
     Category(Box<str>),
     Notification(Box<str>),
+    Button,
+}
+
+impl<'de> Deserialize<'de> for Selector {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            "all" => Ok(Selector::All),
+            "notification" => Ok(Selector::AllNotifications),
+            "button" => Ok(Selector::Button),
+            _ => {
+                if let Some(category) = s.strip_prefix("category:") {
+                    Ok(Selector::Category(category.into()))
+                } else if let Some(notification) = s.strip_prefix("notification:") {
+                    Ok(Selector::Notification(notification.into()))
+                } else {
+                    Err(serde::de::Error::unknown_variant(
+                        &s,
+                        &[
+                            "all",
+                            "notification",
+                            "button",
+                            "category:...",
+                            "notification:...",
+                        ],
+                    ))
+                }
+            }
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -217,7 +165,6 @@ pub struct PartialBorderRadius {
     pub bottom_left: Option<f32>,
     pub bottom_right: Option<f32>,
 }
-// END
 
 #[derive(Default, Clone, Copy)]
 pub struct Insets {
@@ -234,6 +181,21 @@ impl Insets {
             right: value,
             top: value,
             bottom: value,
+        }
+    }
+
+    fn apply(&mut self, partial: &PartialInsets) {
+        if let Some(left) = partial.left {
+            self.left = left;
+        }
+        if let Some(right) = partial.right {
+            self.right = right;
+        }
+        if let Some(top) = partial.top {
+            self.top = top;
+        }
+        if let Some(bottom) = partial.bottom {
+            self.bottom = bottom;
         }
     }
 }
@@ -327,6 +289,20 @@ pub struct Font {
     pub color: Color,
 }
 
+impl Font {
+    fn apply(&mut self, partial: &PartialFont) {
+        if let Some(size) = partial.size {
+            self.size = size;
+        }
+        if let Some(family) = partial.family.clone() {
+            self.family = family;
+        }
+        if let Some(color) = partial.color {
+            self.color = color;
+        }
+    }
+}
+
 impl Default for Font {
     fn default() -> Self {
         Self {
@@ -363,7 +339,7 @@ impl Default for Icon {
     }
 }
 
-#[derive(Deserialize, Default, Debug)]
+#[derive(Deserialize, Default, Debug, Clone, Copy)]
 pub enum Size {
     #[default]
     #[serde(rename = "auto")]
@@ -426,7 +402,7 @@ impl Default for Progress {
 #[serde(default)]
 pub struct StyleState {
     pub background: Color,
-    pub width: f32,
+    pub width: Size,
     pub min_height: Size,
     pub max_height: Size,
     pub height: Size,
@@ -447,6 +423,36 @@ impl StyleState {
             ..Default::default()
         }
     }
+
+    pub fn apply(&mut self, partial: &PartialStyle) {
+        if let Some(background) = partial.background {
+            self.background = background;
+        }
+        if let Some(width) = partial.width {
+            self.width = width;
+        }
+        if let Some(min_height) = partial.min_height {
+            self.min_height = min_height;
+        }
+        if let Some(max_height) = partial.max_height {
+            self.max_height = max_height;
+        }
+        if let Some(height) = partial.height {
+            self.height = height;
+        }
+        if let Some(partial_font) = partial.font.as_ref() {
+            self.font.apply(partial_font);
+        }
+        if let Some(partial_border) = partial.border.as_ref() {
+            self.border.apply(partial_border);
+        }
+        if let Some(partial_margin) = partial.margin.as_ref() {
+            self.margin.apply(partial_margin);
+        }
+        if let Some(partial_padding) = partial.padding.as_ref() {
+            self.padding.apply(partial_padding);
+        }
+    }
 }
 
 impl Default for StyleState {
@@ -457,7 +463,7 @@ impl Default for StyleState {
                 urgency_normal: [22, 22, 30, 255],
                 urgency_critical: [22, 22, 30, 255],
             },
-            width: 300.,
+            width: Size::Value(300.),
             min_height: Size::Auto,
             max_height: Size::Auto,
             height: Size::Auto,
@@ -473,13 +479,69 @@ impl Default for StyleState {
     }
 }
 
-#[derive(Deserialize)]
-#[serde(default)]
 pub struct Styles {
-    #[serde(default)]
     pub default: StyleState,
-    #[serde(default = "StyleState::default_hover")]
     pub hover: StyleState,
+}
+
+impl<'de> Deserialize<'de> for Styles {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct TempStyles(Vec<Style>);
+
+        impl TempStyles {
+            fn priority(style: &Style) -> u8 {
+                match (&style.selector, &style.state) {
+                    (Selector::All, State::Default) => 0,
+                    (Selector::All, State::Hover) => 1,
+                    (Selector::AllNotifications, State::Default) => 2,
+                    (Selector::AllNotifications, State::Hover) => 3,
+                    (Selector::Category(_), State::Default) => 4,
+                    (Selector::Category(_), State::Hover) => 5,
+                    (Selector::Notification(_), State::Default) => 6,
+                    (Selector::Notification(_), State::Hover) => 7,
+                    (Selector::Button, State::Default) => 8,
+                    (Selector::Button, State::Hover) => 9,
+                }
+            }
+
+            fn sort(mut self) -> Self {
+                self.0.sort_by_key(Self::priority);
+                self
+            }
+        }
+
+        let temp_styles = TempStyles::deserialize(deserializer)?.sort();
+        let mut styles = Styles::default();
+
+        temp_styles.0.iter().for_each(|style| {
+            match (&style.selector, &style.state) {
+                (Selector::All, State::Default) => {
+                    styles.default.apply(&style.style);
+                    styles.hover.apply(&style.style);
+                }
+                (Selector::All, State::Hover) => {
+                    styles.hover.apply(&style.style);
+                }
+                (Selector::AllNotifications, State::Default) => {
+                    styles.default.apply(&style.style);
+                    styles.hover.apply(&style.style);
+                }
+                (Selector::AllNotifications, State::Hover) => {
+                    styles.hover.apply(&style.style);
+                }
+                (Selector::Category(_) | Selector::Notification(_), State::Default) => {} // TODO
+                (Selector::Category(_) | Selector::Notification(_), State::Hover) => {}   // TODO
+                (Selector::Button, State::Default) => {}
+                (Selector::Button, State::Hover) => {}
+            }
+        });
+
+        Ok(styles)
+    }
 }
 
 impl Default for Styles {
@@ -515,122 +577,6 @@ impl Default for Styles {
             hover: StyleState::default_hover(),
         }
     }
-}
-
-#[derive(Deserialize, PartialEq, Eq, Hash, Debug, Default)]
-pub struct KeyCombination {
-    pub keys: Vec<Key>,
-    pub modifiers: Modifiers,
-}
-
-impl KeyCombination {
-    pub fn clear(&mut self) {
-        self.keys.clear();
-        self.modifiers = Modifiers::default();
-    }
-}
-
-impl FromStr for KeyCombination {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut parts = s.split('+');
-        let mut modifiers = Modifiers::default();
-        let key_str = parts.next_back().ok_or("Invalid key combination")?;
-
-        parts.try_for_each(|part| {
-            match part.to_lowercase().as_str() {
-                "ctrl" => modifiers.control = true,
-                "shift" => modifiers.shift = true,
-                "alt" => modifiers.alt = true,
-                "meta" => modifiers.meta = true,
-                _ => return Err(format!("Invalid modifier: {}", part)),
-            }
-
-            Ok(())
-        })?;
-
-        let keys: Vec<Key> = match key_str.to_lowercase().as_str() {
-            "enter" => vec![Key::SpecialKey(SpecialKeyCode::Enter)],
-            "backspace" => vec![Key::SpecialKey(SpecialKeyCode::Backspace)],
-            "tab" => vec![Key::SpecialKey(SpecialKeyCode::Tab)],
-            "space" => vec![Key::SpecialKey(SpecialKeyCode::Space)],
-            "escape" => vec![Key::SpecialKey(SpecialKeyCode::Escape)],
-            _ => key_str.chars().map(Key::Character).collect(),
-        };
-
-        Ok(KeyCombination { modifiers, keys })
-    }
-}
-
-#[derive(Deserialize, PartialEq, Eq, Hash, Debug, Clone, Copy)]
-pub enum Key {
-    Character(char),
-    SpecialKey(SpecialKeyCode),
-}
-
-impl Key {
-    pub fn from_keycode(
-        xkb_state: &xkbcommon::xkb::State,
-        keycode: xkbcommon::xkb::Keycode,
-    ) -> Self {
-        let key_name = xkb_state.key_get_one_sym(keycode);
-
-        match key_name {
-            Keysym::Return => Key::SpecialKey(SpecialKeyCode::Enter),
-            Keysym::BackSpace => Key::SpecialKey(SpecialKeyCode::Backspace),
-            Keysym::Tab => Key::SpecialKey(SpecialKeyCode::Tab),
-            Keysym::Escape => Key::SpecialKey(SpecialKeyCode::Escape),
-            _ => {
-                let key_sym = xkb_state.key_get_one_sym(keycode);
-                if u32::from(key_sym) == xkbcommon::xkb::keysyms::KEY_NoSymbol {
-                    return Key::default();
-                }
-                let key_char_code = xkb_state.key_get_utf32(keycode);
-                if let Some(character) = char::from_u32(key_char_code) {
-                    Key::Character(character.to_ascii_lowercase())
-                } else {
-                    Key::default()
-                }
-            }
-        }
-    }
-}
-
-impl Default for Key {
-    fn default() -> Self {
-        Key::Character('\0')
-    }
-}
-
-#[derive(Deserialize, PartialEq, Eq, Hash, Debug, Clone, Copy)]
-pub enum SpecialKeyCode {
-    Enter,
-    Backspace,
-    Tab,
-    Space,
-    Escape,
-}
-
-#[derive(Deserialize, Debug, PartialEq)]
-#[serde(tag = "action")]
-#[serde(rename_all = "snake_case")]
-pub enum KeyAction {
-    NextNotification,
-    PreviousNotification,
-    DismissNotification,
-    FirstNotification,
-    LastNotification,
-    Unfocus,
-    Noop,
-}
-
-#[derive(Deserialize, PartialEq, Eq, Hash, Debug, Default, Clone)]
-pub struct Modifiers {
-    pub control: bool,
-    pub shift: bool,
-    pub alt: bool,
-    pub meta: bool,
 }
 
 #[derive(Deserialize, Default)]
@@ -815,74 +761,6 @@ impl Default for NotificationCounter {
     }
 }
 
-fn deserialize_keycombination_map<'de, D>(
-    deserializer: D,
-) -> Result<HashMap<KeyCombination, KeyAction>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let map: HashMap<String, KeyAction> = HashMap::deserialize(deserializer)?;
-    let mut keymaps: HashMap<KeyCombination, KeyAction> = HashMap::new();
-    for (key_str, action) in map {
-        let key_combination =
-            deserialize_keycombination_inner(&key_str).map_err(serde::de::Error::custom)?;
-        keymaps.insert(key_combination, action);
-    }
-
-    let mut insert_default = |keys: Vec<Key>, modifiers: Modifiers, default_action: KeyAction| {
-        let key_combination = KeyCombination { modifiers, keys };
-
-        if !keymaps.values().any(|action| *action == default_action) {
-            keymaps.insert(key_combination, default_action);
-        }
-    };
-
-    insert_default(
-        vec![Key::Character('j')],
-        Modifiers::default(),
-        KeyAction::NextNotification,
-    );
-    insert_default(
-        vec![Key::Character('k')],
-        Modifiers::default(),
-        KeyAction::PreviousNotification,
-    );
-    insert_default(
-        vec![Key::Character('x')],
-        Modifiers::default(),
-        KeyAction::DismissNotification,
-    );
-    insert_default(
-        vec![Key::Character('d'), Key::Character('d')],
-        Modifiers::default(),
-        KeyAction::DismissNotification,
-    );
-    insert_default(
-        vec![Key::Character('g')],
-        Modifiers {
-            shift: true,
-            ..Default::default()
-        },
-        KeyAction::LastNotification,
-    );
-    insert_default(
-        vec![Key::Character('g'), Key::Character('g')],
-        Modifiers::default(),
-        KeyAction::FirstNotification,
-    );
-    insert_default(
-        vec![Key::SpecialKey(SpecialKeyCode::Escape)],
-        Modifiers::default(),
-        KeyAction::Unfocus,
-    );
-
-    Ok(keymaps)
-}
-
-fn deserialize_keycombination_inner(value: &str) -> Result<KeyCombination, String> {
-    KeyCombination::from_str(value)
-}
-
 impl Config {
     pub fn load(path: Option<PathBuf>) -> anyhow::Result<Self> {
         let config_path = if let Some(path) = path {
@@ -899,13 +777,8 @@ impl Config {
             .eval()
             .map_err(|e| anyhow::anyhow!("Lua evaluation error: {}", e))?;
 
-        let mut config: Config = lua
-            .from_value(lua_result)
-            .map_err(|e| anyhow::anyhow!("Config deserialization error: {}", e))?;
-        config.styles = Styles::default();
-        println!("{}", config.new_styles.0.len());
-
-        Ok(config)
+        lua.from_value(lua_result)
+            .map_err(|e| anyhow::anyhow!("Config deserialization error: {}", e))
     }
 
     pub fn find_style(&self, app_name: &str, hovered: bool) -> &StyleState {

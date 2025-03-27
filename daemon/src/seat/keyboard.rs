@@ -1,5 +1,5 @@
 use crate::{
-    config::{Key, KeyAction, KeyCombination, Modifiers},
+    config::keymaps::{Key, KeyAction, KeyCombination, Modifiers},
     Moxnotify,
 };
 use calloop::{
@@ -71,18 +71,17 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
                         format.into(),
                         0,
                     )
-                };
+                }
+                .ok()
+                .flatten();
 
                 match keymap_result {
-                    Ok(Some(keymap)) => {
+                    Some(keymap) => {
                         let xkb_state = State::new(&keymap);
                         state.seat.keyboard.xkb.state = Some(xkb_state);
                     }
-                    Ok(None) => {
+                    None => {
                         log::error!("Keymap data was unexpectedly empty.");
-                    }
-                    Err(err) => {
-                        log::error!("Failed to create keymap: {}", err);
                     }
                 }
             }
@@ -99,8 +98,6 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
                     state.seat.keyboard.key_combination.modifiers = Modifiers {
                         control: xkb_state
                             .mod_name_is_active("Control", xkbcommon::xkb::STATE_MODS_EFFECTIVE),
-                        shift: xkb_state
-                            .mod_name_is_active("Shift", xkbcommon::xkb::STATE_MODS_EFFECTIVE),
                         alt: xkb_state
                             .mod_name_is_active("Mod1", xkbcommon::xkb::STATE_MODS_EFFECTIVE),
                         meta: xkb_state
@@ -122,10 +119,10 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
                     wl_keyboard::KeyState::Released => {
                         state.seat.keyboard.repeat.key = None;
                         if let Some(xkb_state) = state.seat.keyboard.xkb.state.as_ref() {
-                            if Some(&vec![Key::from_keycode(xkb_state, keycode.into())])
-                                != Some(&state.seat.keyboard.key_combination.keys)
-                            {
-                                return;
+                            if let Some(key) = Key::from_keycode(xkb_state, keycode.into()) {
+                                if vec![key] != state.seat.keyboard.key_combination.keys {
+                                    return;
+                                }
                             }
                         }
 
@@ -136,8 +133,10 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
                     wl_keyboard::KeyState::Pressed => {
                         if let Some(xkb_state) = state.seat.keyboard.xkb.state.as_ref() {
                             let key = Key::from_keycode(xkb_state, keycode.into());
-                            state.seat.keyboard.repeat.key = Some(key);
-                            state.seat.keyboard.key_combination.keys.push(key);
+                            state.seat.keyboard.repeat.key = key;
+                            if let Some(key) = key {
+                                state.seat.keyboard.key_combination.keys.push(key);
+                            }
 
                             if xkb_state.get_keymap().key_repeats(keycode.into()) {
                                 if let Some(token) =

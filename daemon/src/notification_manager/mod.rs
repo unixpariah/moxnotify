@@ -208,7 +208,7 @@ impl NotificationManager {
 
             new_notification.text.buffer.set_size(
                 &mut self.font_system,
-                Some(style.width - icon_extents.width - dismiss_button),
+                Some(style.width.resolve(0.) - icon_extents.width - dismiss_button),
                 None,
             );
 

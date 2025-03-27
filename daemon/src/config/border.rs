@@ -1,4 +1,4 @@
-use super::{color::Color, Insets};
+use super::{color::Color, Insets, PartialBorder};
 use serde::{Deserialize, Deserializer};
 use std::fmt;
 
@@ -7,6 +7,14 @@ pub struct Border {
     pub size: Insets,
     pub radius: BorderRadius,
     pub color: Color,
+}
+
+impl Border {
+    pub fn apply(&mut self, partial: &PartialBorder) {
+        if let Some(size) = partial.size.as_ref() {
+            self.size.apply(size);
+        }
+    }
 }
 
 impl Default for Border {

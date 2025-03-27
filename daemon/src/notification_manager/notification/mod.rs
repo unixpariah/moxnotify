@@ -98,7 +98,9 @@ impl Notification {
             font_system,
             &data.summary,
             &data.body,
-            config.styles.default.width - icon_width - dismiss_button.rendered_extents(false).width,
+            config.styles.default.width.resolve(0.)
+                - icon_width
+                - dismiss_button.rendered_extents(false).width,
         );
 
         buttons.add(dismiss_button);
@@ -266,7 +268,7 @@ impl Notification {
         Extents {
             x: style.padding.left + style.border.size.left + style.margin.left + icon_extents.width,
             y: style.margin.top + style.border.size.top,
-            width: style.width
+            width: style.width.resolve(0.)
                 - icon_extents.width
                 - dismiss_button
                     .map(|b| b.extents(self.hovered()).width)
@@ -348,8 +350,8 @@ impl Notification {
 
     pub fn width(&self) -> f32 {
         match self.hovered() {
-            true => self.config.styles.hover.width,
-            false => self.config.styles.default.width,
+            true => self.config.styles.hover.width.resolve(0.),
+            false => self.config.styles.default.width.resolve(0.),
         }
     }
 
