@@ -1,4 +1,8 @@
-use super::{color::Color, Insets, PartialBorder};
+use super::{
+    color::Color,
+    partial::{PartialBorder, PartialBorderRadius},
+    Insets,
+};
 use serde::{Deserialize, Deserializer};
 use std::fmt;
 
@@ -11,6 +15,12 @@ pub struct Border {
 
 impl Border {
     pub fn apply(&mut self, partial: &PartialBorder) {
+        if let Some(color) = partial.color.as_ref() {
+            self.color.apply(color);
+        }
+        if let Some(radius) = partial.radius.as_ref() {
+            self.radius.apply(radius);
+        }
         if let Some(size) = partial.size.as_ref() {
             self.size.apply(size);
         }
@@ -44,6 +54,22 @@ pub struct BorderRadius {
     pub bottom_right: f32,
 }
 
+impl BorderRadius {
+    pub fn apply(&mut self, partial: &PartialBorderRadius) {
+        if let Some(top_left) = partial.top_left {
+            self.top_left = top_left;
+        }
+        if let Some(top_right) = partial.top_right {
+            self.top_right = top_right;
+        }
+        if let Some(bottom_left) = partial.bottom_left {
+            self.bottom_left = bottom_left;
+        }
+        if let Some(bottom_right) = partial.bottom_right {
+            self.bottom_right = bottom_right;
+        }
+    }
+}
 impl<'de> Deserialize<'de> for BorderRadius {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where

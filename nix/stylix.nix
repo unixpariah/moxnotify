@@ -11,16 +11,51 @@ in
 
   config = lib.mkIf (config.stylix.enable && config.stylix.targets.moxnotify.enable) {
     services.moxnotify.settings = {
-      #prev = {
-      #background = base01 + moxnotifyOpacity;
-      #border.color = base0E;
-      #};
-      #next = {
-      #background = base01 + moxnotifyOpacity;
-      #border.color = base0E;
-      #};
-
       styles = [
+        {
+          selector = "next_counter";
+          style = {
+            background = {
+              urgency_low = base00 + moxnotifyOpacity;
+              urgency_normal = base01 + moxnotifyOpacity;
+              urgency_critical = base01 + moxnotifyOpacity;
+            };
+
+            font = {
+              family = sansSerif.name;
+              size = sizes.popups;
+              color = base05;
+            };
+
+            border.color = {
+              urgency_low = base0B;
+              urgency_normal = base0E;
+              urgency_critical = base08;
+            };
+          };
+        }
+        {
+          selector = "prev_counter";
+          style = {
+            background = {
+              urgency_low = base00 + moxnotifyOpacity;
+              urgency_normal = base01 + moxnotifyOpacity;
+              urgency_critical = base01 + moxnotifyOpacity;
+            };
+
+            font = {
+              family = sansSerif.name;
+              size = sizes.popups;
+              color = base05;
+            };
+
+            border.color = {
+              urgency_low = base0B;
+              urgency_normal = base0E;
+              urgency_critical = base08;
+            };
+          };
+        }
         {
           selector = "notification";
           style = {
@@ -52,84 +87,35 @@ in
             urgency_critical = base02 + moxnotifyOpacity;
           };
         }
+        {
+          selector = "action";
+          style.border.color = {
+            urgency_low = base0B;
+            urgency_normal = base0E;
+            urgency_critical = base08;
+          };
+        }
+        {
+          selector = "action";
+          state = "hover";
+          style.background = base0F;
+        }
+        {
+          selector = "progress";
+          style = {
+            background = {
+              urgency_low = base0F;
+              urgency_normal = base0F;
+              urgency_critical = base08;
+            };
+            border.color = {
+              urgency_low = base0B;
+              urgency_normal = base0E;
+              urgency_critical = base08;
+            };
+          };
+        }
       ];
-
-      #styles = {
-      #default = {
-      #progress = {
-      #complete_color = {
-      #urgency_low = base0F;
-      #urgency_normal = base0F;
-      #urgency_critical = base08;
-      #};
-      #border.color = {
-      #urgency_low = base0B;
-      #urgency_normal = base0E;
-      #urgency_critical = base08;
-      #};
-      #};
-
-      #buttons = {
-      #action = {
-      #default = {
-      #background = base01;
-      #font.color = base05;
-      #border.color = {
-      #urgency_low = base0B;
-      #urgency_normal = base0E;
-      #urgency_critical = base08;
-      #};
-      #};
-      #hover = {
-      #background = base0F;
-      #font.color = base05;
-      #};
-      #};
-      #};
-
-      #background = {
-      #urgency_low = base00 + moxnotifyOpacity;
-      #urgency_normal = base01 + moxnotifyOpacity;
-      #urgency_critical = base01 + moxnotifyOpacity;
-      #};
-
-      #icon.border.color = {
-      #urgency_low = base0B;
-      #urgency_normal = base0E;
-      #urgency_critical = base08;
-      #};
-
-      #font = {
-      #family = sansSerif.name;
-      #size = sizes.popups;
-      #color = base05;
-      #};
-
-      #border.color = {
-      #urgency_low = base0B;
-      #urgency_normal = base0E;
-      #urgency_critical = base08;
-      #};
-      #};
-      #hover = {
-      #background = {
-      #urgency_low = base02 + moxnotifyOpacity;
-      #urgency_normal = base02 + moxnotifyOpacity;
-      #urgency_critical = base02 + moxnotifyOpacity;
-      #};
-
-      #buttons.dismiss = {
-      #default = {
-      #background = base08 + "aa";
-      #border.color = base08 + "aa";
-      #};
-      #hover = {
-      #background = base08;
-      #border.color = base08;
-      #};
-      #};
-      #};
-      #};
     };
   };
 }

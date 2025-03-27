@@ -59,6 +59,7 @@ impl NotificationView {
         if self.visible.start > 0 {
             let summary = self
                 .config
+                .styles
                 .next
                 .format
                 .replace("{}", &self.visible.start.to_string());
@@ -91,7 +92,7 @@ impl NotificationView {
         };
 
         if notification_count > self.visible.end {
-            let summary = self.config.prev.format.replace(
+            let summary = self.config.styles.prev.format.replace(
                 "{}",
                 &notification_count
                     .saturating_sub(self.visible.end)
@@ -122,7 +123,7 @@ impl NotificationView {
     pub fn prev_data(&self, total_width: f32, scale: f32) -> Option<(buffers::Instance, TextArea)> {
         if let Some(prev) = self.prev.as_ref() {
             let extents = prev.rendered_extents();
-            let style = &self.config.prev;
+            let style = &self.config.styles.prev;
             let instance = buffers::Instance {
                 rect_pos: [extents.x, extents.y],
                 rect_size: [
@@ -145,7 +146,7 @@ impl NotificationView {
     pub fn next_data(&self, total_width: f32, scale: f32) -> Option<(buffers::Instance, TextArea)> {
         if let Some(next) = self.next.as_ref() {
             let extents = next.rendered_extents();
-            let style = &self.config.prev;
+            let style = &self.config.styles.prev;
             let instance = buffers::Instance {
                 rect_pos: [extents.x, extents.y],
                 rect_size: [

@@ -1,3 +1,4 @@
+use super::partial::PartialColor;
 use crate::Urgency;
 use serde::{
     de::{self, MapAccess, Visitor},
@@ -10,6 +11,20 @@ pub struct Color {
     pub urgency_low: [u8; 4],
     pub urgency_normal: [u8; 4],
     pub urgency_critical: [u8; 4],
+}
+
+impl Color {
+    pub fn apply(&mut self, partial: &PartialColor) {
+        if let Some(urgency_low) = partial.urgency_low {
+            self.urgency_low = urgency_low;
+        }
+        if let Some(urgency_normal) = partial.urgency_normal {
+            self.urgency_normal = urgency_normal;
+        }
+        if let Some(urgency_critical) = partial.urgency_critical {
+            self.urgency_critical = urgency_critical;
+        }
+    }
 }
 
 impl<'de> Deserialize<'de> for Color {
@@ -143,7 +158,7 @@ impl FromStr for Color {
     }
 }
 
-fn parse_hex(hex: &str) -> Result<[u8; 4], String> {
+pub fn parse_hex(hex: &str) -> Result<[u8; 4], String> {
     if !hex.starts_with('#') {
         return Err("Hex string must start with '#'".to_string());
     }

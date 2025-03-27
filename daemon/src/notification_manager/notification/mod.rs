@@ -106,6 +106,7 @@ impl Notification {
         buttons.add(dismiss_button);
 
         let notification_style_entry = config
+            .styles
             .notification
             .iter()
             .find(|entry| entry.app == data.app_name);
@@ -450,6 +451,7 @@ impl Notification {
     pub fn style(&self) -> &StyleState {
         let styles = self
             .config
+            .styles
             .notification
             .iter()
             .find(|n| n.app == self.app_name)
