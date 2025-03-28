@@ -9,7 +9,7 @@ use button::{Button, ButtonState, Buttons};
 use color::Color;
 use keymaps::Keymaps;
 use mlua::{Lua, LuaSerdeExt};
-use partial::{PartialFont, PartialIcon, PartialInsets, PartialStyle};
+use partial::{PartialFont, PartialInsets, PartialStyle};
 use serde::{Deserialize, Deserializer};
 use std::{fmt, fs, path::PathBuf};
 
@@ -26,7 +26,6 @@ pub struct Config {
     pub output: Option<Box<str>>,
     pub default_timeout: Timeout,
     pub ignore_timeout: bool,
-
     pub styles: Styles,
     pub keymaps: Keymaps,
 }
@@ -51,6 +50,15 @@ impl Default for Config {
     }
 }
 
+#[derive(Deserialize)]
+pub struct Style {
+    pub selector: Selector,
+    pub component: Option<Selector>,
+    #[serde(default)]
+    pub state: State,
+    pub style: PartialStyle,
+}
+
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum State {
@@ -60,6 +68,7 @@ pub enum State {
 }
 
 pub enum Selector {
+    All,
     PrevCounter,
     NextCounter,
     AllNotifications,
@@ -77,6 +86,7 @@ impl<'de> Deserialize<'de> for Selector {
     {
         let s = String::deserialize(deserializer)?;
         match s.as_str() {
+            "*" => Ok(Selector::All),
             "prev_counter" => Ok(Selector::PrevCounter),
             "next_counter" => Ok(Selector::NextCounter),
             "notification" => Ok(Selector::AllNotifications),
@@ -90,30 +100,20 @@ impl<'de> Deserialize<'de> for Selector {
                 } else {
                     Err(serde::de::Error::unknown_variant(
                         &s,
-                        &["notification", "notification:...", "action", "dismiss"],
+                        &[
+                            "*",
+                            "prev_counter",
+                            "next_counter",
+                            "notification",
+                            "notification:...",
+                            "action",
+                            "dismiss",
+                        ],
                     ))
                 }
             }
         }
     }
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Component {
-    Notification,
-    ActionButton,
-    DismissButton,
-    Icon,
-    Progress,
-}
-
-#[derive(Deserialize)]
-pub struct Style {
-    pub selector: Selector,
-    #[serde(default)]
-    pub state: State,
-    pub style: PartialStyle,
 }
 
 #[derive(Default, Clone, Copy)]
@@ -278,7 +278,7 @@ pub struct Icon {
 }
 
 impl Icon {
-    pub fn apply(&mut self, partial: &PartialIcon) {
+    pub fn apply(&mut self, partial: &PartialStyle) {
         if let Some(border) = partial.border.as_ref() {
             self.border.apply(border);
         }
@@ -326,6 +326,26 @@ pub struct Progress {
     pub complete_color: Color,
 }
 
+impl Progress {
+    pub fn apply(&mut self, partial: &PartialStyle) {
+        if let Some(background) = partial.background.as_ref() {
+            self.complete_color.apply(background);
+        }
+        if let Some(margin) = partial.margin.as_ref() {
+            self.margin.apply(margin);
+        }
+        if let Some(height) = partial.height.as_ref() {
+            self.height = *height;
+        }
+        if let Some(width) = partial.width.as_ref() {
+            self.width = *width;
+        }
+        if let Some(border) = partial.border.as_ref() {
+            self.border.apply(border);
+        }
+    }
+}
+
 impl Default for Progress {
     fn default() -> Self {
         Self {
@@ -357,7 +377,6 @@ impl Default for Progress {
 }
 
 #[derive(Deserialize)]
-#[serde(default)]
 pub struct StyleState {
     pub background: Color,
     pub width: Size,
@@ -456,18 +475,19 @@ impl<'de> Deserialize<'de> for Styles {
         impl TempStyles {
             fn priority(style: &Style) -> u8 {
                 match (&style.selector, &style.state) {
-                    (Selector::AllNotifications, State::Default) => 0,
-                    (Selector::AllNotifications, State::Hover) => 1,
+                    (Selector::All, _) => 0,
+                    (Selector::AllNotifications, State::Default) => 1,
                     (Selector::Notification(_), State::Default) => 2,
-                    (Selector::Notification(_), State::Hover) => 3,
-                    (Selector::ActionButton, State::Default) => 4,
-                    (Selector::ActionButton, State::Hover) => 5,
-                    (Selector::DismissButton, State::Default) => 6,
-                    (Selector::DismissButton, State::Hover) => 7,
-                    (Selector::Icon, _) => 8,
-                    (Selector::Progress, _) => 9,
-                    (Selector::PrevCounter, _) => 10,
-                    (Selector::NextCounter, _) => 11,
+                    (Selector::ActionButton, State::Default) => 3,
+                    (Selector::DismissButton, State::Default) => 4,
+                    (Selector::Icon, _) => 5,
+                    (Selector::Progress, _) => 6,
+                    (Selector::AllNotifications, State::Hover) => 7,
+                    (Selector::Notification(_), State::Hover) => 8,
+                    (Selector::ActionButton, State::Hover) => 9,
+                    (Selector::DismissButton, State::Hover) => 10,
+                    (Selector::PrevCounter, _) => 11,
+                    (Selector::NextCounter, _) => 12,
                 }
             }
 
@@ -480,386 +500,127 @@ impl<'de> Deserialize<'de> for Styles {
         let temp_styles = TempStyles::deserialize(deserializer)?.sort();
         let mut styles = Styles::default();
 
-        temp_styles.0.iter().for_each(|style| {
-            match (&style.selector, &style.state) {
-                (Selector::NextCounter, _) => {
-                    if let Some(background) = style.style.background.as_ref() {
-                        styles.next.background.apply(background);
-                    }
-                    if let Some(border) = style.style.border.as_ref() {
-                        styles.next.border.apply(border);
-                    }
-                    if let Some(margin) = style.style.margin.as_ref() {
-                        styles.next.margin.apply(margin);
-                    }
-                    if let Some(padding) = style.style.padding.as_ref() {
-                        styles.next.padding.apply(padding);
-                    }
-                }
-                (Selector::PrevCounter, _) => {
-                    if let Some(background) = style.style.background.as_ref() {
-                        styles.prev.background.apply(background);
-                    }
-                    if let Some(border) = style.style.border.as_ref() {
-                        styles.prev.border.apply(border);
-                    }
-                    if let Some(margin) = style.style.margin.as_ref() {
-                        styles.prev.margin.apply(margin);
-                    }
-                    if let Some(padding) = style.style.padding.as_ref() {
-                        styles.prev.padding.apply(padding);
-                    }
-                }
+        temp_styles
+            .0
+            .iter()
+            .for_each(|style| match (&style.component, &style.state) {
+                (Some(Selector::All), _) => {
+                    styles.default.apply(&style.style);
+                    styles.hover.apply(&style.style);
 
-                (Selector::Progress, _) => {
-                    if let Some(background) = style.style.background.as_ref() {
-                        styles.default.progress.complete_color.apply(background);
-                        styles.hover.progress.complete_color.apply(background);
-                    }
-                    if let Some(margin) = style.style.margin.as_ref() {
-                        styles.default.progress.margin.apply(margin);
-                        styles.hover.progress.margin.apply(margin);
-                    }
-                    if let Some(height) = style.style.height.as_ref() {
-                        styles.default.progress.height = *height;
-                        styles.hover.progress.height = *height;
-                    }
-                    if let Some(width) = style.style.width.as_ref() {
-                        styles.default.progress.width = *width;
-                        styles.hover.progress.width = *width;
-                    }
-                    if let Some(border) = style.style.border.as_ref() {
-                        styles.default.progress.border.apply(border);
-                        styles.hover.progress.border.apply(border);
-                    }
+                    styles.prev.apply(&style.style);
+                    styles.next.apply(&style.style);
+
+                    styles.default.progress.apply(&style.style);
+                    styles.hover.progress.apply(&style.style);
+
+                    styles.default.icon.apply(&style.style);
+                    styles.hover.icon.apply(&style.style);
+
+                    styles.default.buttons.action.apply(&style.style);
+                    styles.hover.buttons.action.apply(&style.style);
+
+                    styles.default.buttons.dismiss.apply(&style.style);
+                    styles.hover.buttons.dismiss.apply(&style.style);
                 }
-                (Selector::Icon, _) => {
+                (Some(Selector::NextCounter), _) => styles.next.apply(&style.style),
+                (Some(Selector::PrevCounter), _) => styles.prev.apply(&style.style),
+                (Some(Selector::Progress), _) => {
+                    styles.default.progress.apply(&style.style);
+                    styles.hover.progress.apply(&style.style);
+                }
+                (Some(Selector::Icon), _) => {
                     if let Some(border) = style.style.border.as_ref() {
                         styles.default.icon.border.apply(border);
-                    }
-                    if let Some(border) = style.style.border.as_ref() {
                         styles.hover.icon.border.apply(border);
                     }
                 }
 
-                (Selector::AllNotifications, State::Default) => {
+                (Some(Selector::AllNotifications), State::Default) => {
                     styles.default.apply(&style.style);
                     styles.hover.apply(&style.style);
                 }
-                (Selector::AllNotifications, State::Hover) => {
+                (Some(Selector::AllNotifications), State::Hover) => {
                     styles.hover.apply(&style.style);
                 }
-                (Selector::Notification(_), State::Default) => {}
-                (Selector::Notification(_), State::Hover) => {}
-                (Selector::ActionButton, State::Default) => {
-                    if let Some(background) = style.style.background.as_ref() {
-                        styles
-                            .default
-                            .buttons
-                            .action
-                            .default
-                            .background
-                            .apply(background);
-                        styles
-                            .default
-                            .buttons
-                            .action
-                            .hover
-                            .background
-                            .apply(background);
-                    }
-
-                    //if let Some(min_width) = style.style.min_width.as_ref() {
-                    //styles.default.buttons.action.default.min_width = *min_width;
-                    //styles.default.buttons.action.hover.min_width = *min_width;
-                    //styles.hover.buttons.action.default.min_width = *min_width;
-                    //styles.hover.buttons.action.hover.min_width = *min_width;
-                    //}
-
-                    if let Some(width) = style.style.width.as_ref() {
-                        styles.default.buttons.action.default.width = *width;
-                        styles.default.buttons.action.hover.width = *width;
-                    }
-
-                    //if let Some(max_width) = style.style.max_width.as_ref() {
-                    //styles.default.buttons.action.default.max_width = *max_width;
-                    //styles.default.buttons.action.hover.max_width = *max_width;
-                    //styles.hover.buttons.action.default.max_width = *max_width;
-                    //styles.hover.buttons.action.hover.max_width = *max_width;
-                    //}
-
-                    //if let Some(min_height) = style.style.min_height.as_ref() {
-                    //styles.default.buttons.action.default.min_height = *min_height;
-                    //styles.default.buttons.action.hover.min_height = *min_height;
-                    //styles.hover.buttons.action.default.min_height = *min_height;
-                    //styles.hover.buttons.action.hover.min_height = *min_height;
-                    //}
-
-                    if let Some(height) = style.style.height.as_ref() {
-                        styles.default.buttons.action.default.height = *height;
-                        styles.default.buttons.action.hover.height = *height;
-                    }
-
-                    //if let Some(max_height) = style.style.max_height.as_ref() {
-                    //styles.default.buttons.action.default.max_height = *max_height;
-                    //styles.default.buttons.action.hover.max_height = *max_height;
-                    //styles.hover.buttons.action.default.max_height = *max_height;
-                    //styles.hover.buttons.action.hover.max_height = *max_height;
-                    //
-
-                    if let Some(font) = style.style.font.as_ref() {
-                        styles.default.buttons.action.default.font.apply(font);
-                        styles.default.buttons.action.hover.font.apply(font);
-                    }
-
-                    if let Some(border) = style.style.border.as_ref() {
-                        styles.default.buttons.action.default.border.apply(border);
-                        styles.default.buttons.action.hover.border.apply(border);
-                    }
-
-                    if let Some(margin) = style.style.margin.as_ref() {
-                        styles.default.buttons.action.default.margin.apply(margin);
-                        styles.default.buttons.action.hover.margin.apply(margin);
-                    }
-
-                    if let Some(padding) = style.style.padding.as_ref() {
-                        styles.default.buttons.action.default.padding.apply(padding);
-                        styles.default.buttons.action.hover.padding.apply(padding);
-                    }
+                (Some(Selector::Notification(_)), State::Default) => {}
+                (Some(Selector::Notification(_)), State::Hover) => {}
+                (Some(Selector::ActionButton), State::Default) => {
+                    styles.default.buttons.action.apply(&style.style);
+                    styles.hover.buttons.action.apply(&style.style);
                 }
-                (Selector::ActionButton, State::Hover) => {
-                    if let Some(background) = style.style.background.as_ref() {
-                        styles
-                            .default
-                            .buttons
-                            .action
-                            .hover
-                            .background
-                            .apply(background);
-                    }
-
-                    //if let Some(min_width) = style.style.min_width.as_ref() {
-                    //styles.default.buttons.action.default.min_width = *min_width;
-                    //styles.default.buttons.action.hover.min_width = *min_width;
-                    //}
-
-                    if let Some(width) = style.style.width.as_ref() {
-                        styles.default.buttons.action.hover.width = *width;
-                    }
-
-                    //if let Some(max_width) = style.style.max_width.as_ref() {
-                    //styles.default.buttons.action.default.max_width = *max_width;
-                    //styles.default.buttons.action.hover.max_width = *max_width;
-                    //}
-
-                    //if let Some(min_height) = style.style.min_height.as_ref() {
-                    //styles.default.buttons.action.default.min_height = *min_height;
-                    //styles.default.buttons.action.hover.min_height = *min_height;
-                    //}
-
-                    if let Some(height) = style.style.height.as_ref() {
-                        styles.default.buttons.action.hover.height = *height;
-                    }
-
-                    //if let Some(max_height) = style.style.max_height.as_ref() {
-                    //styles.default.buttons.action.default.max_height = *max_height;
-                    //styles.default.buttons.action.hover.max_height = *max_height;
-                    //
-
-                    if let Some(font) = style.style.font.as_ref() {
-                        styles.default.buttons.action.hover.font.apply(font);
-                    }
-
-                    if let Some(border) = style.style.border.as_ref() {
-                        styles.default.buttons.action.hover.border.apply(border);
-                    }
-
-                    if let Some(margin) = style.style.margin.as_ref() {
-                        styles.default.buttons.action.hover.margin.apply(margin);
-                    }
-
-                    if let Some(padding) = style.style.padding.as_ref() {
-                        styles.default.buttons.action.hover.padding.apply(padding);
-                    }
+                (Some(Selector::ActionButton), State::Hover) => {
+                    styles.default.buttons.action.apply_hover(&style.style);
+                    styles.hover.buttons.action.apply_hover(&style.style);
                 }
-                (Selector::DismissButton, State::Default) => {
-                    if let Some(background) = style.style.background.as_ref() {
-                        styles
-                            .default
-                            .buttons
-                            .dismiss
-                            .default
-                            .background
-                            .apply(background);
-                        styles
-                            .default
-                            .buttons
-                            .dismiss
-                            .hover
-                            .background
-                            .apply(background);
-                        styles
-                            .hover
-                            .buttons
-                            .dismiss
-                            .default
-                            .background
-                            .apply(background);
-                        styles
-                            .hover
-                            .buttons
-                            .dismiss
-                            .hover
-                            .background
-                            .apply(background);
-                    }
-
-                    //if let Some(min_width) = style.style.min_width.as_ref() {
-                    //styles.default.buttons.dismiss.default.min_width = *min_width;
-                    //styles.default.buttons.dismiss.hover.min_width = *min_width;
-                    //styles.hover.buttons.dismiss.default.min_width = *min_width;
-                    //styles.hover.buttons.dismiss.hover.min_width = *min_width;
-                    //}
-
-                    if let Some(width) = style.style.width.as_ref() {
-                        styles.default.buttons.dismiss.default.width = *width;
-                        styles.default.buttons.dismiss.hover.width = *width;
-                        styles.hover.buttons.dismiss.default.width = *width;
-                        styles.hover.buttons.dismiss.hover.width = *width;
-                    }
-
-                    //if let Some(max_width) = style.style.max_width.as_ref() {
-                    //styles.default.buttons.dismiss.default.max_width = *max_width;
-                    //styles.default.buttons.dismiss.hover.max_width = *max_width;
-                    //styles.hover.buttons.dismiss.default.max_width = *max_width;
-                    //styles.hover.buttons.dismiss.hover.max_width = *max_width;
-                    //}
-
-                    //if let Some(min_height) = style.style.min_height.as_ref() {
-                    //styles.default.buttons.dismiss.default.min_height = *min_height;
-                    //styles.default.buttons.dismiss.hover.min_height = *min_height;
-                    //styles.hover.buttons.dismiss.default.min_height = *min_height;
-                    //styles.hover.buttons.dismiss.hover.min_height = *min_height;
-                    //}
-
-                    if let Some(height) = style.style.height.as_ref() {
-                        styles.default.buttons.dismiss.default.height = *height;
-                        styles.default.buttons.dismiss.hover.height = *height;
-                        styles.hover.buttons.dismiss.default.height = *height;
-                        styles.hover.buttons.dismiss.hover.height = *height;
-                    }
-
-                    //if let Some(max_height) = style.style.max_height.as_ref() {
-                    //styles.default.buttons.dismiss.default.max_height = *max_height;
-                    //styles.default.buttons.dismiss.hover.max_height = *max_height;
-                    //styles.hover.buttons.dismiss.default.max_height = *max_height;
-                    //styles.hover.buttons.dismiss.hover.max_height = *max_height;
-                    //
-
-                    if let Some(font) = style.style.font.as_ref() {
-                        styles.default.buttons.dismiss.default.font.apply(font);
-                        styles.default.buttons.dismiss.hover.font.apply(font);
-                        styles.hover.buttons.dismiss.default.font.apply(font);
-                        styles.hover.buttons.dismiss.hover.font.apply(font);
-                    }
-
-                    if let Some(border) = style.style.border.as_ref() {
-                        styles.default.buttons.dismiss.default.border.apply(border);
-                        styles.default.buttons.dismiss.hover.border.apply(border);
-                        styles.hover.buttons.dismiss.default.border.apply(border);
-                        styles.hover.buttons.dismiss.hover.border.apply(border);
-                    }
-
-                    if let Some(margin) = style.style.margin.as_ref() {
-                        styles.default.buttons.dismiss.default.margin.apply(margin);
-                        styles.default.buttons.dismiss.hover.margin.apply(margin);
-                        styles.hover.buttons.dismiss.default.margin.apply(margin);
-                        styles.hover.buttons.dismiss.hover.margin.apply(margin);
-                    }
-
-                    if let Some(padding) = style.style.padding.as_ref() {
-                        styles
-                            .default
-                            .buttons
-                            .dismiss
-                            .default
-                            .padding
-                            .apply(padding);
-                        styles.default.buttons.dismiss.hover.padding.apply(padding);
-                        styles.hover.buttons.dismiss.default.padding.apply(padding);
-                        styles.hover.buttons.dismiss.hover.padding.apply(padding);
-                    }
+                (Some(Selector::DismissButton), State::Default) => {
+                    styles.default.buttons.dismiss.apply(&style.style);
+                    styles.hover.buttons.dismiss.apply(&style.style);
                 }
-                (Selector::DismissButton, State::Hover) => {
-                    if let Some(background) = style.style.background.as_ref() {
-                        styles
-                            .hover
-                            .buttons
-                            .dismiss
-                            .default
-                            .background
-                            .apply(background);
-                        styles
-                            .hover
-                            .buttons
-                            .dismiss
-                            .hover
-                            .background
-                            .apply(background);
-                    }
-
-                    //if let Some(min_width) = style.style.min_width.as_ref() {
-                    //styles.hover.buttons.dismiss.default.min_width = *min_width;
-                    //styles.hover.buttons.dismiss.hover.min_width = *min_width;
-                    //}
-
-                    if let Some(width) = style.style.width.as_ref() {
-                        styles.hover.buttons.dismiss.default.width = *width;
-                        styles.hover.buttons.dismiss.hover.width = *width;
-                    }
-
-                    //if let Some(max_width) = style.style.max_width.as_ref() {
-                    //styles.hover.buttons.dismiss.default.max_width = *max_width;
-                    //styles.hover.buttons.dismiss.hover.max_width = *max_width;
-                    //}
-
-                    //if let Some(min_height) = style.style.min_height.as_ref() {
-                    //styles.hover.buttons.dismiss.default.min_height = *min_height;
-                    //styles.hover.buttons.dismiss.hover.min_height = *min_height;
-                    //}
-
-                    if let Some(height) = style.style.height.as_ref() {
-                        styles.hover.buttons.dismiss.default.height = *height;
-                        styles.hover.buttons.dismiss.hover.height = *height;
-                    }
-
-                    //if let Some(max_height) = style.style.max_height.as_ref() {
-                    //styles.hover.buttons.dismiss.default.max_height = *max_height;
-                    //styles.hover.buttons.dismiss.hover.max_height = *max_height;
-                    //}
-
-                    if let Some(font) = style.style.font.as_ref() {
-                        styles.hover.buttons.dismiss.default.font.apply(font);
-                        styles.hover.buttons.dismiss.hover.font.apply(font);
-                    }
-
-                    if let Some(border) = style.style.border.as_ref() {
-                        styles.hover.buttons.dismiss.default.border.apply(border);
-                        styles.hover.buttons.dismiss.hover.border.apply(border);
-                    }
-
-                    if let Some(margin) = style.style.margin.as_ref() {
-                        styles.hover.buttons.dismiss.default.margin.apply(margin);
-                        styles.hover.buttons.dismiss.hover.margin.apply(margin);
-                    }
-
-                    if let Some(padding) = style.style.padding.as_ref() {
-                        styles.hover.buttons.dismiss.default.padding.apply(padding);
-                        styles.hover.buttons.dismiss.hover.padding.apply(padding);
-                    }
+                (Some(Selector::DismissButton), State::Hover) => {
+                    styles.default.buttons.dismiss.apply_hover(&style.style);
+                    styles.hover.buttons.dismiss.apply_hover(&style.style);
                 }
-            }
-        });
+                (None, _) => match (&style.selector, &style.state) {
+                    (Selector::All, _) => {
+                        styles.default.apply(&style.style);
+                        styles.hover.apply(&style.style);
+
+                        styles.prev.apply(&style.style);
+                        styles.next.apply(&style.style);
+
+                        styles.default.progress.apply(&style.style);
+                        styles.hover.progress.apply(&style.style);
+
+                        styles.default.icon.apply(&style.style);
+                        styles.hover.icon.apply(&style.style);
+
+                        styles.default.buttons.action.apply(&style.style);
+                        styles.hover.buttons.action.apply(&style.style);
+
+                        styles.default.buttons.dismiss.apply(&style.style);
+                        styles.hover.buttons.dismiss.apply(&style.style);
+                    }
+                    (Selector::NextCounter, _) => styles.next.apply(&style.style),
+                    (Selector::PrevCounter, _) => styles.prev.apply(&style.style),
+                    (Selector::Progress, _) => {
+                        styles.default.progress.apply(&style.style);
+                        styles.hover.progress.apply(&style.style);
+                    }
+                    (Selector::Icon, _) => {
+                        if let Some(border) = style.style.border.as_ref() {
+                            styles.default.icon.border.apply(border);
+                            styles.hover.icon.border.apply(border);
+                        }
+                    }
+
+                    (Selector::AllNotifications, State::Default) => {
+                        styles.default.apply(&style.style);
+                        styles.hover.apply(&style.style);
+                    }
+                    (Selector::AllNotifications, State::Hover) => {
+                        styles.hover.apply(&style.style);
+                    }
+                    (Selector::Notification(_), State::Default) => {}
+                    (Selector::Notification(_), State::Hover) => {}
+                    (Selector::ActionButton, State::Default) => {
+                        styles.default.buttons.action.apply(&style.style);
+                        styles.hover.buttons.action.apply(&style.style);
+                    }
+                    (Selector::ActionButton, State::Hover) => {
+                        styles.default.buttons.action.apply_hover(&style.style);
+                        styles.hover.buttons.action.apply_hover(&style.style);
+                    }
+                    (Selector::DismissButton, State::Default) => {
+                        styles.default.buttons.dismiss.apply(&style.style);
+                        styles.hover.buttons.dismiss.apply(&style.style);
+                    }
+                    (Selector::DismissButton, State::Hover) => {
+                        styles.default.buttons.dismiss.apply_hover(&style.style);
+                        styles.hover.buttons.dismiss.apply_hover(&style.style);
+                    }
+                },
+            });
 
         Ok(styles)
     }
@@ -1071,6 +832,23 @@ pub struct NotificationCounter {
     pub background: Color,
     pub margin: Insets,
     pub padding: Insets,
+}
+
+impl NotificationCounter {
+    pub fn apply(&mut self, partial: &PartialStyle) {
+        if let Some(background) = partial.background.as_ref() {
+            self.background.apply(background);
+        }
+        if let Some(border) = partial.border.as_ref() {
+            self.border.apply(border);
+        }
+        if let Some(margin) = partial.margin.as_ref() {
+            self.margin.apply(margin);
+        }
+        if let Some(padding) = partial.padding.as_ref() {
+            self.padding.apply(padding);
+        }
+    }
 }
 
 impl Default for NotificationCounter {

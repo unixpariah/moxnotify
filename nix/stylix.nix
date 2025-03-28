@@ -11,71 +11,45 @@ in
 
   config = lib.mkIf (config.stylix.enable && config.stylix.targets.moxnotify.enable) {
     services.moxnotify.settings = {
+
       styles = [
         {
-          selector = "next_counter";
+          selector = "*";
           style = {
-            background = {
-              urgency_low = base00 + moxnotifyOpacity;
-              urgency_normal = base01 + moxnotifyOpacity;
-              urgency_critical = base01 + moxnotifyOpacity;
-            };
-
             font = {
               family = sansSerif.name;
               size = sizes.popups;
               color = base05;
             };
-
             border.color = {
               urgency_low = base0B;
               urgency_normal = base0E;
               urgency_critical = base08;
             };
+          };
+        }
+        {
+          selector = "next_counter";
+          style.background = {
+            urgency_low = base00 + moxnotifyOpacity;
+            urgency_normal = base01 + moxnotifyOpacity;
+            urgency_critical = base01 + moxnotifyOpacity;
           };
         }
         {
           selector = "prev_counter";
-          style = {
-            background = {
-              urgency_low = base00 + moxnotifyOpacity;
-              urgency_normal = base01 + moxnotifyOpacity;
-              urgency_critical = base01 + moxnotifyOpacity;
-            };
-
-            font = {
-              family = sansSerif.name;
-              size = sizes.popups;
-              color = base05;
-            };
-
-            border.color = {
-              urgency_low = base0B;
-              urgency_normal = base0E;
-              urgency_critical = base08;
-            };
+          style.background = {
+            urgency_low = base00 + moxnotifyOpacity;
+            urgency_normal = base01 + moxnotifyOpacity;
+            urgency_critical = base01 + moxnotifyOpacity;
           };
         }
         {
           selector = "notification";
-          style = {
-            background = {
-              urgency_low = base00 + moxnotifyOpacity;
-              urgency_normal = base01 + moxnotifyOpacity;
-              urgency_critical = base01 + moxnotifyOpacity;
-            };
-
-            font = {
-              family = sansSerif.name;
-              size = sizes.popups;
-              color = base05;
-            };
-
-            border.color = {
-              urgency_low = base0B;
-              urgency_normal = base0E;
-              urgency_critical = base08;
-            };
+          style.background = {
+            urgency_low = base00 + moxnotifyOpacity;
+            urgency_normal = base01 + moxnotifyOpacity;
+            urgency_critical = base01 + moxnotifyOpacity;
           };
         }
         {
@@ -88,12 +62,9 @@ in
           };
         }
         {
-          selector = "action";
-          style.border.color = {
-            urgency_low = base0B;
-            urgency_normal = base0E;
-            urgency_critical = base08;
-          };
+          selector = "notification";
+          component = "dismiss";
+          style.font.color = "#000000";
         }
         {
           selector = "action";
@@ -102,17 +73,10 @@ in
         }
         {
           selector = "progress";
-          style = {
-            background = {
-              urgency_low = base0F;
-              urgency_normal = base0F;
-              urgency_critical = base08;
-            };
-            border.color = {
-              urgency_low = base0B;
-              urgency_normal = base0E;
-              urgency_critical = base08;
-            };
+          style.background = {
+            urgency_low = base0F;
+            urgency_normal = base0F;
+            urgency_critical = base08;
           };
         }
       ];

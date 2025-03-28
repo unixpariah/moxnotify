@@ -123,8 +123,3 @@ pub struct PartialBorderRadius {
     pub bottom_left: Option<f32>,
     pub bottom_right: Option<f32>,
 }
-
-#[derive(Deserialize)]
-pub struct PartialIcon {
-    pub border: Option<PartialBorder>,
-}

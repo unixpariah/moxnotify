@@ -1,4 +1,4 @@
-use super::{Border, BorderRadius, Color, Font, Insets, Size};
+use super::{partial::PartialStyle, Border, BorderRadius, Color, Font, Insets, Size};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -25,6 +25,101 @@ pub struct Button {
 }
 
 impl Button {
+    pub fn apply_hover(&mut self, partial: &PartialStyle) {
+        if let Some(background) = partial.background.as_ref() {
+            self.hover.background.apply(background);
+        }
+
+        if let Some(width) = partial.width.as_ref() {
+            self.hover.width = *width;
+        }
+
+        if let Some(height) = partial.height.as_ref() {
+            self.hover.height = *height;
+        }
+
+        if let Some(font) = partial.font.as_ref() {
+            self.hover.font.apply(font);
+        }
+
+        if let Some(border) = partial.border.as_ref() {
+            self.hover.border.apply(border);
+        }
+
+        if let Some(margin) = partial.margin.as_ref() {
+            self.hover.margin.apply(margin);
+        }
+
+        if let Some(padding) = partial.padding.as_ref() {
+            self.hover.padding.apply(padding);
+        }
+    }
+
+    pub fn apply(&mut self, partial: &PartialStyle) {
+        if let Some(background) = partial.background.as_ref() {
+            self.default.background.apply(background);
+            self.hover.background.apply(background);
+        }
+
+        //if let Some(min_width) = partial.min_width.as_ref() {
+        //styles.default.buttons.action.default.min_width = *min_width;
+        //styles.default.buttons.action.hover.min_width = *min_width;
+        //styles.hover.buttons.action.default.min_width = *min_width;
+        //styles.hover.buttons.action.hover.min_width = *min_width;
+        //}
+
+        if let Some(width) = partial.width.as_ref() {
+            self.default.width = *width;
+            self.hover.width = *width;
+        }
+
+        //if let Some(max_width) = partial.max_width.as_ref() {
+        //styles.default.buttons.action.default.max_width = *max_width;
+        //styles.default.buttons.action.hover.max_width = *max_width;
+        //styles.hover.buttons.action.default.max_width = *max_width;
+        //styles.hover.buttons.action.hover.max_width = *max_width;
+        //}
+
+        //if let Some(min_height) = partial.min_height.as_ref() {
+        //styles.default.buttons.action.default.min_height = *min_height;
+        //styles.default.buttons.action.hover.min_height = *min_height;
+        //styles.hover.buttons.action.default.min_height = *min_height;
+        //styles.hover.buttons.action.hover.min_height = *min_height;
+        //}
+
+        if let Some(height) = partial.height.as_ref() {
+            self.default.height = *height;
+            self.hover.height = *height;
+        }
+
+        //if let Some(max_height) = partial.max_height.as_ref() {
+        //styles.default.buttons.action.default.max_height = *max_height;
+        //styles.default.buttons.action.hover.max_height = *max_height;
+        //styles.hover.buttons.action.default.max_height = *max_height;
+        //styles.hover.buttons.action.hover.max_height = *max_height;
+        //
+
+        if let Some(font) = partial.font.as_ref() {
+            self.default.font.apply(font);
+            self.hover.font.apply(font);
+        }
+
+        if let Some(border) = partial.border.as_ref() {
+            self.default.border.apply(border);
+            self.hover.border.apply(border);
+        }
+
+        if let Some(margin) = partial.margin.as_ref() {
+            self.default.margin.apply(margin);
+            self.hover.margin.apply(margin);
+        }
+
+        if let Some(padding) = partial.padding.as_ref() {
+            self.default.padding.apply(padding);
+            self.hover.padding.apply(padding);
+        }
+    }
+
     fn default_action() -> Self {
         Self {
             default: ButtonState {
