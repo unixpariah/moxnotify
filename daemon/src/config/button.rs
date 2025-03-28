@@ -1,11 +1,7 @@
 use super::{partial::PartialStyle, Border, BorderRadius, Color, Font, Insets, Size};
-use serde::Deserialize;
 
-#[derive(Deserialize)]
 pub struct Buttons {
-    #[serde(default)]
     pub dismiss: Button,
-    #[serde(default = "Button::default_action")]
     pub action: Button,
 }
 
@@ -18,7 +14,6 @@ impl Default for Buttons {
     }
 }
 
-#[derive(Deserialize)]
 pub struct Button {
     pub default: ButtonState,
     pub hover: ButtonState,
@@ -173,7 +168,6 @@ impl Default for Button {
     }
 }
 
-#[derive(Deserialize)]
 pub struct ButtonState {
     pub width: Size,
     pub height: Size,

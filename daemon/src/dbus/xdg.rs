@@ -165,7 +165,7 @@ impl NotificationsImpl {
             Some(app_icon.into())
         };
 
-        if let Err(e) = self.event_sender.send(Event::Notify(NotificationData {
+        if let Err(e) = self.event_sender.send(Event::Notify(Box::new(NotificationData {
             id,
             app_name: app_name.into(),
             summary: summary.into(),
@@ -177,7 +177,7 @@ impl NotificationsImpl {
                 .collect(),
             hints: NotificationHints::new(hints),
             app_icon,
-        })) {
+        }))) {
             log::error!("{e}");
         }
 

@@ -157,11 +157,7 @@ impl Key {
                     return None;
                 }
                 let key_char_code = xkb_state.key_get_utf32(keycode);
-                if let Some(character) = char::from_u32(key_char_code) {
-                    Some(Key::Character(character))
-                } else {
-                    None
-                }
+                char::from_u32(key_char_code).map(Key::Character)
             }
         }
     }

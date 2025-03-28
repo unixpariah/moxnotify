@@ -53,7 +53,6 @@ impl Default for Config {
 #[derive(Deserialize)]
 pub struct Style {
     pub selector: Selector,
-    pub component: Option<Selector>,
     #[serde(default)]
     pub state: State,
     pub style: PartialStyle,
@@ -65,6 +64,7 @@ pub enum State {
     #[default]
     Default,
     Hover,
+    ContainerHover,
 }
 
 pub enum Selector {
@@ -150,89 +150,12 @@ impl Insets {
     }
 }
 
-impl<'de> Deserialize<'de> for Insets {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        struct InsetsVisitor;
-
-        impl<'de> serde::de::Visitor<'de> for InsetsVisitor {
-            type Value = Insets;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("a number or a map with optional corner values")
-            }
-
-            fn visit_f32<E>(self, value: f32) -> Result<Self::Value, E> {
-                Ok(Insets::size(value))
-            }
-
-            fn visit_f64<E>(self, value: f64) -> Result<Self::Value, E> {
-                Ok(Insets::size(value as f32))
-            }
-
-            fn visit_i32<E>(self, value: i32) -> Result<Self::Value, E> {
-                Ok(Insets::size(value as f32))
-            }
-
-            fn visit_i64<E>(self, value: i64) -> Result<Self::Value, E> {
-                Ok(Insets::size(value as f32))
-            }
-
-            fn visit_u32<E>(self, value: u32) -> Result<Self::Value, E> {
-                Ok(Insets::size(value as f32))
-            }
-
-            fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E> {
-                Ok(Insets::size(value as f32))
-            }
-
-            fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
-            where
-                M: serde::de::MapAccess<'de>,
-            {
-                let mut left = None;
-                let mut right = None;
-                let mut top = None;
-                let mut bottom = None;
-
-                while let Some(key) = map.next_key::<String>()? {
-                    match key.as_str() {
-                        "left" => left = Some(map.next_value()?),
-                        "right" => right = Some(map.next_value()?),
-                        "top" => top = Some(map.next_value()?),
-                        "bottom" => bottom = Some(map.next_value()?),
-                        _ => {
-                            return Err(serde::de::Error::unknown_field(
-                                &key,
-                                &["left", "right", "top", "bottom"],
-                            ))
-                        }
-                    }
-                }
-
-                Ok(Insets {
-                    left: left.unwrap_or(0.0),
-                    right: right.unwrap_or(0.0),
-                    top: top.unwrap_or(0.0),
-                    bottom: bottom.unwrap_or(0.0),
-                })
-            }
-        }
-
-        deserializer.deserialize_any(InsetsVisitor)
-    }
-}
-
 impl From<Insets> for [f32; 4] {
     fn from(value: Insets) -> Self {
         [value.left, value.right, value.top, value.bottom]
     }
 }
 
-#[derive(Deserialize)]
-#[serde(default)]
 pub struct Font {
     pub size: f32,
     pub family: Box<str>,
@@ -271,8 +194,6 @@ pub enum Queue {
     Ordered,
 }
 
-#[derive(Deserialize)]
-#[serde(default)]
 pub struct Icon {
     pub border: Border,
 }
@@ -315,8 +236,6 @@ impl Size {
     }
 }
 
-#[derive(Deserialize)]
-#[serde(default)]
 pub struct Progress {
     pub margin: Insets,
     pub height: Size,
@@ -376,7 +295,6 @@ impl Default for Progress {
     }
 }
 
-#[derive(Deserialize)]
 pub struct StyleState {
     pub background: Color,
     pub width: Size,
@@ -475,19 +393,23 @@ impl<'de> Deserialize<'de> for Styles {
         impl TempStyles {
             fn priority(style: &Style) -> u8 {
                 match (&style.selector, &style.state) {
-                    (Selector::All, _) => 0,
-                    (Selector::AllNotifications, State::Default) => 1,
-                    (Selector::Notification(_), State::Default) => 2,
-                    (Selector::ActionButton, State::Default) => 3,
-                    (Selector::DismissButton, State::Default) => 4,
-                    (Selector::Icon, _) => 5,
-                    (Selector::Progress, _) => 6,
-                    (Selector::AllNotifications, State::Hover) => 7,
-                    (Selector::Notification(_), State::Hover) => 8,
-                    (Selector::ActionButton, State::Hover) => 9,
-                    (Selector::DismissButton, State::Hover) => 10,
-                    (Selector::PrevCounter, _) => 11,
-                    (Selector::NextCounter, _) => 12,
+                    (Selector::All, _) => 1,
+                    (Selector::AllNotifications, State::Default) => 2,
+                    (Selector::AllNotifications, State::Hover) => 3,
+                    (Selector::AllNotifications, State::ContainerHover) => 5,
+                    (Selector::Notification(_), State::Default) => 6,
+                    (Selector::Notification(_), State::Hover) => 7,
+                    (Selector::Notification(_), State::ContainerHover) => 9,
+                    (Selector::ActionButton, State::Default) => 10,
+                    (Selector::ActionButton, State::Hover) => 11,
+                    (Selector::ActionButton, State::ContainerHover) => 13,
+                    (Selector::DismissButton, State::Default) => 14,
+                    (Selector::DismissButton, State::Hover) => 15,
+                    (Selector::DismissButton, State::ContainerHover) => 17,
+                    (Selector::Icon, _) => 18,
+                    (Selector::Progress, _) => 19,
+                    (Selector::PrevCounter, _) => 20,
+                    (Selector::NextCounter, _) => 21,
                 }
             }
 
@@ -503,8 +425,8 @@ impl<'de> Deserialize<'de> for Styles {
         temp_styles
             .0
             .iter()
-            .for_each(|style| match (&style.component, &style.state) {
-                (Some(Selector::All), _) => {
+            .for_each(|style| match (&style.selector, &style.state) {
+                (Selector::All, _) => {
                     styles.default.apply(&style.style);
                     styles.hover.apply(&style.style);
 
@@ -523,103 +445,59 @@ impl<'de> Deserialize<'de> for Styles {
                     styles.default.buttons.dismiss.apply(&style.style);
                     styles.hover.buttons.dismiss.apply(&style.style);
                 }
-                (Some(Selector::NextCounter), _) => styles.next.apply(&style.style),
-                (Some(Selector::PrevCounter), _) => styles.prev.apply(&style.style),
-                (Some(Selector::Progress), _) => {
+                (Selector::NextCounter, _) => styles.next.apply(&style.style),
+                (Selector::PrevCounter, _) => styles.prev.apply(&style.style),
+                (Selector::Progress, State::ContainerHover) => {
+                    styles.hover.progress.apply(&style.style);
+                }
+                (Selector::Progress, _) => {
                     styles.default.progress.apply(&style.style);
                     styles.hover.progress.apply(&style.style);
                 }
-                (Some(Selector::Icon), _) => {
+                (Selector::Icon, State::ContainerHover) => {
+                    if let Some(border) = style.style.border.as_ref() {
+                        styles.default.icon.border.apply(border);
+                        styles.hover.icon.border.apply(border);
+                    }
+                }
+                (Selector::Icon, _) => {
                     if let Some(border) = style.style.border.as_ref() {
                         styles.default.icon.border.apply(border);
                         styles.hover.icon.border.apply(border);
                     }
                 }
 
-                (Some(Selector::AllNotifications), State::Default) => {
+                (Selector::AllNotifications, State::Default) => {
                     styles.default.apply(&style.style);
                     styles.hover.apply(&style.style);
                 }
-                (Some(Selector::AllNotifications), State::Hover) => {
+                (Selector::AllNotifications, State::Hover | State::ContainerHover) => {
                     styles.hover.apply(&style.style);
                 }
-                (Some(Selector::Notification(_)), State::Default) => {}
-                (Some(Selector::Notification(_)), State::Hover) => {}
-                (Some(Selector::ActionButton), State::Default) => {
+                (Selector::Notification(_), State::Default) => {}
+                (Selector::Notification(_), State::Hover | State::ContainerHover) => {}
+                (Selector::ActionButton, State::Default) => {
                     styles.default.buttons.action.apply(&style.style);
                     styles.hover.buttons.action.apply(&style.style);
                 }
-                (Some(Selector::ActionButton), State::Hover) => {
+                (Selector::ActionButton, State::Hover) => {
                     styles.default.buttons.action.apply_hover(&style.style);
                     styles.hover.buttons.action.apply_hover(&style.style);
                 }
-                (Some(Selector::DismissButton), State::Default) => {
+                (Selector::ActionButton, State::ContainerHover) => {
+                    styles.hover.buttons.action.apply(&style.style);
+                }
+                (Selector::DismissButton, State::Default) => {
                     styles.default.buttons.dismiss.apply(&style.style);
                     styles.hover.buttons.dismiss.apply(&style.style);
                 }
-                (Some(Selector::DismissButton), State::Hover) => {
+                (Selector::DismissButton, State::Hover) => {
                     styles.default.buttons.dismiss.apply_hover(&style.style);
                     styles.hover.buttons.dismiss.apply_hover(&style.style);
                 }
-                (None, _) => match (&style.selector, &style.state) {
-                    (Selector::All, _) => {
-                        styles.default.apply(&style.style);
-                        styles.hover.apply(&style.style);
-
-                        styles.prev.apply(&style.style);
-                        styles.next.apply(&style.style);
-
-                        styles.default.progress.apply(&style.style);
-                        styles.hover.progress.apply(&style.style);
-
-                        styles.default.icon.apply(&style.style);
-                        styles.hover.icon.apply(&style.style);
-
-                        styles.default.buttons.action.apply(&style.style);
-                        styles.hover.buttons.action.apply(&style.style);
-
-                        styles.default.buttons.dismiss.apply(&style.style);
-                        styles.hover.buttons.dismiss.apply(&style.style);
-                    }
-                    (Selector::NextCounter, _) => styles.next.apply(&style.style),
-                    (Selector::PrevCounter, _) => styles.prev.apply(&style.style),
-                    (Selector::Progress, _) => {
-                        styles.default.progress.apply(&style.style);
-                        styles.hover.progress.apply(&style.style);
-                    }
-                    (Selector::Icon, _) => {
-                        if let Some(border) = style.style.border.as_ref() {
-                            styles.default.icon.border.apply(border);
-                            styles.hover.icon.border.apply(border);
-                        }
-                    }
-
-                    (Selector::AllNotifications, State::Default) => {
-                        styles.default.apply(&style.style);
-                        styles.hover.apply(&style.style);
-                    }
-                    (Selector::AllNotifications, State::Hover) => {
-                        styles.hover.apply(&style.style);
-                    }
-                    (Selector::Notification(_), State::Default) => {}
-                    (Selector::Notification(_), State::Hover) => {}
-                    (Selector::ActionButton, State::Default) => {
-                        styles.default.buttons.action.apply(&style.style);
-                        styles.hover.buttons.action.apply(&style.style);
-                    }
-                    (Selector::ActionButton, State::Hover) => {
-                        styles.default.buttons.action.apply_hover(&style.style);
-                        styles.hover.buttons.action.apply_hover(&style.style);
-                    }
-                    (Selector::DismissButton, State::Default) => {
-                        styles.default.buttons.dismiss.apply(&style.style);
-                        styles.hover.buttons.dismiss.apply(&style.style);
-                    }
-                    (Selector::DismissButton, State::Hover) => {
-                        styles.default.buttons.dismiss.apply_hover(&style.style);
-                        styles.hover.buttons.dismiss.apply_hover(&style.style);
-                    }
-                },
+                (Selector::DismissButton, State::ContainerHover) => {
+                    styles.hover.buttons.dismiss.apply(&style.style);
+                }
             });
 
         Ok(styles)
@@ -816,7 +694,7 @@ impl<'de> Deserialize<'de> for Timeout {
     }
 }
 
-#[derive(Deserialize, Default)]
+#[derive(Default)]
 pub struct NotificationStyleEntry {
     pub app: Box<str>,
     pub styles: Styles,
@@ -824,8 +702,6 @@ pub struct NotificationStyleEntry {
     pub ignore_timeout: Option<bool>,
 }
 
-#[derive(Deserialize)]
-#[serde(default)]
 pub struct NotificationCounter {
     pub format: Box<str>,
     pub border: Border,

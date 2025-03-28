@@ -62,14 +62,13 @@ in
           };
         }
         {
-          selector = "notification";
-          component = "dismiss";
-          style.font.color = "#000000";
-        }
-        {
           selector = "action";
           state = "hover";
-          style.background = base0F;
+          style.background = {
+            urgency_low = base0F;
+            urgency_normal = base0F;
+            urgency_critical = base08;
+          };
         }
         {
           selector = "progress";
@@ -78,6 +77,15 @@ in
             urgency_normal = base0F;
             urgency_critical = base08;
           };
+        }
+        {
+          selector = "dismiss";
+          style.font.color = "#00000000";
+        }
+        {
+          selector = "dismiss";
+          state = "container_hover";
+          style.font.color = "#000000";
         }
       ];
     };

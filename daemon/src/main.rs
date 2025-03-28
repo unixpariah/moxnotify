@@ -123,7 +123,7 @@ impl Moxnotify {
                 self.notifications.dismiss(id);
             }
             Event::Notify(data) => {
-                self.notifications.add(data)?;
+                self.notifications.add(*data)?;
                 self.update_surface_size();
             }
             Event::CloseNotification(id) => self.notifications.dismiss(id),
@@ -201,7 +201,7 @@ pub enum EmitEvent {
 
 pub enum Event {
     Dismiss { all: bool, id: u32 },
-    Notify(NotificationData),
+    Notify(Box<NotificationData>),
     CloseNotification(u32),
     FocusSurface,
 }

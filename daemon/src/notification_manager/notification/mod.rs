@@ -156,10 +156,6 @@ impl Notification {
         let extents = self.rendered_extents();
         let style = self.config.find_style(&self.app_name, self.hovered());
 
-        if let Some(progress) = self.progress.as_mut() {
-            progress.set_position(&extents, style);
-        }
-
         self.icons.set_position(
             &extents,
             style,
@@ -167,6 +163,10 @@ impl Notification {
             &self.buttons,
             self.hovered(),
         );
+
+        if let Some(progress) = self.progress.as_mut() {
+            progress.set_position(&extents, style);
+        }
 
         let extents = self.rendered_extents();
         let hovered = self.hovered();
