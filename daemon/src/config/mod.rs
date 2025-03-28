@@ -52,10 +52,48 @@ impl Default for Config {
 
 #[derive(Deserialize)]
 pub struct Style {
-    pub selector: Selector,
+    #[serde(deserialize_with = "deserialize_selectors")]
+    pub selector: Vec<Selector>,
     #[serde(default)]
     pub state: State,
     pub style: PartialStyle,
+}
+
+fn deserialize_selectors<'de, D>(deserializer: D) -> Result<Vec<Selector>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    struct SelectorsVisitor;
+
+    impl<'de> serde::de::Visitor<'de> for SelectorsVisitor {
+        type Value = Vec<Selector>;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("a string or a list of strings")
+        }
+
+        fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            let selector = Selector::deserialize(serde::de::value::StrDeserializer::new(value))?;
+            Ok(vec![selector])
+        }
+
+        fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+        where
+            A: serde::de::SeqAccess<'de>,
+        {
+            let mut selectors = Vec::new();
+            while let Some(s) = seq.next_element::<String>()? {
+                let selector = Selector::deserialize(serde::de::value::StrDeserializer::new(&s))?;
+                selectors.push(selector);
+            }
+            Ok(selectors)
+        }
+    }
+
+    deserializer.deserialize_any(SelectorsVisitor)
 }
 
 #[derive(Default, Deserialize)]
@@ -392,7 +430,7 @@ impl<'de> Deserialize<'de> for Styles {
 
         impl TempStyles {
             fn priority(style: &Style) -> u8 {
-                match (&style.selector, &style.state) {
+                match (&style.selector[0], &style.state) {
                     (Selector::All, _) => 1,
                     (Selector::AllNotifications, State::Default) => 2,
                     (Selector::AllNotifications, State::Hover) => 3,
@@ -422,83 +460,85 @@ impl<'de> Deserialize<'de> for Styles {
         let temp_styles = TempStyles::deserialize(deserializer)?.sort();
         let mut styles = Styles::default();
 
-        temp_styles
-            .0
-            .iter()
-            .for_each(|style| match (&style.selector, &style.state) {
-                (Selector::All, _) => {
-                    styles.default.apply(&style.style);
-                    styles.hover.apply(&style.style);
+        temp_styles.0.iter().for_each(|style| {
+            style
+                .selector
+                .iter()
+                .for_each(|selector| match (selector, &style.state) {
+                    (Selector::All, _) => {
+                        styles.default.apply(&style.style);
+                        styles.hover.apply(&style.style);
 
-                    styles.prev.apply(&style.style);
-                    styles.next.apply(&style.style);
+                        styles.prev.apply(&style.style);
+                        styles.next.apply(&style.style);
 
-                    styles.default.progress.apply(&style.style);
-                    styles.hover.progress.apply(&style.style);
+                        styles.default.progress.apply(&style.style);
+                        styles.hover.progress.apply(&style.style);
 
-                    styles.default.icon.apply(&style.style);
-                    styles.hover.icon.apply(&style.style);
+                        styles.default.icon.apply(&style.style);
+                        styles.hover.icon.apply(&style.style);
 
-                    styles.default.buttons.action.apply(&style.style);
-                    styles.hover.buttons.action.apply(&style.style);
+                        styles.default.buttons.action.apply(&style.style);
+                        styles.hover.buttons.action.apply(&style.style);
 
-                    styles.default.buttons.dismiss.apply(&style.style);
-                    styles.hover.buttons.dismiss.apply(&style.style);
-                }
-                (Selector::NextCounter, _) => styles.next.apply(&style.style),
-                (Selector::PrevCounter, _) => styles.prev.apply(&style.style),
-                (Selector::Progress, State::ContainerHover) => {
-                    styles.hover.progress.apply(&style.style);
-                }
-                (Selector::Progress, _) => {
-                    styles.default.progress.apply(&style.style);
-                    styles.hover.progress.apply(&style.style);
-                }
-                (Selector::Icon, State::ContainerHover) => {
-                    if let Some(border) = style.style.border.as_ref() {
-                        styles.default.icon.border.apply(border);
-                        styles.hover.icon.border.apply(border);
+                        styles.default.buttons.dismiss.apply(&style.style);
+                        styles.hover.buttons.dismiss.apply(&style.style);
                     }
-                }
-                (Selector::Icon, _) => {
-                    if let Some(border) = style.style.border.as_ref() {
-                        styles.default.icon.border.apply(border);
-                        styles.hover.icon.border.apply(border);
+                    (Selector::NextCounter, _) => styles.next.apply(&style.style),
+                    (Selector::PrevCounter, _) => styles.prev.apply(&style.style),
+                    (Selector::Progress, State::ContainerHover) => {
+                        styles.hover.progress.apply(&style.style);
                     }
-                }
+                    (Selector::Progress, _) => {
+                        styles.default.progress.apply(&style.style);
+                        styles.hover.progress.apply(&style.style);
+                    }
+                    (Selector::Icon, State::ContainerHover) => {
+                        if let Some(border) = style.style.border.as_ref() {
+                            styles.default.icon.border.apply(border);
+                            styles.hover.icon.border.apply(border);
+                        }
+                    }
+                    (Selector::Icon, _) => {
+                        if let Some(border) = style.style.border.as_ref() {
+                            styles.default.icon.border.apply(border);
+                            styles.hover.icon.border.apply(border);
+                        }
+                    }
 
-                (Selector::AllNotifications, State::Default) => {
-                    styles.default.apply(&style.style);
-                    styles.hover.apply(&style.style);
-                }
-                (Selector::AllNotifications, State::Hover | State::ContainerHover) => {
-                    styles.hover.apply(&style.style);
-                }
-                (Selector::Notification(_), State::Default) => {}
-                (Selector::Notification(_), State::Hover | State::ContainerHover) => {}
-                (Selector::ActionButton, State::Default) => {
-                    styles.default.buttons.action.apply(&style.style);
-                    styles.hover.buttons.action.apply(&style.style);
-                }
-                (Selector::ActionButton, State::Hover) => {
-                    styles.default.buttons.action.apply_hover(&style.style);
-                    styles.hover.buttons.action.apply_hover(&style.style);
-                }
-                (Selector::ActionButton, State::ContainerHover) => {
-                    styles.hover.buttons.action.apply(&style.style);
-                }
-                (Selector::DismissButton, State::Default) => {
-                    styles.default.buttons.dismiss.apply(&style.style);
-                    styles.hover.buttons.dismiss.apply(&style.style);
-                }
-                (Selector::DismissButton, State::Hover) => {
-                    styles.default.buttons.dismiss.apply_hover(&style.style);
-                    styles.hover.buttons.dismiss.apply_hover(&style.style);
-                }
-                (Selector::DismissButton, State::ContainerHover) => {
-                    styles.hover.buttons.dismiss.apply(&style.style);
-                }
-            });
+                    (Selector::AllNotifications, State::Default) => {
+                        styles.default.apply(&style.style);
+                        styles.hover.apply(&style.style);
+                    }
+                    (Selector::AllNotifications, State::Hover | State::ContainerHover) => {
+                        styles.hover.apply(&style.style);
+                    }
+                    (Selector::Notification(_), State::Default) => {}
+                    (Selector::Notification(_), State::Hover | State::ContainerHover) => {}
+                    (Selector::ActionButton, State::Default) => {
+                        styles.default.buttons.action.apply(&style.style);
+                        styles.hover.buttons.action.apply(&style.style);
+                    }
+                    (Selector::ActionButton, State::Hover) => {
+                        styles.default.buttons.action.apply_hover(&style.style);
+                        styles.hover.buttons.action.apply_hover(&style.style);
+                    }
+                    (Selector::ActionButton, State::ContainerHover) => {
+                        styles.hover.buttons.action.apply(&style.style);
+                    }
+                    (Selector::DismissButton, State::Default) => {
+                        styles.default.buttons.dismiss.apply(&style.style);
+                        styles.hover.buttons.dismiss.apply(&style.style);
+                    }
+                    (Selector::DismissButton, State::Hover) => {
+                        styles.default.buttons.dismiss.apply_hover(&style.style);
+                        styles.hover.buttons.dismiss.apply_hover(&style.style);
+                    }
+                    (Selector::DismissButton, State::ContainerHover) => {
+                        styles.hover.buttons.dismiss.apply(&style.style);
+                    }
+                })
+        });
 
         Ok(styles)
     }
