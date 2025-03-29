@@ -1,12 +1,13 @@
 use crate::{
-    config::keymaps::{Key, KeyAction, KeyCombination, Modifiers},
-    Moxnotify,
+    button::ButtonType,
+    config::keymaps::{Key, KeyAction, KeyCombination, Mode, Modifiers},
+    EmitEvent, Moxnotify,
 };
 use calloop::{
     timer::{TimeoutAction, Timer},
     RegistrationToken,
 };
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 use wayland_client::{
     protocol::{wl_keyboard, wl_seat},
     Connection, Dispatch, QueueHandle, WEnum,
@@ -200,61 +201,118 @@ impl Moxnotify {
             );
         }
 
-        if let Some(action) = self.config.keymaps.get(&self.seat.keyboard.key_combination) {
-            match action {
-                KeyAction::Noop => return Ok(()),
-                KeyAction::NextNotification => self.notifications.next(),
-                KeyAction::PreviousNotification => self.notifications.prev(),
-                KeyAction::FirstNotification => {
-                    while self.notifications.selected()
-                        != self.notifications.first().map(|n| n.id())
-                    {
-                        self.notifications.prev();
-                    }
-                }
-                KeyAction::LastNotification => {
-                    while self.notifications.selected() != self.notifications.last().map(|n| n.id())
-                    {
-                        self.notifications.next();
-                    }
-                }
-                KeyAction::DismissNotification => {
-                    if let Some(id) = self.notifications.selected() {
-                        if let Some(index) = self
-                            .notifications
-                            .iter()
-                            .position(|notification| notification.id() == id)
-                        {
-                            self.notifications.dismiss(id);
-                            let adjusted_index = if index == self.notifications.len() {
-                                index.saturating_sub(1)
-                            } else {
-                                index
-                            };
-
-                            if let Some(notification) =
-                                self.notifications.get(adjusted_index).map(|n| n.id())
+        match self.seat.keyboard.key_combination.mode {
+            Mode::Normal => {
+                if let Some(action) = self.config.keymaps.get(&self.seat.keyboard.key_combination) {
+                    match action {
+                        KeyAction::Noop => return Ok(()),
+                        KeyAction::NextNotification => self.notifications.next(),
+                        KeyAction::PreviousNotification => self.notifications.prev(),
+                        KeyAction::FirstNotification => {
+                            while self.notifications.selected()
+                                != self.notifications.first().map(|n| n.id())
                             {
-                                self.notifications.select(notification);
+                                self.notifications.prev();
                             }
                         }
-                    }
+                        KeyAction::LastNotification => {
+                            while self.notifications.selected()
+                                != self.notifications.last().map(|n| n.id())
+                            {
+                                self.notifications.next();
+                            }
+                        }
+                        KeyAction::DismissNotification => {
+                            if let Some(id) = self.notifications.selected() {
+                                if let Some(index) = self
+                                    .notifications
+                                    .iter()
+                                    .position(|notification| notification.id() == id)
+                                {
+                                    self.notifications.dismiss(id);
+                                    let adjusted_index = if index == self.notifications.len() {
+                                        index.saturating_sub(1)
+                                    } else {
+                                        index
+                                    };
 
-                    if self.notifications.notifications().is_empty() {
-                        self.seat.keyboard.repeat.key = None;
+                                    if let Some(notification) =
+                                        self.notifications.get(adjusted_index).map(|n| n.id())
+                                    {
+                                        self.notifications.select(notification);
+                                    }
+                                }
+                            }
+
+                            if self.notifications.notifications().is_empty() {
+                                self.seat.keyboard.repeat.key = None;
+                            }
+                        }
+                        KeyAction::Unfocus => {
+                            if let Some(surface) = self.surface.as_mut() {
+                                surface.unfocus();
+                                self.seat.keyboard.key_combination.keys.clear();
+                                self.notifications.deselect();
+                                self.seat.keyboard.repeat.key = None;
+                            }
+                        }
+                        KeyAction::HintMode => self.seat.keyboard.key_combination.mode = Mode::Hint,
+                        _ => {}
                     }
+                } else {
+                    return Err(anyhow::anyhow!(""));
                 }
-                KeyAction::Unfocus => {
-                    if let Some(surface) = self.surface.as_mut() {
-                        surface.unfocus();
-                        self.seat.keyboard.key_combination.keys.clear();
-                        self.notifications.deselect();
-                        self.seat.keyboard.repeat.key = None;
+            }
+            Mode::Hint => {
+                if let Some(id) = self.notifications.selected() {
+                    if let Some(notification) = self
+                        .notifications
+                        .notifications_mut()
+                        .iter_mut()
+                        .find(|n| n.id() == id)
+                    {
+                        if let Some(KeyAction::NormalMode) =
+                            self.config.keymaps.get(&self.seat.keyboard.key_combination)
+                        {
+                            self.seat.keyboard.key_combination.mode = Mode::Normal;
+                        } else if let Some(Key::Character(ch)) =
+                            self.seat.keyboard.key_combination.keys.first()
+                        {
+                            match notification.buttons.get_by_character(*ch) {
+                                Some(ButtonType::Dismiss) => {
+                                    self.notifications.dismiss(id);
+                                    self.seat.keyboard.key_combination.mode = Mode::Normal;
+                                }
+                                Some(ButtonType::Action { action, .. }) => {
+                                    if !self
+                                        .notifications
+                                        .iter()
+                                        .find(|notification| notification.id() == id)
+                                        .map(|n| n.hints.resident)
+                                        .unwrap_or_default()
+                                    {
+                                        self.notifications.dismiss(id);
+                                    }
+
+                                    if let Some(surface) = self.surface.as_ref() {
+                                        let token = surface.token.as_ref().map(Arc::clone);
+                                        _ = self.emit_sender.send(EmitEvent::ActionInvoked {
+                                            id,
+                                            action_key: action,
+                                            token: token.unwrap_or_default(),
+                                        });
+                                    }
+                                }
+                                None => {}
+                            }
+                        }
+
+                        if self.notifications.notifications().is_empty() {
+                            self.seat.keyboard.repeat.key = None;
+                        }
                     }
                 }
             }
-        } else {
-            return Err(anyhow::anyhow!(""));
         }
 
         self.update_surface_size();

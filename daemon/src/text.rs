@@ -94,7 +94,7 @@ impl Text {
 
                 if full_match.start() > last_pos {
                     let text = &body[last_pos..full_match.start()];
-                    start_pos += text.trim().chars().filter(|char| *char != '\n').count();
+                    start_pos += text.chars().filter(|char| *char != '\n').count();
                     spans.push((text, current_attrs));
                 }
 
@@ -198,7 +198,7 @@ impl Text {
     pub fn hit(&self, x: f32, y: f32) -> Option<&Anchor> {
         let cursor = self.buffer.hit(x - self.x, y - self.y)?;
         self.anchors.iter().find(|anchor| {
-            anchor.line == cursor.line && anchor.start < cursor.index && anchor.end >= cursor.index
+            anchor.line == cursor.line && anchor.start <= cursor.index && anchor.end >= cursor.index
         })
     }
 

@@ -54,6 +54,14 @@ impl ButtonManager {
         })
     }
 
+    pub fn get_by_character(&mut self, character: char) -> Option<ButtonType> {
+        let characters = ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'];
+        let pos = characters.iter().position(|ch| ch == &character)?;
+
+        let button = self.buttons.get_mut(pos)?;
+        Some(button.button_type.clone())
+    }
+
     pub fn instances(
         &self,
         container_hovered: bool,

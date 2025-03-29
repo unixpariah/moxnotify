@@ -449,20 +449,19 @@ impl Notification {
     }
 
     pub fn style(&self) -> &StyleState {
-        let styles = self
-            .config
+        self.config
             .styles
             .notification
             .iter()
             .find(|n| n.app == self.app_name)
-            .map(|c| &c.styles)
-            .unwrap_or(&self.config.styles);
-
-        if self.hovered {
-            &styles.hover
-        } else {
-            &styles.default
-        }
+            .map(|c| if self.hovered() { &c.hover } else { &c.default })
+            .unwrap_or_else(|| {
+                if self.hovered() {
+                    &self.config.styles.hover
+                } else {
+                    &self.config.styles.default
+                }
+            })
     }
 
     pub fn rendered_extents(&self) -> Extents {

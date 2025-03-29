@@ -24,10 +24,7 @@
         nixpkgs.lib.genAttrs systems (
           system:
           let
-            pkgs = import nixpkgs {
-              system = system;
-              overlays = overlays;
-            };
+            pkgs = import nixpkgs { inherit system overlays; };
           in
           function pkgs
         );

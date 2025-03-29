@@ -764,7 +764,8 @@ impl<'de> Deserialize<'de> for Timeout {
 #[derive(Default)]
 pub struct NotificationStyleEntry {
     pub app: Box<str>,
-    pub styles: Styles,
+    pub default: StyleState,
+    pub hover: StyleState,
     pub default_timeout: Option<Timeout>,
     pub ignore_timeout: Option<bool>,
 }
@@ -827,19 +828,18 @@ impl Config {
     }
 
     pub fn find_style(&self, app_name: &str, hovered: bool) -> &StyleState {
-        let styles = &self
-            .styles
+        self.styles
             .notification
             .iter()
             .find(|n| &*n.app == app_name)
-            .map(|c| &c.styles)
-            .unwrap_or(&self.styles);
-
-        if hovered {
-            &styles.hover
-        } else {
-            &styles.default
-        }
+            .map(|c| if hovered { &c.hover } else { &c.default })
+            .unwrap_or_else(|| {
+                if hovered {
+                    &self.styles.hover
+                } else {
+                    &self.styles.default
+                }
+            })
     }
 
     pub fn path() -> anyhow::Result<PathBuf> {

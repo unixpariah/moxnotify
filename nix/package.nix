@@ -13,7 +13,7 @@ let
 in
 rustPlatform.buildRustPackage rec {
   pname = "moxnotify";
-  version = cargoToml.package.version;
+  inherit (cargoToml.package) version;
 
   cargoLock.lockFile = ../Cargo.lock;
 
@@ -34,9 +34,7 @@ rustPlatform.buildRustPackage rec {
       ];
   };
 
-  nativeBuildInputs = [
-    pkg-config
-  ];
+  nativeBuildInputs = [ pkg-config ];
 
   buildInputs = [
     lua5_4

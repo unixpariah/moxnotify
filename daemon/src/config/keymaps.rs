@@ -19,52 +19,67 @@ fn default_key_combinations() -> Vec<(KeyCombination, KeyAction)> {
     vec![
         (
             KeyCombination {
-                modifiers: Modifiers::default(),
                 keys: vec![Key::Character('j')],
+                ..Default::default()
             },
             KeyAction::NextNotification,
         ),
         (
             KeyCombination {
-                modifiers: Modifiers::default(),
                 keys: vec![Key::Character('k')],
+                ..Default::default()
             },
             KeyAction::PreviousNotification,
         ),
         (
             KeyCombination {
-                modifiers: Modifiers::default(),
                 keys: vec![Key::Character('x')],
+                ..Default::default()
             },
             KeyAction::DismissNotification,
         ),
         (
             KeyCombination {
-                modifiers: Modifiers::default(),
                 keys: vec![Key::Character('d'), Key::Character('d')],
+                ..Default::default()
             },
             KeyAction::DismissNotification,
         ),
         (
             KeyCombination {
-                modifiers: Modifiers::default(),
                 keys: vec![Key::Character('G')],
+                ..Default::default()
             },
             KeyAction::LastNotification,
         ),
         (
             KeyCombination {
-                modifiers: Modifiers::default(),
                 keys: vec![Key::Character('g'), Key::Character('g')],
+                ..Default::default()
             },
             KeyAction::FirstNotification,
         ),
         (
             KeyCombination {
-                modifiers: Modifiers::default(),
+                mode: Mode::Hint,
                 keys: vec![Key::SpecialKey(SpecialKeyCode::Escape)],
+                ..Default::default()
+            },
+            KeyAction::NormalMode,
+        ),
+        (
+            KeyCombination {
+                keys: vec![Key::SpecialKey(SpecialKeyCode::Escape)],
+                ..Default::default()
             },
             KeyAction::Unfocus,
+        ),
+        (
+            KeyCombination {
+                keys: vec![Key::Character('f')],
+                ..Default::default()
+            },
+            KeyAction::HintMode,
         ),
     ]
 }
@@ -88,7 +103,28 @@ impl Deref for Keymaps {
 }
 
 #[derive(Deserialize, PartialEq, Eq, Hash, Debug, Default)]
+pub enum Mode {
+    #[default]
+    Normal,
+    Hint,
+}
+
+impl FromStr for Mode {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "normal" => Ok(Mode::Normal),
+            "hint" => Ok(Mode::Hint),
+            _ => Err(format!("Invalid mode: {}", s)),
+        }
+    }
+}
+
+#[derive(Deserialize, PartialEq, Eq, Hash, Debug, Default)]
 pub struct KeyCombination {
+    #[serde(default)]
+    pub mode: Mode,
     pub keys: Vec<Key>,
     pub modifiers: Modifiers,
 }
@@ -104,18 +140,30 @@ impl FromStr for KeyCombination {
     type Err = String;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut parts = s.split('+');
-        let mut modifiers = Modifiers::default();
-        let key_str = parts.next_back().ok_or("Invalid key combination")?;
+        let mut parts = s.split(':');
+        let first_part = parts.next().ok_or("Invalid key combination")?;
+        let key_comb_str;
+        let mode;
 
-        parts.try_for_each(|part| {
+        if let Ok(parsed_mode) = Mode::from_str(first_part) {
+            mode = parsed_mode;
+            key_comb_str = parts.next().ok_or("Missing key combination")?;
+        } else {
+            mode = Mode::Normal;
+            key_comb_str = first_part;
+        }
+
+        let mut key_parts = key_comb_str.split('+');
+        let mut modifiers = Modifiers::default();
+        let key_str = key_parts.next_back().ok_or("Invalid key combination")?;
+
+        key_parts.try_for_each(|part| {
             match part.to_lowercase().as_str() {
                 "ctrl" => modifiers.control = true,
                 "alt" => modifiers.alt = true,
                 "meta" => modifiers.meta = true,
                 _ => return Err(format!("Invalid modifier: {}", part)),
             }
-
             Ok(())
         })?;
 
@@ -128,7 +176,11 @@ impl FromStr for KeyCombination {
             _ => key_str.chars().map(Key::Character).collect(),
         };
 
-        Ok(KeyCombination { modifiers, keys })
+        Ok(KeyCombination {
+            mode,
+            modifiers,
+            keys,
+        })
     }
 }
 
@@ -189,6 +241,8 @@ pub enum KeyAction {
     LastNotification,
     Unfocus,
     Noop,
+    HintMode,
+    NormalMode,
 }
 
 #[derive(Deserialize, PartialEq, Eq, Hash, Debug, Default, Clone)]

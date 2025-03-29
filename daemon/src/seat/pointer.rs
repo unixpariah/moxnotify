@@ -113,16 +113,12 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 if let Some(under_pointer) =
                     state.notifications.get_by_coordinates(pointer.x, pointer.y)
                 {
-                    let mut acc = 0.;
-                    state.notifications.iter().find(|notification| {
-                        acc += notification.extents().height;
-                        notification == &under_pointer
-                    });
-                    acc -= under_pointer.rendered_extents().height;
-
                     if under_pointer
                         .text
-                        .hit(pointer.x as f32, pointer.y as f32 - acc)
+                        .hit(
+                            pointer.x as f32,
+                            pointer.y as f32 - under_pointer.rendered_extents().y,
+                        )
                         .is_some()
                     {
                         state.seat.pointer.change_state(PointerState::Hover);
@@ -170,16 +166,9 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                             {
                                 let notification_id = under_pointer.id();
 
-                                let mut acc = 0.0;
-                                let _ = state.notifications.iter().find(|n| {
-                                    acc += n.extents().height;
-                                    n == &under_pointer
-                                });
-                                acc -= under_pointer.rendered_extents().height;
-
                                 let href = under_pointer
                                     .text
-                                    .hit(x as f32, y as f32 - acc)
+                                    .hit(x as f32, y as f32 - under_pointer.rendered_extents().y)
                                     .map(|anchor| Arc::clone(&anchor.href));
 
                                 let button = state.notifications.get_button_by_coordinates(x, y);
