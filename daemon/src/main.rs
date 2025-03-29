@@ -130,9 +130,14 @@ impl Moxnotify {
             Event::FocusSurface => {
                 if let Some(surface) = self.surface.as_mut() {
                     surface.focus(FocusReason::Ctl);
-                    if self.notifications.selected().is_none() {
-                        self.notifications.next();
-                    }
+                    //if let Some(id) = self.notifications.selected() {
+                        //if let Some(notification) = self.notifications.notifications_mut().iter_mut().find(|notification| notification.id() == id) {
+                            //self.notifications.select(id);
+                            //return Ok(());
+                        //}
+                    //} 
+
+                    self.notifications.next();
                 }
             }
         };

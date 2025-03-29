@@ -239,6 +239,10 @@ impl Moxnotify {
                             }
                         }
                     }
+
+                    if self.notifications.notifications().is_empty() {
+                        self.seat.keyboard.repeat.key = None;
+                    }
                 }
                 KeyAction::Unfocus => {
                     if let Some(surface) = self.surface.as_mut() {

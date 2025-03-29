@@ -50,6 +50,10 @@ impl NotificationManager {
         &self.notifications
     }
 
+    pub fn notifications_mut(&mut self) -> &mut [Notification] {
+        &mut self.notifications
+    }
+
     pub fn data(&self, scale: f32) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
         let (mut instances, mut text_areas, textures) = self
             .notifications

@@ -6,7 +6,7 @@ use serde::{
 };
 use std::{fmt, str::FromStr};
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize, Default, Clone)]
 pub struct PartialStyle {
     pub background: Option<PartialColor>,
     pub min_width: Option<Size>,
@@ -94,7 +94,7 @@ impl<'de> Deserialize<'de> for PartialColor {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct PartialFont {
     pub size: Option<f32>,
     pub family: Option<Box<str>>,
@@ -195,7 +195,7 @@ impl<'de> Deserialize<'de> for PartialInsets {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Clone)]
 pub struct PartialBorder {
     pub size: Option<PartialInsets>,
     pub radius: Option<PartialBorderRadius>,
