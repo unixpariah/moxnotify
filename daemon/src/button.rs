@@ -1,6 +1,6 @@
 use crate::{
     buffers,
-    config::{button::ButtonState, Config},
+    config::{button::ButtonState, keymaps::Mode, Config},
     notification_manager::notification::Extents,
     text::Text,
     Urgency,
@@ -28,7 +28,20 @@ impl ButtonManager {
         &mut self.buttons
     }
 
-    pub fn add(&mut self, button: Button) {
+    pub fn add(
+        &mut self,
+        button_type: ButtonType,
+        config: Arc<Config>,
+        font_system: &mut FontSystem,
+    ) {
+        let mut buf = [0; 4];
+        let str = config
+            .hint_characters
+            .chars()
+            .nth(self.buttons.len())
+            .unwrap()
+            .encode_utf8(&mut buf);
+        let button = Button::new(str, button_type, config, font_system);
         self.buttons.push(button);
     }
 
@@ -64,30 +77,127 @@ impl ButtonManager {
 
     pub fn instances(
         &self,
+        mode: Mode,
         container_hovered: bool,
         urgency: &Urgency,
         scale: f32,
     ) -> Vec<buffers::Instance> {
-        self.buttons
+        let mut buttons = self
+            .buttons
             .iter()
             .map(|button| button.instance(container_hovered, scale, urgency))
-            .collect()
+            .collect::<Vec<_>>();
+
+        if mode == Mode::Hint && container_hovered {
+            let hints = self
+                .buttons
+                .iter()
+                .map(|button| {
+                    button
+                        .hint
+                        .instance(&button.extents(container_hovered), scale, urgency)
+                })
+                .collect::<Vec<_>>();
+            buttons.extend_from_slice(&hints);
+        }
+
+        buttons
     }
 
     pub fn text_areas(
         &self,
+        mode: Mode,
         container_hovered: bool,
         urgency: &Urgency,
         scale: f32,
     ) -> Vec<TextArea> {
-        self.buttons
+        let mut text_areas = self
+            .buttons
             .iter()
             .map(|button| button.text_area(container_hovered, scale, urgency))
-            .collect()
+            .collect::<Vec<_>>();
+
+        if mode == Mode::Hint && container_hovered {
+            let hints = self
+                .buttons
+                .iter()
+                .map(|button| {
+                    button
+                        .hint
+                        .text_area(&button.extents(container_hovered), scale, urgency)
+                })
+                .collect::<Vec<_>>();
+            text_areas.extend_from_slice(&hints);
+        }
+
+        text_areas
+    }
+}
+
+struct Hint {
+    text: Text,
+    config: Arc<Config>,
+}
+
+impl Hint {
+    fn new(character: &str, config: Arc<Config>, font_system: &mut FontSystem) -> Self {
+        Self {
+            text: Text::new(&config.styles.default.font, font_system, character),
+            config,
+        }
+    }
+
+    fn instance(
+        &self,
+        button_extents: &Extents,
+        scale: f32,
+        urgency: &Urgency,
+    ) -> buffers::Instance {
+        let style = &self.config.styles.hover.hint;
+        let text_extents = self.text.extents();
+        buffers::Instance {
+            rect_pos: [
+                button_extents.x,
+                button_extents.y - style.height.resolve(text_extents.1) / 2.,
+            ],
+            rect_size: [
+                style.width.resolve(text_extents.0) + style.padding.left + style.padding.right,
+                style.height.resolve(text_extents.1) + style.padding.top + style.padding.bottom,
+            ],
+            rect_color: style.background.to_linear(&Urgency::Low),
+            border_radius: style.border.radius.into(),
+            border_size: style.border.size.into(),
+            border_color: style.border.color.to_linear(urgency),
+            scale,
+        }
+    }
+
+    fn text_area(&self, button_extents: &Extents, scale: f32, urgency: &Urgency) -> TextArea {
+        let style = &self.config.styles.hover.hint;
+        let text_extents = self.text.extents();
+        TextArea {
+            buffer: &self.text.buffer,
+            left: button_extents.x + style.padding.left,
+            top: button_extents.y + style.padding.top - style.height.resolve(text_extents.1) / 2.,
+            scale,
+            bounds: glyphon::TextBounds {
+                left: (button_extents.x + style.padding.left) as i32,
+                top: (button_extents.y + style.padding.top
+                    - style.height.resolve(text_extents.1) / 2.) as i32,
+                right: (button_extents.x + style.padding.left + style.width.resolve(text_extents.0))
+                    as i32,
+                bottom: (button_extents.y
+                    + style.padding.top
+                    + style.height.resolve(text_extents.1)) as i32,
+            },
+            default_color: style.font.color.into_glyphon(urgency),
+            custom_glyphs: &[],
+        }
     }
 }
 
 pub struct Button {
+    hint: Hint,
     pub hovered: bool,
     pub button_type: ButtonType,
     x: f32,
@@ -98,7 +208,12 @@ pub struct Button {
 }
 
 impl Button {
-    pub fn new(button_type: ButtonType, config: Arc<Config>, font_system: &mut FontSystem) -> Self {
+    fn new(
+        character: &str,
+        button_type: ButtonType,
+        config: Arc<Config>,
+        font_system: &mut FontSystem,
+    ) -> Self {
         let font = match button_type {
             ButtonType::Dismiss => &config.styles.default.buttons.dismiss.default.font,
             ButtonType::Action { .. } => &config.styles.default.buttons.action.default.font,
@@ -110,6 +225,7 @@ impl Button {
         };
 
         Self {
+            hint: Hint::new(character, Arc::clone(&config), font_system),
             text,
             hovered: false,
             x: 0.,

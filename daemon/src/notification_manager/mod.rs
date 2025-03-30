@@ -4,7 +4,7 @@ mod notification_view;
 use crate::{
     buffers,
     button::ButtonType,
-    config::{self, Config, Queue},
+    config::{self, keymaps::Mode, Config, Queue},
     texture_renderer::TextureArea,
     Moxnotify, NotificationData,
 };
@@ -50,7 +50,11 @@ impl NotificationManager {
         &self.notifications
     }
 
-    pub fn data(&self, scale: f32) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
+    pub fn data(
+        &self,
+        mode: Mode,
+        scale: f32,
+    ) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
         let (mut instances, mut text_areas, textures) = self
             .notifications
             .iter()
@@ -59,8 +63,8 @@ impl NotificationManager {
             .fold(
                 (Vec::new(), Vec::new(), Vec::new()),
                 |(mut instances, mut text_areas, mut textures), (_, notification)| {
-                    let instance = notification.instances(scale);
-                    let text = notification.text_area(scale);
+                    let instance = notification.instances(mode, scale);
+                    let text = notification.text_areas(mode, scale);
                     let texture = notification.icons.textures(
                         notification.style(),
                         &self.config,
@@ -352,6 +356,7 @@ impl NotificationManager {
                         moxnotify.update_surface_size();
                         if let Some(surface) = moxnotify.surface.as_mut() {
                             let _ = surface.render(
+                                moxnotify.seat.keyboard.key_combination.mode,
                                 &moxnotify.wgpu_state.device,
                                 &moxnotify.wgpu_state.queue,
                                 &moxnotify.notifications,

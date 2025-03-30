@@ -117,6 +117,7 @@ pub enum Selector {
     DismissButton,
     Progress,
     Icon,
+    Hints,
 }
 
 impl<'de> Deserialize<'de> for Selector {
@@ -134,6 +135,7 @@ impl<'de> Deserialize<'de> for Selector {
             "dismiss" => Ok(Selector::DismissButton),
             "progress" => Ok(Selector::Progress),
             "icon" => Ok(Selector::Icon),
+            "hints" => Ok(Selector::Hints),
             _ => {
                 if let Some(notification) = s.strip_prefix("notification:") {
                     Ok(Selector::Notification(notification.into()))
@@ -335,7 +337,57 @@ impl Default for Progress {
     }
 }
 
+pub struct Hint {
+    pub background: Color,
+    pub width: Size,
+    pub height: Size,
+    pub font: Font,
+    pub border: Border,
+    pub padding: Insets,
+}
+
+impl Hint {
+    fn apply(&mut self, partial: &PartialStyle) {
+        if let Some(background) = partial.background.as_ref() {
+            self.background.apply(background);
+        }
+        if let Some(font) = partial.font.as_ref() {
+            self.font.apply(font);
+        }
+        if let Some(border) = partial.border.as_ref() {
+            self.border.apply(border);
+        }
+    }
+}
+
+impl Default for Hint {
+    fn default() -> Self {
+        Self {
+            background: Color::rgba([0, 0, 0, 255]),
+            width: Size::Auto,
+            height: Size::Auto,
+            font: Font {
+                size: 10.,
+                family: "DejaVu Sans".into(),
+                color: Color::rgba([255, 255, 255, 255]),
+            },
+            border: Border {
+                size: Insets::size(1.),
+                radius: BorderRadius::default(),
+                color: Color::rgba([255, 0, 0, 255]),
+            },
+            padding: Insets {
+                left: 2.,
+                right: 2.,
+                top: 0.,
+                bottom: 0.,
+            },
+        }
+    }
+}
+
 pub struct StyleState {
+    pub hint: Hint,
     pub background: Color,
     pub width: Size,
     pub min_height: Size,
@@ -393,6 +445,7 @@ impl StyleState {
 impl Default for StyleState {
     fn default() -> Self {
         Self {
+            hint: Hint::default(),
             background: Color {
                 urgency_low: [26, 27, 38, 255],
                 urgency_normal: [22, 22, 30, 255],
@@ -450,6 +503,7 @@ impl<'de> Deserialize<'de> for Styles {
                     (Selector::Progress, _) => 19,
                     (Selector::PrevCounter, _) => 20,
                     (Selector::NextCounter, _) => 21,
+                    (Selector::Hints, _) => 22,
                 }
             }
 
@@ -496,6 +550,13 @@ impl<'de> Deserialize<'de> for Styles {
 
                     styles.default.buttons.dismiss.apply(&style.style);
                     styles.hover.buttons.dismiss.apply(&style.style);
+
+                    styles.default.hint.apply(&style.style);
+                    styles.hover.hint.apply(&style.style);
+                }
+                (Selector::Hints, _) => {
+                    styles.default.hint.apply(&style.style);
+                    styles.hover.hint.apply(&style.style);
                 }
                 (Selector::NextCounter, _) => styles.next.apply(&style.style),
                 (Selector::PrevCounter, _) => styles.prev.apply(&style.style),

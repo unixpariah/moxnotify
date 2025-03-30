@@ -285,6 +285,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
         state.update_surface_size();
         if let Some(surface) = state.surface.as_mut() {
             _ = surface.render(
+                state.seat.keyboard.key_combination.mode,
                 &state.wgpu_state.device,
                 &state.wgpu_state.queue,
                 &state.notifications,

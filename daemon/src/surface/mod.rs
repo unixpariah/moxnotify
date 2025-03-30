@@ -1,7 +1,7 @@
 pub mod wgpu_surface;
 
 use crate::{
-    config::{self, Anchor, Config},
+    config::{self, keymaps::Mode, Anchor, Config},
     notification_manager::NotificationManager,
     wgpu_state, Moxnotify, Output,
 };
@@ -59,6 +59,7 @@ impl Surface {
 
     pub fn render(
         &mut self,
+        mode: Mode,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         notifications: &NotificationManager,
@@ -92,7 +93,7 @@ impl Surface {
             occlusion_query_set: None,
         });
 
-        let (instances, text_data, textures) = notifications.data(self.scale);
+        let (instances, text_data, textures) = notifications.data(mode, self.scale);
 
         self.wgpu_surface
             .shape_renderer
@@ -264,6 +265,7 @@ impl Dispatch<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1, ()> for Moxnotify {
                 surface.layer_surface.ack_configure(serial);
                 surface.configured = true;
                 _ = surface.render(
+                    state.seat.keyboard.key_combination.mode,
                     &state.wgpu_state.device,
                     &state.wgpu_state.queue,
                     &state.notifications,

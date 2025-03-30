@@ -102,7 +102,7 @@ impl Deref for Keymaps {
     }
 }
 
-#[derive(Deserialize, PartialEq, Eq, Hash, Debug, Default)]
+#[derive(Deserialize, PartialEq, Eq, Hash, Debug, Default, Clone, Copy)]
 pub enum Mode {
     #[default]
     Normal,

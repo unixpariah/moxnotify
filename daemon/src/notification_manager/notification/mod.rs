@@ -4,8 +4,8 @@ mod progress;
 use super::config::Config;
 use crate::{
     buffers,
-    button::{Button, ButtonManager, ButtonType},
-    config::{Size, StyleState},
+    button::{ButtonManager, ButtonType},
+    config::{keymaps::Mode, Size, StyleState},
     dbus::xdg::NotificationHints,
     text, NotificationData, Urgency,
 };
@@ -78,14 +78,14 @@ impl Notification {
 
         let style = &config.styles.default;
         let mut buttons = ButtonManager::default();
-        let dismiss_button = Button::new(ButtonType::Dismiss, Arc::clone(&config), font_system);
+        buttons.add(ButtonType::Dismiss, Arc::clone(&config), font_system);
 
         data.actions.iter().cloned().for_each(|(action, text)| {
-            buttons.add(Button::new(
+            buttons.add(
                 ButtonType::Action { text, action },
                 Arc::clone(&config),
                 font_system,
-            ))
+            )
         });
 
         let icon_width = icons
@@ -100,10 +100,12 @@ impl Notification {
             &data.body,
             config.styles.default.width.resolve(0.)
                 - icon_width
-                - dismiss_button.rendered_extents(false).width,
+                - buttons
+                    .buttons()
+                    .first()
+                    .map(|b| b.rendered_extents(false).width)
+                    .unwrap_or_default(),
         );
-
-        buttons.add(dismiss_button);
 
         let notification_style_entry = config
             .styles
@@ -406,7 +408,7 @@ impl Notification {
         }
     }
 
-    pub fn instances(&self, scale: f32) -> Vec<buffers::Instance> {
+    pub fn instances(&self, mode: Mode, scale: f32) -> Vec<buffers::Instance> {
         let mut instances = vec![self.background_instance(scale)];
         if let Some(progress) = self.progress.as_ref() {
             instances.extend_from_slice(&progress.instances(
@@ -419,7 +421,7 @@ impl Notification {
 
         let button_instances = self
             .buttons
-            .instances(self.hovered(), self.urgency(), scale);
+            .instances(mode, self.hovered(), self.urgency(), scale);
 
         instances.extend_from_slice(&button_instances);
 
@@ -477,7 +479,7 @@ impl Notification {
         }
     }
 
-    pub fn text_area(&self, scale: f32) -> Vec<TextArea> {
+    pub fn text_areas(&self, mode: Mode, scale: f32) -> Vec<TextArea> {
         let extents = self.rendered_extents();
         let (width, height) = self.text.extents();
 
@@ -517,7 +519,7 @@ impl Notification {
 
         let button_areas = self
             .buttons
-            .text_areas(self.hovered(), self.urgency(), scale);
+            .text_areas(mode, self.hovered(), self.urgency(), scale);
 
         res.extend_from_slice(&button_areas);
         res

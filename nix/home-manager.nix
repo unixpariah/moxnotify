@@ -10,7 +10,7 @@ let
   toLua =
     value:
     let
-      recurse = toLua v;
+      recurse = v: toLua v;
       generators = {
         bool = b: if b then "true" else "false";
         int = toString;

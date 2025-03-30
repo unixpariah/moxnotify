@@ -11,7 +11,6 @@ in
 
   config = lib.mkIf (config.stylix.enable && config.stylix.targets.moxnotify.enable) {
     services.moxnotify.settings = {
-
       styles = [
         {
           selector = "*";
@@ -29,29 +28,19 @@ in
           };
         }
         {
-          selector = "next_counter";
+          selector = [
+            "next_counter"
+            "prev_counter"
+            "notification"
+            "hints"
+          ];
           style.background = {
             urgency_low = base00 + moxnotifyOpacity;
             urgency_normal = base01 + moxnotifyOpacity;
             urgency_critical = base01 + moxnotifyOpacity;
           };
         }
-        {
-          selector = "prev_counter";
-          style.background = {
-            urgency_low = base00 + moxnotifyOpacity;
-            urgency_normal = base01 + moxnotifyOpacity;
-            urgency_critical = base01 + moxnotifyOpacity;
-          };
-        }
-        {
-          selector = "notification";
-          style.background = {
-            urgency_low = base00 + moxnotifyOpacity;
-            urgency_normal = base01 + moxnotifyOpacity;
-            urgency_critical = base01 + moxnotifyOpacity;
-          };
-        }
+
         {
           selector = "notification";
           state = "hover";
