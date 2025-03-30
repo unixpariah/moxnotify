@@ -209,21 +209,21 @@ impl Moxnotify {
                         KeyAction::NextNotification => self.notifications.next(),
                         KeyAction::PreviousNotification => self.notifications.prev(),
                         KeyAction::FirstNotification => {
-                            while self.notifications.selected()
+                            while self.notifications.selected_id()
                                 != self.notifications.first().map(|n| n.id())
                             {
                                 self.notifications.prev();
                             }
                         }
                         KeyAction::LastNotification => {
-                            while self.notifications.selected()
+                            while self.notifications.selected_id()
                                 != self.notifications.last().map(|n| n.id())
                             {
                                 self.notifications.next();
                             }
                         }
                         KeyAction::DismissNotification => {
-                            if let Some(id) = self.notifications.selected() {
+                            if let Some(id) = self.notifications.selected_id() {
                                 if let Some(index) = self
                                     .notifications
                                     .iter()
@@ -264,52 +264,41 @@ impl Moxnotify {
                 }
             }
             Mode::Hint => {
-                if let Some(id) = self.notifications.selected() {
-                    if let Some(notification) = self
-                        .notifications
-                        .notifications_mut()
-                        .iter_mut()
-                        .find(|n| n.id() == id)
+                if let Some(notification) = self.notifications.selected_notification_mut() {
+                    let id = notification.id();
+                    if let Some(KeyAction::NormalMode) =
+                        self.config.keymaps.get(&self.seat.keyboard.key_combination)
                     {
-                        if let Some(KeyAction::NormalMode) =
-                            self.config.keymaps.get(&self.seat.keyboard.key_combination)
-                        {
-                            self.seat.keyboard.key_combination.mode = Mode::Normal;
-                        } else if let Some(Key::Character(ch)) =
-                            self.seat.keyboard.key_combination.keys.first()
-                        {
-                            match notification.buttons.get_by_character(*ch) {
-                                Some(ButtonType::Dismiss) => {
-                                    self.notifications.dismiss(id);
-                                    self.seat.keyboard.key_combination.mode = Mode::Normal;
-                                }
-                                Some(ButtonType::Action { action, .. }) => {
-                                    if !self
-                                        .notifications
-                                        .iter()
-                                        .find(|notification| notification.id() == id)
-                                        .map(|n| n.hints.resident)
-                                        .unwrap_or_default()
-                                    {
-                                        self.notifications.dismiss(id);
-                                    }
-
-                                    if let Some(surface) = self.surface.as_ref() {
-                                        let token = surface.token.as_ref().map(Arc::clone);
-                                        _ = self.emit_sender.send(EmitEvent::ActionInvoked {
-                                            id,
-                                            action_key: action,
-                                            token: token.unwrap_or_default(),
-                                        });
-                                    }
-                                }
-                                None => {}
+                        self.seat.keyboard.key_combination.mode = Mode::Normal;
+                    } else if let Some(Key::Character(ch)) =
+                        self.seat.keyboard.key_combination.keys.first()
+                    {
+                        match notification.buttons.get_by_character(*ch) {
+                            Some(ButtonType::Dismiss) => {
+                                self.notifications.dismiss(id);
+                                self.seat.keyboard.key_combination.mode = Mode::Normal;
                             }
-                        }
+                            Some(ButtonType::Action { action, .. }) => {
+                                if !notification.hints.resident {
+                                    self.notifications.dismiss(id);
+                                }
 
-                        if self.notifications.notifications().is_empty() {
-                            self.seat.keyboard.repeat.key = None;
+                                if let Some(surface) = self.surface.as_ref() {
+                                    let token = surface.token.as_ref().map(Arc::clone);
+                                    _ = self.emit_sender.send(EmitEvent::ActionInvoked {
+                                        id,
+                                        action_key: action,
+                                        token: token.unwrap_or_default(),
+                                    });
+                                }
+                                self.seat.keyboard.key_combination.mode = Mode::Normal;
+                            }
+                            None => {}
                         }
+                    }
+
+                    if self.notifications.notifications().is_empty() {
+                        self.seat.keyboard.repeat.key = None;
                     }
                 }
             }

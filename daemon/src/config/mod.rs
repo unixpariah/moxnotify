@@ -11,12 +11,13 @@ use keymaps::Keymaps;
 use mlua::{Lua, LuaSerdeExt};
 use partial::{PartialFont, PartialInsets, PartialStyle};
 use serde::{Deserialize, Deserializer};
-use std::{fmt, fs, path::PathBuf};
+use std::{fmt, fs, path::PathBuf, sync::Arc};
 
 #[derive(Deserialize)]
 #[serde(default)]
 pub struct Config {
     pub scroll_sensitivity: f64,
+    pub hint_characters: Arc<str>,
     pub max_visible: u32,
     pub icon_size: u32,
     pub app_icon_size: u32,
@@ -33,6 +34,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            hint_characters: "sadfjklewcmpgh".into(),
             scroll_sensitivity: 20.,
             max_visible: 5,
             icon_size: 64,

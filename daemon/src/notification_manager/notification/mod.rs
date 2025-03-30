@@ -366,16 +366,17 @@ impl Notification {
 
     fn update_text_position(&mut self) {
         let style = self.style();
-        let icon_width = self.icons.extents(style).width;
+        let icon_extents = self.icons.extents(style);
+        let extents = self.rendered_extents();
         self.text.set_buffer_position(
-            style.padding.left + style.border.size.left + style.margin.left + icon_width,
-            style.margin.top + style.border.size.top,
+            extents.x + style.padding.left + style.border.size.left + icon_extents.width,
+            extents.y + style.padding.top + style.border.size.top,
         );
     }
 
     pub fn hover(&mut self) {
         self.hovered = true;
-        self.set_position(self.x, self.y);
+        self.update_text_position();
     }
 
     pub fn unhover(&mut self) {

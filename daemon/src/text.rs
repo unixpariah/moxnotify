@@ -197,6 +197,16 @@ impl Text {
 
     pub fn hit(&self, x: f32, y: f32) -> Option<&Anchor> {
         let cursor = self.buffer.hit(x - self.x, y - self.y)?;
+
+        let line_width = self.buffer.layout_runs().nth(cursor.line)?.line_w;
+        if x - self.x < 0.
+            || (x - self.x).abs() > line_width
+            || y - self.y < 0.
+            || y - self.y > self.extents().1
+        {
+            return None;
+        }
+
         self.anchors.iter().find(|anchor| {
             anchor.line == cursor.line && anchor.start <= cursor.index && anchor.end >= cursor.index
         })

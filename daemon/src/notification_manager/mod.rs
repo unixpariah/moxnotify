@@ -50,10 +50,6 @@ impl NotificationManager {
         &self.notifications
     }
 
-    pub fn notifications_mut(&mut self) -> &mut [Notification] {
-        &mut self.notifications
-    }
-
     pub fn data(&self, scale: f32) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
         let (mut instances, mut text_areas, textures) = self
             .notifications
@@ -103,34 +99,24 @@ impl NotificationManager {
     }
 
     pub fn get_by_coordinates(&self, x: f64, y: f64) -> Option<&Notification> {
-        let mut cumulative_y_offset: f64 = self
-            .notification_view
-            .prev
-            .as_ref()
-            .map(|n| n.extents().height)
-            .unwrap_or_default()
-            .into();
-
         self.notification_view
             .visible
             .clone()
-            .filter_map(|index| self.notifications.get(index))
-            .scan(&mut cumulative_y_offset, |current_y, notification| {
-                let extents = notification.rendered_extents();
-                let notification_height = extents.height as f64;
+            .filter_map(|index| {
+                if let Some(notification) = self.notifications.get(index) {
+                    let extents = notification.rendered_extents();
+                    let x_within_bounds =
+                        x >= extents.x as f64 && x < (extents.x + extents.width) as f64;
+                    let y_within_bounds =
+                        y >= extents.y as f64 && y < (extents.y + extents.height) as f64;
 
-                let x_within_bounds =
-                    x >= extents.x as f64 && x < (extents.x + extents.width) as f64;
-                let y_within_bounds = y >= **current_y && y < (**current_y + notification_height);
-
-                if x_within_bounds && y_within_bounds {
-                    Some(Some(notification))
-                } else {
-                    **current_y += notification.extents().height as f64;
-                    Some(None)
+                    if x_within_bounds && y_within_bounds {
+                        return Some(notification);
+                    }
                 }
+
+                None
             })
-            .flatten()
             .next()
     }
 
@@ -186,8 +172,15 @@ impl NotificationManager {
         }
     }
 
-    pub fn selected(&self) -> Option<NotificationId> {
+    pub fn selected_id(&self) -> Option<NotificationId> {
         self.selected
+    }
+
+    pub fn selected_notification_mut(&mut self) -> Option<&mut Notification> {
+        let id = self.selected_id()?;
+        self.notifications
+            .iter_mut()
+            .find(|notification| notification.id() == id)
     }
 
     pub fn select(&mut self, id: NotificationId) {
@@ -376,7 +369,7 @@ impl NotificationManager {
         }
 
         // Maintain selection if replacing
-        if self.selected() == Some(id) {
+        if self.selected_id() == Some(id) {
             self.select(id);
         }
 
@@ -432,7 +425,7 @@ impl NotificationManager {
             }
 
             if let Some(next_notification) = self.notifications.get(i) {
-                if self.selected() == Some(notification.id()) {
+                if self.selected_id() == Some(notification.id()) {
                     self.select(next_notification.id());
                 }
             }
@@ -446,7 +439,7 @@ impl NotificationManager {
         self.notification_view
             .update_notification_count(self.height(), self.notifications.len());
 
-        if self.selected() == Some(id) {
+        if self.selected_id() == Some(id) {
             self.deselect();
         }
 
