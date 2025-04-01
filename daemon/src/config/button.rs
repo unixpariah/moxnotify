@@ -191,10 +191,10 @@ impl Default for ButtonState {
     fn default() -> Self {
         Self {
             padding: Insets {
-                left: 0.,
-                right: 0.,
-                top: 0.,
-                bottom: 0.,
+                left: 5.,
+                right: 5.,
+                top: 2.,
+                bottom: 2.,
             },
             margin: Insets {
                 left: 0.,
@@ -202,8 +202,8 @@ impl Default for ButtonState {
                 top: 0.,
                 bottom: 0.,
             },
-            width: Size::Value(20.),
-            height: Size::Value(20.),
+            width: Size::Auto,
+            height: Size::Auto,
             background: Color::rgba([192, 202, 245, 255]),
             border: Border {
                 size: Insets {

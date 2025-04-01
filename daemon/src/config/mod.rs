@@ -329,9 +329,9 @@ impl Default for Progress {
             },
             incomplete_color: Color::default(),
             complete_color: Color {
-                urgency_low: [247, 118, 142, 255],
-                urgency_normal: [247, 118, 142, 255],
-                urgency_critical: [247, 118, 142, 255],
+                urgency_low: [242, 205, 205, 255],
+                urgency_normal: [242, 205, 205, 255],
+                urgency_critical: [243, 139, 168, 255],
             },
         }
     }
@@ -363,19 +363,15 @@ impl Hint {
 impl Default for Hint {
     fn default() -> Self {
         Self {
-            background: Color::rgba([0, 0, 0, 255]),
+            background: Color {
+                urgency_low: [30, 30, 46, 255],
+                urgency_normal: [24, 24, 37, 255],
+                urgency_critical: [24, 24, 37, 255],
+            },
             width: Size::Auto,
             height: Size::Auto,
-            font: Font {
-                size: 10.,
-                family: "DejaVu Sans".into(),
-                color: Color::rgba([255, 255, 255, 255]),
-            },
-            border: Border {
-                size: Insets::size(1.),
-                radius: BorderRadius::default(),
-                color: Color::rgba([255, 0, 0, 255]),
-            },
+            font: Font::default(),
+            border: Border::default(),
             padding: Insets {
                 left: 2.,
                 right: 2.,

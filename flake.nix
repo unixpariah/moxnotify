@@ -9,6 +9,10 @@
       url = "github:wgsl-analyzer/wgsl-analyzer";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    moxctl = {
+      url = "github:unixpariah/moxctl";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs =
@@ -52,7 +56,9 @@
       });
 
       packages = forAllSystems (pkgs: {
-        default = pkgs.callPackage ./nix/package.nix { };
+        default = pkgs.callPackage ./nix/package.nix {
+          moxctl = inputs.moxctl.packages.${pkgs.system}.default;
+        };
       });
 
       homeManagerModules = {

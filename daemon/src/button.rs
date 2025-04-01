@@ -34,14 +34,25 @@ impl ButtonManager {
         config: Arc<Config>,
         font_system: &mut FontSystem,
     ) {
-        let mut buf = [0; 4];
-        let str = config
-            .hint_characters
-            .chars()
-            .nth(self.buttons.len())
-            .unwrap()
-            .encode_utf8(&mut buf);
-        let button = Button::new(str, button_type, config, font_system);
+        let hint_chars: Vec<char> = config.hint_characters.chars().collect();
+        let n = hint_chars.len();
+
+        let mut m = self.buttons.len() as i32;
+        let mut indices = Vec::new();
+
+        loop {
+            let remainder = (m % n as i32) as usize;
+            indices.push(remainder);
+            m = (m / n as i32) - 1;
+            if m < 0 {
+                break;
+            }
+        }
+
+        indices.reverse();
+        let combination: String = indices.into_iter().map(|i| hint_chars[i]).collect();
+
+        let button = Button::new(&combination, button_type, config, font_system);
         self.buttons.push(button);
     }
 
@@ -67,11 +78,12 @@ impl ButtonManager {
         })
     }
 
-    pub fn get_by_character(&mut self, character: char) -> Option<ButtonType> {
-        let characters = self.buttons.first()?.config.hint_characters.clone();
-        let pos = characters.chars().position(|ch| ch == character)?;
+    pub fn get_by_character(&mut self, combination: &str) -> Option<ButtonType> {
+        let button = self
+            .buttons
+            .iter()
+            .find(|button| &*button.hint.combination == combination)?;
 
-        let button = self.buttons.get_mut(pos)?;
         Some(button.button_type.clone())
     }
 
@@ -136,13 +148,15 @@ impl ButtonManager {
 
 struct Hint {
     text: Text,
+    combination: Arc<str>,
     config: Arc<Config>,
 }
 
 impl Hint {
-    fn new(character: &str, config: Arc<Config>, font_system: &mut FontSystem) -> Self {
+    fn new(combination: &str, config: Arc<Config>, font_system: &mut FontSystem) -> Self {
         Self {
-            text: Text::new(&config.styles.default.font, font_system, character),
+            combination: combination.into(),
+            text: Text::new(&config.styles.default.font, font_system, combination),
             config,
         }
     }
@@ -209,7 +223,7 @@ pub struct Button {
 
 impl Button {
     fn new(
-        character: &str,
+        combination: &str,
         button_type: ButtonType,
         config: Arc<Config>,
         font_system: &mut FontSystem,
@@ -225,7 +239,7 @@ impl Button {
         };
 
         Self {
-            hint: Hint::new(character, Arc::clone(&config), font_system),
+            hint: Hint::new(combination, Arc::clone(&config), font_system),
             text,
             hovered: false,
             x: 0.,
@@ -312,17 +326,15 @@ impl Button {
         let text_extents = self.text.extents();
         glyphon::TextArea {
             buffer: &self.text.buffer,
-            left: extents.x - style.border.size.left - style.border.size.right
-                + (extents.width - text_extents.0) / 2.,
-            top: extents.y + (extents.height - text_extents.1) / 2.,
+            left: extents.x + style.border.size.left + style.padding.left,
+            top: extents.y + style.border.size.top + style.padding.top,
             scale,
             bounds: glyphon::TextBounds {
-                left: (extents.x + style.border.size.left) as i32,
-                top: (extents.y + (extents.height - text_extents.1) / 2.) as i32,
-                right: ((extents.x - style.border.size.left - style.border.size.right
-                    + (extents.width - text_extents.0) / 2.)
-                    + extents.width) as i32,
-                bottom: ((extents.y + (extents.height - text_extents.1) / 2.) + extents.height)
+                left: (extents.x + style.border.size.left + style.padding.left) as i32,
+                top: (extents.y + style.border.size.top + style.padding.top) as i32,
+                right: (extents.x + style.border.size.left + style.padding.left + text_extents.0)
+                    as i32,
+                bottom: (extents.y + style.border.size.top + style.padding.top + text_extents.1)
                     as i32,
             },
             custom_glyphs: &[],

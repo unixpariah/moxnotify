@@ -1,8 +1,9 @@
 {
+  moxctl,
+  rustPlatform,
+  lib,
   pkg-config,
   lua5_4,
-  lib,
-  rustPlatform,
   libxkbcommon,
   wayland,
   vulkan-loader,
@@ -52,6 +53,7 @@ rustPlatform.buildRustPackage rec {
   installPhase = ''
     install -Dm755 target/release/daemon $out/bin/moxnotify
     install -Dm755 target/release/ctl $out/bin/moxnotifyctl
+    install -Dm755 ${moxctl}/bin/mox $out/bin/mox  
   '';
 
   postFixup = ''

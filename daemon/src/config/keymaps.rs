@@ -1,5 +1,5 @@
 use serde::{Deserialize, Deserializer};
-use std::{collections::HashMap, ops::Deref, str::FromStr};
+use std::{collections::HashMap, fmt, ops::Deref, str::FromStr};
 use xkbcommon::xkb::Keysym;
 
 #[derive(Deserialize, Debug)]
@@ -129,6 +129,25 @@ pub struct KeyCombination {
     pub modifiers: Modifiers,
 }
 
+impl fmt::Display for KeyCombination {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            self.keys
+                .iter()
+                .filter_map(|key| {
+                    if let Key::Character(c) = key {
+                        Some(*c)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<String>()
+        )
+    }
+}
+
 impl KeyCombination {
     pub fn clear(&mut self) {
         self.keys.clear();
@@ -145,7 +164,11 @@ impl FromStr for KeyCombination {
         let key_comb_str;
         let mode;
 
-        if let Ok(parsed_mode) = Mode::from_str(first_part) {
+        if let Ok(parsed_mode) = match s.to_lowercase().as_str() {
+            "normal" => Ok(Mode::Normal),
+            "hint" => Ok(Mode::Hint),
+            _ => Err(format!("Invalid mode: {}", s)),
+        } {
             mode = parsed_mode;
             key_comb_str = parts.next().ok_or("Missing key combination")?;
         } else {
@@ -167,12 +190,16 @@ impl FromStr for KeyCombination {
             Ok(())
         })?;
 
-        let keys: Vec<Key> = match key_str.to_lowercase().as_str() {
-            "enter" => vec![Key::SpecialKey(SpecialKeyCode::Enter)],
-            "backspace" => vec![Key::SpecialKey(SpecialKeyCode::Backspace)],
-            "tab" => vec![Key::SpecialKey(SpecialKeyCode::Tab)],
-            "space" => vec![Key::SpecialKey(SpecialKeyCode::Space)],
-            "escape" => vec![Key::SpecialKey(SpecialKeyCode::Escape)],
+        let keys: Vec<Key> = match key_str {
+            "<CR>" => vec![Key::SpecialKey(SpecialKeyCode::Enter)],
+            "<BS>" => vec![Key::SpecialKey(SpecialKeyCode::Backspace)],
+            "<tab>" => vec![Key::SpecialKey(SpecialKeyCode::Tab)],
+            "<leader>" => vec![Key::SpecialKey(SpecialKeyCode::Space)],
+            "<Esc>" => vec![Key::SpecialKey(SpecialKeyCode::Escape)],
+            "<Up>" => vec![Key::SpecialKey(SpecialKeyCode::Up)],
+            "<Left>" => vec![Key::SpecialKey(SpecialKeyCode::Left)],
+            "<Right>" => vec![Key::SpecialKey(SpecialKeyCode::Right)],
+            "<Down>" => vec![Key::SpecialKey(SpecialKeyCode::Down)],
             _ => key_str.chars().map(Key::Character).collect(),
         };
 
@@ -203,6 +230,10 @@ impl Key {
             Keysym::Tab => Some(Key::SpecialKey(SpecialKeyCode::Tab)),
             Keysym::Escape => Some(Key::SpecialKey(SpecialKeyCode::Escape)),
             Keysym::space => Some(Key::SpecialKey(SpecialKeyCode::Space)),
+            Keysym::uparrow => Some(Key::SpecialKey(SpecialKeyCode::Up)),
+            Keysym::downarrow => Some(Key::SpecialKey(SpecialKeyCode::Down)),
+            Keysym::leftarrow => Some(Key::SpecialKey(SpecialKeyCode::Left)),
+            Keysym::rightarrow => Some(Key::SpecialKey(SpecialKeyCode::Right)),
             _ => {
                 let key_sym = xkb_state.key_get_one_sym(keycode);
                 if u32::from(key_sym) == xkbcommon::xkb::keysyms::KEY_NoSymbol {
@@ -228,6 +259,10 @@ pub enum SpecialKeyCode {
     Tab,
     Space,
     Escape,
+    Up,
+    Down,
+    Left,
+    Right,
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
@@ -262,7 +297,7 @@ where
     let mut keymaps: HashMap<KeyCombination, KeyAction> = HashMap::new();
     for (key_str, action) in map {
         let key_combination =
-            deserialize_keycombination_inner(&key_str).map_err(serde::de::Error::custom)?;
+            KeyCombination::from_str(&key_str).map_err(serde::de::Error::custom)?;
         keymaps.insert(key_combination, action);
     }
 
@@ -273,8 +308,4 @@ where
     }
 
     Ok(keymaps)
-}
-
-fn deserialize_keycombination_inner(value: &str) -> Result<KeyCombination, String> {
-    KeyCombination::from_str(value)
 }

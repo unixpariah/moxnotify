@@ -35,9 +35,9 @@ impl Default for Border {
             },
             radius: BorderRadius::default(),
             color: Color {
-                urgency_low: [158, 206, 106, 255],
-                urgency_normal: [187, 154, 247, 255],
-                urgency_critical: [192, 202, 245, 255],
+                urgency_low: [166, 227, 161, 255],
+                urgency_normal: [203, 166, 247, 255],
+                urgency_critical: [243, 139, 168, 255],
             },
         }
     }

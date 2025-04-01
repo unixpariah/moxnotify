@@ -270,10 +270,9 @@ impl Moxnotify {
                         self.config.keymaps.get(&self.seat.keyboard.key_combination)
                     {
                         self.seat.keyboard.key_combination.mode = Mode::Normal;
-                    } else if let Some(Key::Character(ch)) =
-                        self.seat.keyboard.key_combination.keys.first()
-                    {
-                        match notification.buttons.get_by_character(*ch) {
+                    } else {
+                        let combination = self.seat.keyboard.key_combination.to_string();
+                        match notification.buttons.get_by_character(&combination) {
                             Some(ButtonType::Dismiss) => {
                                 self.notifications.dismiss(id);
                                 self.seat.keyboard.key_combination.mode = Mode::Normal;

@@ -129,15 +129,10 @@ impl Moxnotify {
             Event::CloseNotification(id) => self.notifications.dismiss(id),
             Event::FocusSurface => {
                 if let Some(surface) = self.surface.as_mut() {
-                    surface.focus(FocusReason::Ctl);
-                    //if let Some(id) = self.notifications.selected() {
-                        //if let Some(notification) = self.notifications.notifications_mut().iter_mut().find(|notification| notification.id() == id) {
-                            //self.notifications.select(id);
-                            //return Ok(());
-                        //}
-                    //} 
-
-                    self.notifications.next();
+                    if surface.focus_reason.is_none() {
+                        surface.focus(FocusReason::Ctl);
+                        self.notifications.next();
+                    }
                 }
             }
         };
