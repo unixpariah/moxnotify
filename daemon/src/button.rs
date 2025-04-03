@@ -179,7 +179,7 @@ impl Hint {
                 style.width.resolve(text_extents.0) + style.padding.left + style.padding.right,
                 style.height.resolve(text_extents.1) + style.padding.top + style.padding.bottom,
             ],
-            rect_color: style.background.to_linear(&Urgency::Low),
+            rect_color: style.background.to_linear(urgency),
             border_radius: style.border.radius.into(),
             border_size: style.border.size.into(),
             border_color: style.border.color.to_linear(urgency),
@@ -191,19 +191,41 @@ impl Hint {
         let style = &self.config.styles.hover.hint;
         let text_extents = self.text.extents();
 
+        let remaining_padding = style.width.resolve(text_extents.0) - text_extents.0;
+        let (pl, _) = match (style.padding.left.is_auto(), style.padding.right.is_auto()) {
+            (true, true) => (remaining_padding / 2., remaining_padding / 2.),
+            (true, false) => (remaining_padding, style.padding.right.resolve(0.)),
+            _ => (
+                style.padding.left.resolve(0.),
+                style.padding.right.resolve(0.),
+            ),
+        };
+
+        let remaining_padding = style.height.resolve(text_extents.1) - text_extents.1;
+        let (pt, _) = match (style.padding.top.is_auto(), style.padding.bottom.is_auto()) {
+            (true, true) => (remaining_padding / 2., remaining_padding / 2.),
+            (true, false) => (remaining_padding, style.padding.bottom.resolve(0.)),
+            _ => (
+                style.padding.top.resolve(0.),
+                style.padding.bottom.resolve(0.),
+            ),
+        };
+
         TextArea {
             buffer: &self.text.buffer,
-            left: button_extents.x + style.padding.left,
-            top: button_extents.y + style.padding.top - style.height.resolve(text_extents.1) / 2.,
+            left: button_extents.x + style.padding.left.resolve(pl),
+            top: button_extents.y + style.padding.top.resolve(pl)
+                - style.height.resolve(text_extents.1) / 2.,
             scale,
             bounds: glyphon::TextBounds {
-                left: (button_extents.x + style.padding.left) as i32,
-                top: (button_extents.y + style.padding.top
+                left: (button_extents.x + style.padding.left.resolve(pl)) as i32,
+                top: (button_extents.y + style.padding.top.resolve(pt)
                     - style.height.resolve(text_extents.1) / 2.) as i32,
-                right: (button_extents.x + style.padding.left + style.width.resolve(text_extents.0))
-                    as i32,
+                right: (button_extents.x
+                    + style.padding.left.resolve(pl)
+                    + style.width.resolve(text_extents.0)) as i32,
                 bottom: (button_extents.y
-                    + style.padding.top
+                    + style.padding.top.resolve(pt)
                     + style.height.resolve(text_extents.1)) as i32,
             },
             default_color: style.font.color.into_glyphon(urgency),
@@ -391,10 +413,7 @@ impl Button {
                 scale,
             },
             ButtonType::Action { .. } => buffers::Instance {
-                rect_pos: [
-                    extents.x + style.border.size.left,
-                    extents.y + style.border.size.top,
-                ],
+                rect_pos: [extents.x, extents.y],
                 rect_size: [
                     extents.width - style.border.size.left - style.border.size.right,
                     extents.height - style.border.size.top - style.border.size.bottom,

@@ -24,16 +24,7 @@ impl Progress {
     pub fn set_position(&mut self, container_extents: &Extents, style: &StyleState) {
         let extents = self.extents(container_extents, style);
 
-        self.x = container_extents.x
-            + (container_extents.width
-                - style.padding.left.resolve(0.)
-                - style.padding.right.resolve(0.)
-                - style.border.size.left.resolve(0.)
-                - style.border.size.right.resolve(0.))
-                / 2.
-            - extents.width / 2.
-            + style.padding.left.resolve(0.)
-            + style.border.size.left.resolve(0.);
+        self.x = container_extents.x + style.border.size.left + style.padding.left;
         self.y = container_extents.y + container_extents.height
             - style.border.size.bottom.resolve(0.)
             - style.padding.bottom.resolve(0.)

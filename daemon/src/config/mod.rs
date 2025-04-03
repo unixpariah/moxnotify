@@ -435,15 +435,15 @@ impl Default for Hint {
                 urgency_normal: [24, 24, 37, 255],
                 urgency_critical: [24, 24, 37, 255],
             },
-            width: Size::Auto,
-            height: Size::Auto,
+            width: Size::Value(15.),
+            height: Size::Value(20.),
             font: Font::default(),
             border: Border::default(),
             padding: Insets {
-                left: Size::Value(2.),
-                right: Size::Value(2.),
-                top: Size::Value(0.),
-                bottom: Size::Value(0.),
+                left: Size::Auto,
+                right: Size::Auto,
+                top: Size::Auto,
+                bottom: Size::Auto,
             },
         }
     }
