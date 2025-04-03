@@ -11,7 +11,12 @@ use keymaps::Keymaps;
 use mlua::{Lua, LuaSerdeExt};
 use partial::{PartialFont, PartialInsets, PartialStyle};
 use serde::{Deserialize, Deserializer};
-use std::{fmt, fs, path::PathBuf, sync::Arc};
+use std::{
+    fmt, fs,
+    ops::{Add, Sub},
+    path::PathBuf,
+    sync::Arc,
+};
 
 #[derive(Deserialize)]
 #[serde(default)]
@@ -160,14 +165,14 @@ impl<'de> Deserialize<'de> for Selector {
 
 #[derive(Default, Clone, Copy)]
 pub struct Insets {
-    pub left: f32,
-    pub right: f32,
-    pub top: f32,
-    pub bottom: f32,
+    pub left: Size,
+    pub right: Size,
+    pub top: Size,
+    pub bottom: Size,
 }
 
 impl Insets {
-    pub fn size(value: f32) -> Self {
+    pub fn size(value: Size) -> Self {
         Self {
             left: value,
             right: value,
@@ -194,10 +199,16 @@ impl Insets {
 
 impl From<Insets> for [f32; 4] {
     fn from(value: Insets) -> Self {
-        [value.left, value.right, value.top, value.bottom]
+        [
+            value.left.resolve(0.),
+            value.right.resolve(0.),
+            value.top.resolve(0.),
+            value.bottom.resolve(0.),
+        ]
     }
 }
 
+#[derive(Clone)]
 pub struct Font {
     pub size: f32,
     pub family: Box<str>,
@@ -253,14 +264,14 @@ impl Default for Icon {
         Self {
             border: Border {
                 color: Color::default(),
-                size: Insets::size(0.),
+                size: Insets::size(Size::Value(0.)),
                 radius: BorderRadius::circle(),
             },
         }
     }
 }
 
-#[derive(Deserialize, Default, Debug, Clone, Copy)]
+#[derive(Deserialize, Default, Debug, Clone, Copy, PartialEq)]
 pub enum Size {
     #[default]
     #[serde(rename = "auto")]
@@ -269,7 +280,63 @@ pub enum Size {
     Value(f32),
 }
 
+impl Add for Size {
+    type Output = f32;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        self.resolve(0.) + rhs.resolve(0.)
+    }
+}
+
+impl Add<f32> for Size {
+    type Output = f32;
+
+    fn add(self, rhs: f32) -> Self::Output {
+        self.resolve(0.) + rhs
+    }
+}
+
+impl Add<Size> for f32 {
+    type Output = f32;
+
+    fn add(self, rhs: Size) -> Self::Output {
+        self + rhs.resolve(0.)
+    }
+}
+
+impl Sub for Size {
+    type Output = f32;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        self.resolve(0.) - rhs.resolve(0.)
+    }
+}
+
+impl Sub<f32> for Size {
+    type Output = f32;
+
+    fn sub(self, rhs: f32) -> Self::Output {
+        self.resolve(0.) - rhs
+    }
+}
+
+impl Sub<Size> for f32 {
+    type Output = f32;
+
+    fn sub(self, rhs: Size) -> Self::Output {
+        self - rhs.resolve(0.)
+    }
+}
+
 impl Size {
+    pub fn is_auto(&self) -> bool {
+        self == &Size::Auto
+    }
+
+    pub fn is_value(&self) -> bool {
+        matches!(self, Size::Auto)
+    }
+
     pub fn resolve(&self, auto: f32) -> f32 {
         match self {
             Size::Auto => auto,
@@ -311,10 +378,10 @@ impl Default for Progress {
     fn default() -> Self {
         Self {
             margin: Insets {
-                left: 0.,
-                right: 0.,
-                top: 10.,
-                bottom: 0.,
+                left: Size::Auto,
+                right: Size::Auto,
+                top: Size::Value(10.),
+                bottom: Size::Value(0.),
             },
             height: Size::Value(20.),
             width: Size::Auto,
@@ -373,10 +440,10 @@ impl Default for Hint {
             font: Font::default(),
             border: Border::default(),
             padding: Insets {
-                left: 2.,
-                right: 2.,
-                top: 0.,
-                bottom: 0.,
+                left: Size::Value(2.),
+                right: Size::Value(2.),
+                top: Size::Value(0.),
+                bottom: Size::Value(0.),
             },
         }
     }
@@ -453,8 +520,8 @@ impl Default for StyleState {
             height: Size::Auto,
             font: Font::default(),
             border: Border::default(),
-            margin: Insets::size(5.),
-            padding: Insets::size(10.),
+            margin: Insets::size(Size::Value(5.)),
+            padding: Insets::size(Size::Value(10.)),
             icon: Icon::default(),
             app_icon: Icon::default(),
             progress: Progress::default(),
@@ -643,10 +710,10 @@ impl Default for Styles {
                             background: Color::rgba([0, 0, 0, 0]),
                             border: Border {
                                 size: Insets {
-                                    left: 0.,
-                                    right: 0.,
-                                    top: 0.,
-                                    bottom: 0.,
+                                    left: Size::Value(0.),
+                                    right: Size::Value(0.),
+                                    top: Size::Value(0.),
+                                    bottom: Size::Value(0.),
                                 },
                                 radius: BorderRadius::circle(),
                                 color: Color::rgba([0, 0, 0, 0]),

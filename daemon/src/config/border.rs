@@ -1,9 +1,10 @@
 use super::{
     color::Color,
     partial::{PartialBorder, PartialBorderRadius},
-    Insets,
+    Insets, Size,
 };
 
+#[derive(Clone)]
 pub struct Border {
     pub size: Insets,
     pub radius: BorderRadius,
@@ -28,10 +29,10 @@ impl Default for Border {
     fn default() -> Self {
         Self {
             size: Insets {
-                left: 1.,
-                right: 1.,
-                top: 1.,
-                bottom: 1.,
+                left: Size::Value(1.),
+                right: Size::Value(1.),
+                top: Size::Value(1.),
+                bottom: Size::Value(1.),
             },
             radius: BorderRadius::default(),
             color: Color {

@@ -169,6 +169,7 @@ impl Hint {
     ) -> buffers::Instance {
         let style = &self.config.styles.hover.hint;
         let text_extents = self.text.extents();
+
         buffers::Instance {
             rect_pos: [
                 button_extents.x,
@@ -189,6 +190,7 @@ impl Hint {
     fn text_area(&self, button_extents: &Extents, scale: f32, urgency: &Urgency) -> TextArea {
         let style = &self.config.styles.hover.hint;
         let text_extents = self.text.extents();
+
         TextArea {
             buffer: &self.text.buffer,
             left: button_extents.x + style.padding.left,
@@ -322,20 +324,44 @@ impl Button {
     ) -> glyphon::TextArea {
         let extents = self.rendered_extents(container_hovered);
         let style = self.style(container_hovered);
-
         let text_extents = self.text.extents();
+
+        let remaining_padding = extents.width - text_extents.0;
+        let (pl, _) = match (style.padding.left.is_auto(), style.padding.right.is_auto()) {
+            (true, true) => (remaining_padding / 2., remaining_padding / 2.),
+            (true, false) => (remaining_padding, style.padding.right.resolve(0.)),
+            _ => (
+                style.padding.left.resolve(0.),
+                style.padding.right.resolve(0.),
+            ),
+        };
+
+        let remaining_padding = extents.height - text_extents.1;
+        let (pt, _) = match (style.padding.top.is_auto(), style.padding.bottom.is_auto()) {
+            (true, true) => (remaining_padding / 2., remaining_padding / 2.),
+            (true, false) => (remaining_padding, style.padding.bottom.resolve(0.)),
+            _ => (
+                style.padding.top.resolve(0.),
+                style.padding.bottom.resolve(0.),
+            ),
+        };
+
         glyphon::TextArea {
             buffer: &self.text.buffer,
-            left: extents.x + style.border.size.left + style.padding.left,
-            top: extents.y + style.border.size.top + style.padding.top,
+            left: extents.x + style.border.size.left + style.padding.left.resolve(pl),
+            top: extents.y + style.border.size.top + style.padding.top.resolve(pt),
             scale,
             bounds: glyphon::TextBounds {
-                left: (extents.x + style.border.size.left + style.padding.left) as i32,
-                top: (extents.y + style.border.size.top + style.padding.top) as i32,
-                right: (extents.x + style.border.size.left + style.padding.left + text_extents.0)
-                    as i32,
-                bottom: (extents.y + style.border.size.top + style.padding.top + text_extents.1)
-                    as i32,
+                left: (extents.x + style.border.size.left + style.padding.left.resolve(pl)) as i32,
+                top: (extents.y + style.border.size.top + style.padding.top.resolve(pt)) as i32,
+                right: (extents.x
+                    + style.border.size.left
+                    + style.padding.left.resolve(pl)
+                    + text_extents.0) as i32,
+                bottom: (extents.y
+                    + style.border.size.top
+                    + style.padding.top.resolve(pt)
+                    + text_extents.1) as i32,
             },
             custom_glyphs: &[],
             default_color: style.font.color.into_glyphon(urgency),

@@ -91,7 +91,7 @@ impl Notification {
         let icon_width = icons
             .icon
             .as_ref()
-            .map(|i| i.width as f32 + style.padding.right)
+            .map(|i| i.width as f32 + style.padding.right.resolve(0.))
             .unwrap_or(0.);
         let text = text::Text::new_notification(
             &config.styles.default.font,
@@ -181,10 +181,13 @@ impl Notification {
         {
             let (x, y) = (
                 extents.x + extents.width
-                    - style.border.size.right
-                    - style.padding.right
+                    - style.border.size.right.resolve(0.)
+                    - style.padding.right.resolve(0.)
                     - button.extents(hovered).width,
-                extents.y + style.margin.top + style.border.size.top + style.padding.top,
+                extents.y
+                    + style.margin.top.resolve(0.)
+                    + style.border.size.top.resolve(0.)
+                    + style.padding.top.resolve(0.),
             );
 
             button.set_position(x, y)
@@ -217,27 +220,32 @@ impl Notification {
                 let button_style = button.style(hovered);
 
                 let available_width = extents.width
-                    - style.border.size.left
-                    - style.border.size.right
-                    - style.padding.left
-                    - style.padding.right
-                    - button_style.margin.left
-                    - button_style.margin.right;
+                    - style.border.size.left.resolve(0.)
+                    - style.border.size.right.resolve(0.)
+                    - style.padding.left.resolve(0.)
+                    - style.padding.right.resolve(0.)
+                    - button_style.margin.left.resolve(0.)
+                    - button_style.margin.right.resolve(0.);
 
-                let spacing_between = button_style.margin.left + button_style.margin.right;
+                let spacing_between =
+                    button_style.margin.left.resolve(0.) + button_style.margin.right.resolve(0.);
 
                 let total_spacing = (actions_count - 1.) * spacing_between;
 
                 let button_width = (available_width - total_spacing) / actions_count;
-                button.width = button_width - button_style.margin.left - button_style.margin.right;
+                button.width = button_width
+                    - button_style.margin.left.resolve(0.)
+                    - button_style.margin.right.resolve(0.);
 
                 let (x, y) = if let ButtonType::Action { .. } = button.button_type {
-                    let base_x = extents.x + style.border.size.left + style.padding.left;
+                    let base_x = extents.x
+                        + style.border.size.left.resolve(0.)
+                        + style.padding.left.resolve(0.);
                     let x_position = base_x + (button_width + spacing_between) * i as f32;
 
                     let y_position = (extents.y + extents.height
-                        - style.border.size.bottom
-                        - style.padding.bottom
+                        - style.border.size.bottom.resolve(0.)
+                        - style.padding.bottom.resolve(0.)
                         - self
                             .progress
                             .map(|p| p.extents(&extents, style).height)
@@ -269,8 +277,11 @@ impl Notification {
             .find(|button| button.button_type == ButtonType::Dismiss);
 
         Extents {
-            x: style.padding.left + style.border.size.left + style.margin.left + icon_extents.width,
-            y: style.margin.top + style.border.size.top,
+            x: style.padding.left.resolve(0.)
+                + style.border.size.left.resolve(0.)
+                + style.margin.left.resolve(0.)
+                + icon_extents.width,
+            y: style.margin.top.resolve(0.) + style.border.size.top.resolve(0.),
             width: style.width.resolve(0.)
                 - icon_extents.width
                 - dismiss_button
@@ -321,8 +332,8 @@ impl Notification {
 
         let progress = if self.progress.is_some() {
             style.progress.height.resolve(0.)
-                + style.progress.margin.top
-                + style.progress.margin.bottom
+                + style.progress.margin.top.resolve(0.)
+                + style.progress.margin.bottom.resolve(0.)
         } else {
             0.0
         };
@@ -345,7 +356,7 @@ impl Notification {
                 let base_height = (text_height.max(icon_height).max(dismiss_button)
                     + action_button.height)
                     .max(dismiss_button + action_button.height)
-                    + style.padding.bottom;
+                    + style.padding.bottom.resolve(0.);
                 base_height.clamp(min_height, max_height)
             }
         }
@@ -371,7 +382,10 @@ impl Notification {
         let icon_extents = self.icons.extents(style);
         let extents = self.rendered_extents();
         self.text.set_buffer_position(
-            extents.x + style.padding.left + style.border.size.left + icon_extents.width,
+            extents.x
+                + style.padding.left.resolve(0.)
+                + style.border.size.left
+                + icon_extents.width,
             extents.y + style.padding.top + style.border.size.top,
         );
     }

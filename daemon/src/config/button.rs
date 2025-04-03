@@ -116,44 +116,31 @@ impl Button {
     }
 
     fn default_action() -> Self {
-        Self {
-            default: ButtonState {
-                padding: Insets {
-                    left: 0.,
-                    right: 0.,
-                    top: 5.,
-                    bottom: 5.,
-                },
-                margin: Insets {
-                    left: 5.,
-                    right: 5.,
-                    top: 0.,
-                    bottom: 0.,
-                },
-                width: Size::Auto,
-                height: Size::Auto,
-                font: Font::default(),
-                background: Color::rgba([22, 22, 30, 0]),
-                border: Border::default(),
+        let hover = ButtonState {
+            padding: Insets {
+                left: Size::Auto,
+                right: Size::Auto,
+                top: Size::Value(5.),
+                bottom: Size::Value(5.),
             },
+            margin: Insets {
+                left: Size::Value(5.),
+                right: Size::Value(5.),
+                top: Size::Value(0.),
+                bottom: Size::Value(0.),
+            },
+            width: Size::Auto,
+            height: Size::Auto,
+            font: Font::default(),
+            background: Color::rgba([22, 22, 30, 0]),
+            border: Border::default(),
+        };
+
+        Self {
+            default: hover.clone(),
             hover: ButtonState {
-                padding: Insets {
-                    left: 0.,
-                    right: 0.,
-                    top: 5.,
-                    bottom: 5.,
-                },
-                margin: Insets {
-                    left: 5.,
-                    right: 5.,
-                    top: 0.,
-                    bottom: 0.,
-                },
-                width: Size::Auto,
-                height: Size::Auto,
-                font: Font::default(),
                 background: Color::rgba([247, 118, 142, 255]),
-                border: Border::default(),
+                ..hover
             },
         }
     }
@@ -168,6 +155,7 @@ impl Default for Button {
     }
 }
 
+#[derive(Clone)]
 pub struct ButtonState {
     pub width: Size,
     pub height: Size,
@@ -191,26 +179,26 @@ impl Default for ButtonState {
     fn default() -> Self {
         Self {
             padding: Insets {
-                left: 5.,
-                right: 5.,
-                top: 2.,
-                bottom: 2.,
+                left: Size::Auto,
+                right: Size::Auto,
+                top: Size::Auto,
+                bottom: Size::Auto,
             },
             margin: Insets {
-                left: 0.,
-                right: 0.,
-                top: 0.,
-                bottom: 0.,
+                left: Size::Value(0.),
+                right: Size::Value(0.),
+                top: Size::Value(0.),
+                bottom: Size::Value(0.),
             },
-            width: Size::Auto,
-            height: Size::Auto,
+            width: Size::Value(20.),
+            height: Size::Value(20.),
             background: Color::rgba([192, 202, 245, 255]),
             border: Border {
                 size: Insets {
-                    left: 0.,
-                    right: 0.,
-                    top: 0.,
-                    bottom: 0.,
+                    left: Size::Value(0.),
+                    right: Size::Value(0.),
+                    top: Size::Value(0.),
+                    bottom: Size::Value(0.),
                 },
                 radius: BorderRadius::circle(),
                 ..Default::default()

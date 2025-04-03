@@ -1,7 +1,7 @@
 use super::Extents;
 use crate::{
     buffers,
-    config::{border::BorderRadius, Insets, StyleState},
+    config::{border::BorderRadius, Insets, Size, StyleState},
     Urgency,
 };
 
@@ -26,34 +26,57 @@ impl Progress {
 
         self.x = container_extents.x
             + (container_extents.width
-                - style.padding.left
-                - style.padding.right
-                - style.border.size.left
-                - style.border.size.right)
+                - style.padding.left.resolve(0.)
+                - style.padding.right.resolve(0.)
+                - style.border.size.left.resolve(0.)
+                - style.border.size.right.resolve(0.))
                 / 2.
             - extents.width / 2.
-            + style.padding.left
-            + style.border.size.left;
+            + style.padding.left.resolve(0.)
+            + style.border.size.left.resolve(0.);
         self.y = container_extents.y + container_extents.height
-            - style.border.size.bottom
-            - style.padding.bottom
+            - style.border.size.bottom.resolve(0.)
+            - style.padding.bottom.resolve(0.)
             - extents.height
     }
 
     pub fn extents(&self, container_extents: &Extents, style: &StyleState) -> Extents {
-        let width = container_extents.width
+        let available_width = container_extents.width
             - style.border.size.left
             - style.border.size.right
             - style.padding.left
             - style.padding.right
-            - style.progress.margin.left
-            - style.progress.margin.right;
+            - style.margin.left
+            - style.margin.right;
+
+        let element_width = style.progress.width.resolve(available_width);
+        let remaining_space = available_width - element_width;
+
+        let (resolved_ml, _) = match (
+            style.progress.margin.left.is_auto(),
+            style.progress.margin.right.is_auto(),
+        ) {
+            (true, true) => {
+                let margin = remaining_space / 2.0;
+                (margin, margin)
+            }
+            (true, false) => {
+                let mr = style.progress.margin.right.resolve(0.);
+                (remaining_space, mr)
+            }
+            _ => (
+                style.progress.margin.left.resolve(0.),
+                style.progress.margin.right.resolve(0.),
+            ),
+        };
+
+        let x_position = self.x + resolved_ml;
 
         Extents {
-            x: self.x,
+            x: x_position,
             y: self.y,
-            width: style.progress.width.resolve(width),
-            height: style.progress.height.resolve(0.)
+            width: element_width,
+            height: style.progress.height
                 + style.progress.margin.top
                 + style.progress.margin.bottom,
         }
@@ -62,10 +85,35 @@ impl Progress {
     pub fn rendered_extents(&self, container_extents: &Extents, style: &StyleState) -> Extents {
         let extents = self.extents(container_extents, style);
 
+        let remaining_space = container_extents.width
+            - extents.width
+            - style.border.size.left
+            - style.border.size.right
+            - style.padding.left
+            - style.padding.right;
+
+        let (margin_left, _) = match (
+            style.progress.margin.left.is_auto(),
+            style.progress.margin.right.is_auto(),
+        ) {
+            (true, true) => {
+                let margin = remaining_space / 2.0;
+                (margin, margin)
+            }
+            (true, false) => {
+                let mr = style.progress.margin.right.resolve(0.);
+                (remaining_space, mr)
+            }
+            _ => (
+                style.progress.margin.left.resolve(0.),
+                style.progress.margin.right.resolve(0.),
+            ),
+        };
+
         Extents {
-            x: extents.x + style.progress.margin.left,
+            x: extents.x + margin_left,
             y: extents.y + style.progress.margin.top,
-            width: extents.width - style.progress.margin.left - style.progress.margin.right,
+            width: extents.width - margin_left - style.progress.margin.right,
             height: extents.height - style.progress.margin.top - style.progress.margin.bottom,
         }
     }
@@ -87,7 +135,7 @@ impl Progress {
         if complete_width > 0.0 {
             let border_size = if self.value < 100 {
                 Insets {
-                    right: 0.,
+                    right: Size::Value(0.),
                     ..style.progress.border.size
                 }
             } else {
@@ -121,7 +169,7 @@ impl Progress {
             if incomplete_width > 0.0 {
                 let border_size = if self.value > 0 {
                     Insets {
-                        left: 0.,
+                        left: Size::Value(0.),
                         ..style.progress.border.size
                     }
                 } else {
