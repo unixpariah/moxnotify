@@ -39,8 +39,18 @@
           with pkgs;
           mkShell rec {
             buildInputs = [
-              (rust-bin.selectLatestNightlyWith (toolchain: toolchain.default))
-              rust-analyzer
+              (rust-bin.selectLatestNightlyWith (
+                toolchain:
+                toolchain.default.override {
+                  extensions = [
+                    "rust-src"
+                    "rustfmt"
+                  ];
+                }
+              ))
+              rust-analyzer-unwrapped
+              vscode-extensions.vadimcn.vscode-lldb
+              lldb_20
               nixd
               pkg-config
               lua5_4

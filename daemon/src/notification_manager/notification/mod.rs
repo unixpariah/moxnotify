@@ -233,9 +233,7 @@ impl Notification {
                 let total_spacing = (actions_count - 1.) * spacing_between;
 
                 let button_width = (available_width - total_spacing) / actions_count;
-                button.width = button_width
-                    - button_style.margin.left.resolve(0.)
-                    - button_style.margin.right.resolve(0.);
+                button.width = button_width;
 
                 let (x, y) = if let ButtonType::Action { .. } = button.button_type {
                     let base_x = extents.x

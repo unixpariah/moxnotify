@@ -37,8 +37,8 @@ impl Progress {
             - style.border.size.right
             - style.padding.left
             - style.padding.right
-            - style.margin.left
-            - style.margin.right;
+            - style.progress.margin.left
+            - style.progress.margin.right;
 
         let element_width = style.progress.width.resolve(available_width);
         let remaining_space = available_width - element_width;

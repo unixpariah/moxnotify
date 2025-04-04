@@ -7,6 +7,7 @@ use calloop::{
     timer::{TimeoutAction, Timer},
     RegistrationToken,
 };
+use serde::Deserialize;
 use std::{sync::Arc, time::Duration};
 use wayland_client::{
     protocol::{wl_keyboard, wl_seat},
@@ -22,14 +23,14 @@ struct Xkb {
 
 pub struct Keyboard {
     _wl_keyboard: wl_keyboard::WlKeyboard,
-    repeat: RepeatInfo,
+    pub repeat: RepeatInfo,
     xkb: Xkb,
     pub key_combination: KeyCombination,
 }
 
 #[derive(Default)]
-struct RepeatInfo {
-    key: Option<Key>,
+pub struct RepeatInfo {
+    pub key: Option<Key>,
     rate: i32,
     delay: i32,
     registration_token: Option<RegistrationToken>,
@@ -224,28 +225,7 @@ impl Moxnotify {
                         }
                         KeyAction::DismissNotification => {
                             if let Some(id) = self.notifications.selected_id() {
-                                if let Some(index) = self
-                                    .notifications
-                                    .iter()
-                                    .position(|notification| notification.id() == id)
-                                {
-                                    self.notifications.dismiss(id);
-                                    let adjusted_index = if index == self.notifications.len() {
-                                        index.saturating_sub(1)
-                                    } else {
-                                        index
-                                    };
-
-                                    if let Some(notification) =
-                                        self.notifications.get(adjusted_index).map(|n| n.id())
-                                    {
-                                        self.notifications.select(notification);
-                                    }
-                                }
-                            }
-
-                            if self.notifications.notifications().is_empty() {
-                                self.seat.keyboard.repeat.key = None;
+                                self.dismiss(id);
                             }
                         }
                         KeyAction::Unfocus => {
@@ -273,13 +253,12 @@ impl Moxnotify {
                     } else {
                         let combination = self.seat.keyboard.key_combination.to_string();
                         match notification.buttons.get_by_character(&combination) {
-                            Some(ButtonType::Dismiss) => {
-                                self.notifications.dismiss(id);
-                                self.seat.keyboard.key_combination.mode = Mode::Normal;
-                            }
+                            Some(ButtonType::Dismiss) => self.dismiss(id),
                             Some(ButtonType::Action { action, .. }) => {
                                 if !notification.hints.resident {
-                                    self.notifications.dismiss(id);
+                                    self.dismiss(id);
+                                } else {
+                                    self.seat.keyboard.key_combination.mode = Mode::Normal;
                                 }
 
                                 if let Some(surface) = self.surface.as_ref() {
@@ -290,14 +269,9 @@ impl Moxnotify {
                                         token: token.unwrap_or_default(),
                                     });
                                 }
-                                self.seat.keyboard.key_combination.mode = Mode::Normal;
                             }
                             None => {}
                         }
-                    }
-
-                    if self.notifications.notifications().is_empty() {
-                        self.seat.keyboard.repeat.key = None;
                     }
                 }
             }

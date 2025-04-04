@@ -13,7 +13,7 @@ serde = { version = "1.0.217", features = [ "rc", "derive" ] }
 wayland-client = "0.31.7"
 wayland-protocols = { version = "0.32.5", features = ["staging", "client", "unstable" ] }
 futures-lite = "2.6.0"
-zbus = { version = "5.3.1", features = ["tokio", "p2p"] }
+zbus = { version = "5.3.1", features = ["tokio", "p2p", "async-io"], default-features = false }
 tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread", "sync"] }
 clap = { version = "4.5.27", features = ["derive"] }
 bytemuck = { version = "1.19.0", features = ["derive"] }

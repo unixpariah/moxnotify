@@ -109,24 +109,24 @@ impl Moxnotify {
                         .map(|notification| notification.id())
                         .collect();
 
-                    ids.iter().for_each(|id| self.notifications.dismiss(*id));
+                    ids.iter().for_each(|id| self.dismiss(*id));
                     return Ok(());
                 }
 
                 if id == 0 {
                     if let Some(notification) = self.notifications.notifications().first() {
-                        self.notifications.dismiss(notification.id());
+                        self.dismiss(notification.id());
                     }
                     return Ok(());
                 }
 
-                self.notifications.dismiss(id);
+                self.dismiss(id);
             }
             Event::Notify(data) => {
                 self.notifications.add(*data)?;
                 self.update_surface_size();
             }
-            Event::CloseNotification(id) => self.notifications.dismiss(id),
+            Event::CloseNotification(id) => self.dismiss(id),
             Event::FocusSurface => {
                 if let Some(surface) = self.surface.as_mut() {
                     if surface.focus_reason.is_none() {
@@ -286,10 +286,10 @@ delegate_noop!(Moxnotify: zwlr_layer_shell_v1::ZwlrLayerShellV1);
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     env_logger::Builder::new()
-        .filter_level(log::LevelFilter::Warn)
+        .filter_level(log::LevelFilter::Info)
         .init();
 
-    let conn = Connection::connect_to_env().expect("Failed to connect to wayland");
+    let conn = Connection::connect_to_env().expect("Failed to connect to Wayland");
     let (globals, event_queue) = registry_queue_init(&conn)?;
     let qh = event_queue.handle();
 
@@ -300,7 +300,7 @@ async fn main() -> anyhow::Result<()> {
 
     WaylandSource::new(conn, event_queue)
         .insert(event_loop.handle())
-        .map_err(|e| anyhow::anyhow!("Failed to insert wayland source: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to insert Wayland source: {}", e))?;
 
     moxnotify.globals.contents().with_list(|list| {
         list.iter().for_each(|global| {
@@ -311,7 +311,7 @@ async fn main() -> anyhow::Result<()> {
                     &moxnotify.qh,
                     (),
                 );
-                let output = crate::Output::new(wl_output, global.name);
+                let output = Output::new(wl_output, global.name);
                 moxnotify.outputs.push(output);
             }
         });
@@ -358,7 +358,9 @@ async fn main() -> anyhow::Result<()> {
         })
         .map_err(|e| anyhow::anyhow!("Failed to insert source: {}", e))?;
 
+
     event_loop.run(None, &mut moxnotify, |_| {})?;
 
     Ok(())
 }
+

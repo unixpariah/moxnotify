@@ -190,9 +190,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                         if let Some(notification_id) = notification_id {
                             match button {
-                                Some(ButtonType::Dismiss) => {
-                                    state.notifications.dismiss(notification_id);
-                                }
+                                Some(ButtonType::Dismiss) => state.dismiss(notification_id),
                                 Some(ButtonType::Action { action, .. }) => {
                                     if !state
                                         .notifications
@@ -201,7 +199,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                                         .map(|n| n.hints.resident)
                                         .unwrap_or_default()
                                     {
-                                        state.notifications.dismiss(notification_id);
+                                        state.dismiss(notification_id);
                                     }
 
                                     if let Some(surface) = state.surface.as_ref() {
