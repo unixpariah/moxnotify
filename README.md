@@ -5,7 +5,7 @@ ALTHOUGH IT IS USABLE IT'S STILL WIP
 Feature-rich hardware-accelerated keyboard driven Wayland notification daemon.
 
 
-https://github.com/user-attachments/assets/5f9d6aca-574d-4885-9989-3cd1e08b7241
+https://github.com/user-attachments/assets/1996d46c-85cc-4d47-bcf1-5088a58d2192
 
 
 ## Features
