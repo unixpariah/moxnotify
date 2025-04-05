@@ -1,5 +1,3 @@
-use std::{fs, io::Read, path::Path, sync::Arc};
-
 use libpulse_binding::{
     context::{self, Context, State},
     def::BufferAttr,
@@ -8,112 +6,139 @@ use libpulse_binding::{
     sample::Spec,
     stream::{self, Stream},
 };
+use rand::Rng;
+use std::{cell::RefCell, rc::Rc};
 
 pub struct Audio {
     mainloop: Mainloop,
     context: Context,
+    stream: Rc<RefCell<Stream>>,
+    spec: Spec,
 }
 
 impl Audio {
     pub fn new() -> anyhow::Result<Self> {
         let mut mainloop = Mainloop::new().ok_or(PAErr(0))?;
         let mut context = Context::new(&mainloop, "audio-playback").ok_or(PAErr(0))?;
-        mainloop.start()?;
         context.connect(None, context::FlagSet::NOFLAGS, None)?;
+        mainloop.start()?;
 
-        loop {
-            match context.get_state() {
-                State::Ready => break,
-                State::Failed | State::Terminated => {
-                    return Err(anyhow::anyhow!("Failed to connect context"))
-                }
-                _ => {}
-            }
+        while context.get_state() != State::Ready {
+            mainloop.wait();
         }
 
-        Ok(Self { mainloop, context })
-    }
-
-    pub fn play(&mut self, audio_file: &Path) -> anyhow::Result<()> {
         let spec = Spec {
             format: libpulse_binding::sample::Format::S16le,
             channels: 2,
             rate: 44100,
         };
 
-        if !spec.is_valid() {
-            return Err(anyhow::anyhow!("Invalid PulseAudio specification"));
-        }
+        let stream = Rc::new(RefCell::new(
+            Stream::new(&mut context, "audio-playback", &spec, None).ok_or(PAErr(0))?,
+        ));
 
-        let mut stream = Stream::new(&mut self.context, "audio-playback", &spec, None)
-            .ok_or(anyhow::anyhow!("Failed to create stream"))?;
+        Self::connect_playback(stream.clone(), &spec);
 
-        let buf_size = u32::pow(2, 15);
-        let buf_attr = BufferAttr {
-            maxlength: buf_size * 4,
-            tlength: buf_size * 4,
-            prebuf: buf_size,
-            minreq: buf_size,
-            fragsize: buf_size,
-        };
+        Ok(Self {
+            stream,
+            mainloop,
+            context,
+            spec,
+        })
+    }
 
-        stream.connect_playback(
-            None,
-            Some(&buf_attr),
-            stream::FlagSet::INTERPOLATE_TIMING
-                | stream::FlagSet::AUTO_TIMING_UPDATE
-                | stream::FlagSet::ADJUST_LATENCY
-                | stream::FlagSet::START_CORKED,
-            None,
-            None,
-        )?;
+    fn connect_playback(stream: Rc<RefCell<Stream>>, spec: &Spec) {
+        let mut fragment_size = 0;
+        let mut n_fragments = 0;
 
-        loop {
-            match stream.get_state() {
-                stream::State::Ready => break,
-                stream::State::Failed | stream::State::Terminated => {
-                    self.mainloop.stop();
-                    return Err(anyhow::anyhow!("Stream connection failed"));
+        stream.borrow_mut().set_write_callback(Some(Box::new({
+            let stream = stream.clone();
+            move |size| {
+                let mut stream = stream.borrow_mut();
+                Self::write_cb(&mut stream, size);
+            }
+        })));
+
+        stream
+            .borrow_mut()
+            .set_overflow_callback(Some(Box::new(Self::stream_over_cb)));
+        stream
+            .borrow_mut()
+            .set_underflow_callback(Some(Box::new(Self::stream_under_cb)));
+
+        let fs = spec.frame_size();
+
+        if n_fragments < 2 {
+            if fragment_size > 0 {
+                n_fragments = spec.bytes_per_second() / 2 / fragment_size;
+                if n_fragments < 2 {
+                    n_fragments = 2;
                 }
-                _ => self.mainloop.wait(),
+            } else {
+                n_fragments = 12;
             }
         }
 
-        stream.uncork(None);
-
-        let mut file = fs::File::open(audio_file)?;
-        let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes)?;
-
-        let mut offset = 0;
-        while offset < bytes.len() {
-            let buffer = match stream.begin_write(None) {
-                Ok(Some(buf)) => buf,
-                Ok(None) => {
-                    continue;
-                }
-                Err(e) => return Err(anyhow::anyhow!("Write error: {:?}", e)),
-            };
-
-            let remaining = bytes.len() - offset;
-            let write_size = std::cmp::min(buffer.len(), remaining);
-
-            buffer[..write_size].copy_from_slice(&bytes[offset..offset + write_size]);
-            offset += write_size;
-
-            stream.write(buffer, None, 0, stream::SeekMode::Relative)?;
+        fragment_size = spec.bytes_per_second() / 2 / n_fragments;
+        if fragment_size < 1024 {
+            fragment_size = 1024;
         }
 
-        let drained = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-        {
-            let drained = Arc::clone(&drained);
-            stream.drain(Some(Box::new(move |_| {
-                drained.store(true, std::sync::atomic::Ordering::SeqCst);
-            })));
+        fragment_size = (fragment_size / fs) * fs;
+        if fragment_size == 0 {
+            fragment_size = fs;
         }
 
-        while !drained.load(std::sync::atomic::Ordering::SeqCst) {}
+        println!(
+            "fragment_size: {}, n_fragments: {}, fs: {}",
+            fragment_size, n_fragments, fs
+        );
 
-        Ok(())
+        let attr = BufferAttr {
+            maxlength: (fragment_size * (n_fragments + 1)) as u32,
+            tlength: (fragment_size * n_fragments) as u32,
+            prebuf: fragment_size as u32,
+            minreq: fragment_size as u32,
+            ..Default::default()
+        };
+
+        let tmp = stream.borrow_mut().connect_playback(
+            None,
+            Some(&attr),
+            stream::FlagSet::INTERPOLATE_TIMING
+                | stream::FlagSet::AUTO_TIMING_UPDATE
+                | stream::FlagSet::EARLY_REQUESTS,
+            None,
+            None,
+        );
+
+        if tmp.is_err() {
+            println!("connect_playback returned {:?}", tmp);
+        }
+    }
+
+    fn stream_over_cb() {
+        log::warn!("Audio Device: stream overflow...");
+    }
+
+    fn stream_under_cb() {
+        log::warn!("Audio Device: stream underflow...");
+    }
+
+    fn write_cb(stream: &mut Stream, size: usize) {
+        let len = size / std::mem::size_of::<i16>();
+        let mut data = vec![0i16; len];
+
+        (0..len).for_each(|i| {
+            let mut rng = rand::rng();
+            data[i] = rng.random_range(-32768..=32767);
+        });
+
+        _ = stream.write(
+            bytemuck::cast_slice(&data),
+            None,
+            0,
+            libpulse_binding::stream::SeekMode::Relative,
+        );
     }
 }

@@ -86,11 +86,10 @@ impl Moxnotify {
 
         let wgpu_state = WgpuState::new(conn)?;
 
-        //let mut audio = Audio::new().ok();
-        //audio.as_mut().unwrap().play(Path::new("/home/unixpariah/Downloads/output.raw").into()).unwrap();
+        let mut audio = Audio::new().ok();
 
         Ok(Self {
-            audio: None,
+            audio,
             globals,
             qh,
             notifications: NotificationManager::new(Arc::clone(&config), loop_handle.clone()),
