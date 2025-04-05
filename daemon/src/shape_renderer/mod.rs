@@ -1,4 +1,7 @@
-use super::buffers::{self, Mat4, Matrix};
+use super::{
+    buffers::{self},
+    math::{Mat4, Matrix},
+};
 
 pub struct ShapeRenderer {
     render_pipeline: wgpu::RenderPipeline,

@@ -49,8 +49,6 @@
                 }
               ))
               rust-analyzer-unwrapped
-              vscode-extensions.vadimcn.vscode-lldb
-              lldb_20
               nixd
               pkg-config
               lua5_4
@@ -60,6 +58,7 @@
               vulkan-validation-layers
               inputs.wgsl_analyzer.packages.${system}.default
               wayland
+              libpulseaudio
             ];
             LD_LIBRARY_PATH = "${lib.makeLibraryPath buildInputs}";
           };

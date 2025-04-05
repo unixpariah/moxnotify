@@ -7,6 +7,7 @@
   libxkbcommon,
   wayland,
   vulkan-loader,
+  libpulseaudio,
 }:
 
 let
@@ -42,6 +43,7 @@ rustPlatform.buildRustPackage rec {
     libxkbcommon
     wayland
     vulkan-loader
+    libpulseaudio
   ];
 
   doCheck = false;

@@ -7,7 +7,6 @@ use calloop::{
     timer::{TimeoutAction, Timer},
     RegistrationToken,
 };
-use serde::Deserialize;
 use std::{sync::Arc, time::Duration};
 use wayland_client::{
     protocol::{wl_keyboard, wl_seat},

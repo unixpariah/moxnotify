@@ -134,7 +134,7 @@ impl NotificationsImpl {
             // "icon-multi",
             "icon-static",
             "persistence",
-            //"sound",
+            "sound",
         ]
     }
 

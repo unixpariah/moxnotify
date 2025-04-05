@@ -10,7 +10,10 @@ mod surface;
 pub mod text;
 pub mod texture_renderer;
 mod wgpu_state;
+mod audio;
+pub mod math;
 
+use audio::Audio;
 use calloop::EventLoop;
 use calloop_wayland_source::WaylandSource;
 use config::Config;
@@ -64,6 +67,7 @@ pub struct Moxnotify {
     loop_handle: calloop::LoopHandle<'static, Self>,
     emit_sender: broadcast::Sender<EmitEvent>,
     compositor: wl_compositor::WlCompositor,
+    audio: Option<Audio>
 }
 
 impl Moxnotify {
@@ -82,7 +86,11 @@ impl Moxnotify {
 
         let wgpu_state = WgpuState::new(conn)?;
 
+        //let mut audio = Audio::new().ok();
+        //audio.as_mut().unwrap().play(Path::new("/home/unixpariah/Downloads/output.raw").into()).unwrap();
+
         Ok(Self {
+            audio: None,
             globals,
             qh,
             notifications: NotificationManager::new(Arc::clone(&config), loop_handle.clone()),
@@ -286,7 +294,7 @@ delegate_noop!(Moxnotify: zwlr_layer_shell_v1::ZwlrLayerShellV1);
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     env_logger::Builder::new()
-        .filter_level(log::LevelFilter::Info)
+        .filter_level(log::LevelFilter::Warn)
         .init();
 
     let conn = Connection::connect_to_env().expect("Failed to connect to Wayland");

@@ -1,4 +1,5 @@
-use super::buffers::{self, Mat4, Matrix};
+use super::buffers::{self};
+use super::math::{Mat4, Matrix};
 
 pub struct TextureRenderer {
     render_pipeline: wgpu::RenderPipeline,
