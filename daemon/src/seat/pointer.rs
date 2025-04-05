@@ -104,8 +104,32 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     .get_button_by_coordinates(pointer.x, pointer.y)
                     .is_some()
                 {
+                    if state.seat.pointer.state == PointerState::Default {
+                        state.update_surface_size();
+                        if let Some(surface) = state.surface.as_mut() {
+                            _ = surface.render(
+                                state.seat.keyboard.key_combination.mode,
+                                &state.wgpu_state.device,
+                                &state.wgpu_state.queue,
+                                &state.notifications,
+                            );
+                        }
+                    }
+
                     state.seat.pointer.change_state(PointerState::Hover);
                 } else {
+                    if state.seat.pointer.state == PointerState::Hover {
+                        state.update_surface_size();
+                        if let Some(surface) = state.surface.as_mut() {
+                            _ = surface.render(
+                                state.seat.keyboard.key_combination.mode,
+                                &state.wgpu_state.device,
+                                &state.wgpu_state.queue,
+                                &state.notifications,
+                            );
+                        }
+                    }
+
                     state.seat.pointer.change_state(PointerState::Default);
                 }
 
@@ -127,14 +151,41 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     (Some(new_id), Some(old_id)) if new_id != old_id => {
                         state.notifications.select(new_id);
                         state.update_surface_size();
+
+                        if let Some(surface) = state.surface.as_mut() {
+                            _ = surface.render(
+                                state.seat.keyboard.key_combination.mode,
+                                &state.wgpu_state.device,
+                                &state.wgpu_state.queue,
+                                &state.notifications,
+                            );
+                        }
                     }
                     (Some(new_id), None) => {
                         state.notifications.select(new_id);
                         state.update_surface_size();
+
+                        if let Some(surface) = state.surface.as_mut() {
+                            _ = surface.render(
+                                state.seat.keyboard.key_combination.mode,
+                                &state.wgpu_state.device,
+                                &state.wgpu_state.queue,
+                                &state.notifications,
+                            );
+                        }
                     }
                     (None, Some(_)) => {
                         state.notifications.deselect();
                         state.update_surface_size();
+
+                        if let Some(surface) = state.surface.as_mut() {
+                            _ = surface.render(
+                                state.seat.keyboard.key_combination.mode,
+                                &state.wgpu_state.device,
+                                &state.wgpu_state.queue,
+                                &state.notifications,
+                            );
+                        }
                     }
                     _ => {}
                 }
@@ -269,8 +320,26 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     {
                         if state.seat.pointer.scroll_accumulator.is_sign_positive() {
                             state.notifications.next();
+                            state.update_surface_size();
+                            if let Some(surface) = state.surface.as_mut() {
+                                _ = surface.render(
+                                    state.seat.keyboard.key_combination.mode,
+                                    &state.wgpu_state.device,
+                                    &state.wgpu_state.queue,
+                                    &state.notifications,
+                                );
+                            }
                         } else {
                             state.notifications.prev();
+                            state.update_surface_size();
+                            if let Some(surface) = state.surface.as_mut() {
+                                _ = surface.render(
+                                    state.seat.keyboard.key_combination.mode,
+                                    &state.wgpu_state.device,
+                                    &state.wgpu_state.queue,
+                                    &state.notifications,
+                                );
+                            }
                         }
 
                         state.seat.pointer.scroll_accumulator = 0.0;
@@ -278,16 +347,6 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 }
             }
             _ => {}
-        }
-
-        state.update_surface_size();
-        if let Some(surface) = state.surface.as_mut() {
-            _ = surface.render(
-                state.seat.keyboard.key_combination.mode,
-                &state.wgpu_state.device,
-                &state.wgpu_state.queue,
-                &state.notifications,
-            );
         }
     }
 }
