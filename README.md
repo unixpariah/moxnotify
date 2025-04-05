@@ -4,6 +4,10 @@ ALTHOUGH IT IS USABLE IT'S STILL WIP
 
 Feature-rich hardware-accelerated keyboard driven Wayland notification daemon.
 
+
+https://github.com/user-attachments/assets/5f9d6aca-574d-4885-9989-3cd1e08b7241
+
+
 ## Features
 
 - Fully keyboard driven with vi inspired bindings
