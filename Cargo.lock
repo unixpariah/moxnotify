@@ -625,7 +625,6 @@ dependencies = [
  "log",
  "mlua",
  "pollster",
- "rand",
  "raw-window-handle",
  "regex",
  "resvg",

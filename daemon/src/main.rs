@@ -67,7 +67,7 @@ pub struct Moxnotify {
     loop_handle: calloop::LoopHandle<'static, Self>,
     emit_sender: broadcast::Sender<EmitEvent>,
     compositor: wl_compositor::WlCompositor,
-    audio: Option<Audio>
+    audio: Option<Audio>,
 }
 
 impl Moxnotify {
@@ -86,10 +86,8 @@ impl Moxnotify {
 
         let wgpu_state = WgpuState::new(conn)?;
 
-        let mut audio = Audio::new().ok();
-
         Ok(Self {
-            audio,
+            audio: Audio::new().ok(),
             globals,
             qh,
             notifications: NotificationManager::new(Arc::clone(&config), loop_handle.clone()),
@@ -132,6 +130,9 @@ impl Moxnotify {
             Event::Notify(data) => {
                 self.notifications.add(*data)?;
                 self.update_surface_size();
+                if let Some(audio) = self.audio.as_mut() {
+                    audio.play()?;
+                }
             }
             Event::CloseNotification(id) => self.dismiss(id),
             Event::FocusSurface => {

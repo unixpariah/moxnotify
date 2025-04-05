@@ -6,13 +6,11 @@ use libpulse_binding::{
     sample::Spec,
     stream::{self, Stream},
 };
-use rand::Rng;
-use std::{cell::RefCell, rc::Rc};
 
 pub struct Audio {
     mainloop: Mainloop,
     context: Context,
-    stream: Rc<RefCell<Stream>>,
+    stream: Stream,
     spec: Spec,
 }
 
@@ -29,15 +27,27 @@ impl Audio {
 
         let spec = Spec {
             format: libpulse_binding::sample::Format::S16le,
-            channels: 2,
+            channels: 1,
             rate: 44100,
         };
 
-        let stream = Rc::new(RefCell::new(
-            Stream::new(&mut context, "audio-playback", &spec, None).ok_or(PAErr(0))?,
-        ));
+        let mut stream =
+            Stream::new(&mut context, "audio-playback", &spec, None).ok_or(PAErr(0))?;
 
-        Self::connect_playback(stream.clone(), &spec);
+        stream.set_overflow_callback(Some(Box::new(Self::stream_over_cb)));
+        stream.set_underflow_callback(Some(Box::new(Self::stream_under_cb)));
+
+        let attr = Self::buffer_attr(&spec);
+
+        stream.connect_playback(
+            None,
+            Some(&attr),
+            stream::FlagSet::INTERPOLATE_TIMING
+                | stream::FlagSet::AUTO_TIMING_UPDATE
+                | stream::FlagSet::EARLY_REQUESTS,
+            None,
+            None,
+        )?;
 
         Ok(Self {
             stream,
@@ -47,24 +57,34 @@ impl Audio {
         })
     }
 
-    fn connect_playback(stream: Rc<RefCell<Stream>>, spec: &Spec) {
+    pub fn play(&mut self) -> anyhow::Result<()> {
+        let size = 35000;
+
+        let len = size / std::mem::size_of::<i16>();
+        let mut data = vec![0i16; len];
+
+        let twopi_over_sr = std::f32::consts::PI * 2.0 / self.spec.rate as f32;
+
+        (0..len).step_by(self.spec.channels as usize).for_each(|i| {
+            let val = (32767.0 * 0.3 * (500. * i as f32 * twopi_over_sr).sin()) as i16;
+            (0..self.spec.channels).for_each(|j| {
+                data[i + j as usize] = val;
+            });
+        });
+
+        _ = self.stream.write(
+            bytemuck::cast_slice(&data),
+            None,
+            0,
+            libpulse_binding::stream::SeekMode::Relative,
+        );
+
+        Ok(())
+    }
+
+    fn buffer_attr(spec: &Spec) -> BufferAttr {
         let mut fragment_size = 0;
         let mut n_fragments = 0;
-
-        stream.borrow_mut().set_write_callback(Some(Box::new({
-            let stream = stream.clone();
-            move |size| {
-                let mut stream = stream.borrow_mut();
-                Self::write_cb(&mut stream, size);
-            }
-        })));
-
-        stream
-            .borrow_mut()
-            .set_overflow_callback(Some(Box::new(Self::stream_over_cb)));
-        stream
-            .borrow_mut()
-            .set_underflow_callback(Some(Box::new(Self::stream_under_cb)));
 
         let fs = spec.frame_size();
 
@@ -89,31 +109,12 @@ impl Audio {
             fragment_size = fs;
         }
 
-        println!(
-            "fragment_size: {}, n_fragments: {}, fs: {}",
-            fragment_size, n_fragments, fs
-        );
-
-        let attr = BufferAttr {
+        BufferAttr {
             maxlength: (fragment_size * (n_fragments + 1)) as u32,
             tlength: (fragment_size * n_fragments) as u32,
             prebuf: fragment_size as u32,
             minreq: fragment_size as u32,
             ..Default::default()
-        };
-
-        let tmp = stream.borrow_mut().connect_playback(
-            None,
-            Some(&attr),
-            stream::FlagSet::INTERPOLATE_TIMING
-                | stream::FlagSet::AUTO_TIMING_UPDATE
-                | stream::FlagSet::EARLY_REQUESTS,
-            None,
-            None,
-        );
-
-        if tmp.is_err() {
-            println!("connect_playback returned {:?}", tmp);
         }
     }
 
@@ -123,22 +124,5 @@ impl Audio {
 
     fn stream_under_cb() {
         log::warn!("Audio Device: stream underflow...");
-    }
-
-    fn write_cb(stream: &mut Stream, size: usize) {
-        let len = size / std::mem::size_of::<i16>();
-        let mut data = vec![0i16; len];
-
-        (0..len).for_each(|i| {
-            let mut rng = rand::rng();
-            data[i] = rng.random_range(-32768..=32767);
-        });
-
-        _ = stream.write(
-            bytemuck::cast_slice(&data),
-            None,
-            0,
-            libpulse_binding::stream::SeekMode::Relative,
-        );
     }
 }
