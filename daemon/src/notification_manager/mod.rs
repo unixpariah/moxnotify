@@ -487,35 +487,35 @@ impl NotificationManager {
 
 impl Moxnotify {
     pub fn dismiss(&mut self, id: u32) {
-        if self.notifications.selected_id() == Some(id) {
-            self.seat.keyboard.key_combination.mode = Mode::Normal;
-        }
+        if let Some(index) = self.notifications.iter().position(|n| n.id() == id) {
+            if self.notifications.selected_id() == Some(id) {
+                self.seat.keyboard.key_combination.mode = Mode::Normal;
+            }
 
-        if let Some(index) = self
-            .notifications
-            .iter()
-            .position(|notification| notification.id() == id)
-        {
             self.notifications.dismiss(id);
-            let adjusted_index = if index == self.notifications.len() {
-                index.saturating_sub(1)
-            } else {
-                index
-            };
+            if self.notifications.selected_id() == Some(id) {
+                let new_index = if index >= self.notifications.len() {
+                    self.notifications.len().saturating_sub(1)
+                } else {
+                    index
+                };
 
-            if let Some(notification) = self.notifications.get(adjusted_index).map(|n| n.id()) {
-                self.notifications.select(notification);
+                if let Some(notification) = self.notifications.get(new_index) {
+                    self.notifications.select(notification.id());
+                }
             }
         }
 
         self.update_surface_size();
         if let Some(surface) = self.surface.as_mut() {
-            let _ = surface.render(
+            if let Err(e) = surface.render(
                 self.seat.keyboard.key_combination.mode,
                 &self.wgpu_state.device,
                 &self.wgpu_state.queue,
                 &self.notifications,
-            );
+            ) {
+                eprintln!("Render error: {:?}", e);
+            }
         }
 
         if self.notifications.notifications().is_empty() {

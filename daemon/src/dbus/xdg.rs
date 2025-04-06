@@ -1,7 +1,7 @@
 use crate::{image_data::ImageData, EmitEvent, Event, Image, Urgency};
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::Path,
     sync::Arc,
 };
 use tokio::sync::broadcast;
@@ -11,12 +11,12 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub struct NotificationHints {
     pub action_icons: bool,
-    pub category: Option<String>,
+    pub category: Option<Box<str>>,
     pub value: Option<i32>,
     pub desktop_entry: Option<String>,
     pub resident: bool,
-    pub sound_file: Option<PathBuf>,
-    pub sound_name: Option<String>,
+    pub sound_file: Option<Arc<Path>>,
+    pub sound_name: Option<Box<str>>,
     pub suppress_sound: bool,
     pub transient: bool,
     pub x: i32,

@@ -128,10 +128,19 @@ impl Moxnotify {
                 self.dismiss(id);
             }
             Event::Notify(data) => {
+                let path = match data.hints.sound_file.clone() {
+                    Some(sound_file) => Some(sound_file),
+                    None => match data.hints.urgency {
+                        Urgency::Low => self.config.default_sound_file.urgency_low.as_ref().map(Arc::clone),
+                        Urgency::Normal=> self.config.default_sound_file.urgency_normal.as_ref().map(Arc::clone),
+                        Urgency::Critical=> self.config.default_sound_file.urgency_critical.as_ref().map(Arc::clone),
+                    }
+                };
+
                 self.notifications.add(*data)?;
                 self.update_surface_size();
-                if let Some(audio) = self.audio.as_mut() {
-                    audio.play()?;
+                if let (Some(audio), Some(path)) = (self.audio.as_mut(), path) {
+                    audio.play(path)?;
                 }
             }
             Event::CloseNotification(id) => self.dismiss(id),

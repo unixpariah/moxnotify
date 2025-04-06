@@ -197,6 +197,7 @@ fn svg_to_rgba(file: &Path, max_icon_size: u32) -> Option<ImageData> {
 fn find_icon(name: &str, icon_size: u16) -> Option<ImageData> {
     let icon_path = freedesktop_icons::lookup(name)
         .with_size(icon_size)
+        .with_cache()
         .find()?;
 
     get_icon(&icon_path, icon_size)

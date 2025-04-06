@@ -14,13 +14,92 @@ use serde::{Deserialize, Deserializer};
 use std::{
     fmt, fs,
     ops::{Add, Sub},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
 };
+
+#[derive(Default)]
+pub struct SoundFile {
+    pub urgency_low: Option<Arc<Path>>,
+    pub urgency_normal: Option<Arc<Path>>,
+    pub urgency_critical: Option<Arc<Path>>,
+}
+
+impl<'de> Deserialize<'de> for SoundFile {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct SoundFileVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for SoundFileVisitor {
+            type Value = SoundFile;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a number or a map")
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(SoundFile {
+                    urgency_low: Some(Path::new(v).into()),
+                    urgency_normal: Some(Path::new(v).into()),
+                    urgency_critical: Some(Path::new(v).into()),
+                })
+            }
+
+            fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(SoundFile {
+                    urgency_low: Some(Path::new(&v).into()),
+                    urgency_normal: Some(Path::new(&v).into()),
+                    urgency_critical: Some(Path::new(&v).into()),
+                })
+            }
+
+            fn visit_map<M>(self, mut map: M) -> Result<Self::Value, M::Error>
+            where
+                M: serde::de::MapAccess<'de>,
+            {
+                let mut urgency_low = None;
+                let mut urgency_normal = None;
+                let mut urgency_critical = None;
+
+                while let Some(key) = map.next_key::<String>()? {
+                    match key.as_str() {
+                        "urgency_low" => urgency_low = Some(map.next_value()?),
+                        "urgency_normal" => urgency_normal = Some(map.next_value()?),
+                        "urgency_critical" => urgency_critical = Some(map.next_value()?),
+                        _ => {
+                            return Err(serde::de::Error::unknown_field(
+                                &key,
+                                &["urgency_low", "urgency_normal", "urgency_critical"],
+                            ))
+                        }
+                    }
+                }
+
+                Ok(SoundFile {
+                    urgency_low,
+                    urgency_normal,
+                    urgency_critical,
+                })
+            }
+        }
+
+        deserializer.deserialize_any(SoundFileVisitor)
+    }
+}
 
 #[derive(Deserialize)]
 #[serde(default)]
 pub struct Config {
+    pub default_sound_file: SoundFile,
+    pub ignore_sound_file: bool,
     pub scroll_sensitivity: f64,
     pub hint_characters: Arc<str>,
     pub max_visible: u32,
@@ -39,6 +118,8 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            default_sound_file: SoundFile::default(),
+            ignore_sound_file: false,
             hint_characters: "sadfjklewcmpgh".into(),
             scroll_sensitivity: 20.,
             max_visible: 5,
@@ -51,7 +132,6 @@ impl Default for Config {
             default_timeout: Timeout::default(),
             ignore_timeout: false,
             keymaps: Keymaps::default(),
-
             styles: Styles::default(),
         }
     }
@@ -894,6 +974,8 @@ pub struct NotificationStyleEntry {
     pub hover: StyleState,
     pub default_timeout: Option<Timeout>,
     pub ignore_timeout: Option<bool>,
+    pub default_sound_file: SoundFile,
+    pub ignore_sound_file: bool,
 }
 
 pub struct NotificationCounter {

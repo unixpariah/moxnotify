@@ -1,17 +1,29 @@
 use libpulse_binding::{
     context::{self, Context, State},
-    def::BufferAttr,
     error::PAErr,
     mainloop::threaded::Mainloop,
     sample::Spec,
     stream::{self, Stream},
 };
+use std::{
+    fs,
+    path::Path,
+    sync::{Arc, Mutex},
+    thread,
+};
+use symphonia::core::{
+    audio::SampleBuffer,
+    codecs::{DecoderOptions, CODEC_TYPE_NULL},
+    formats::FormatOptions,
+    io::MediaSourceStream,
+    meta::MetadataOptions,
+    probe::Hint,
+};
 
 pub struct Audio {
-    mainloop: Mainloop,
-    context: Context,
-    stream: Stream,
-    spec: Spec,
+    _mainloop: Mainloop,
+    _context: Context,
+    stream: Arc<Mutex<Stream>>,
 }
 
 impl Audio {
@@ -27,21 +39,16 @@ impl Audio {
 
         let spec = Spec {
             format: libpulse_binding::sample::Format::S16le,
-            channels: 1,
+            channels: 2,
             rate: 44100,
         };
 
         let mut stream =
             Stream::new(&mut context, "audio-playback", &spec, None).ok_or(PAErr(0))?;
 
-        stream.set_overflow_callback(Some(Box::new(Self::stream_over_cb)));
-        stream.set_underflow_callback(Some(Box::new(Self::stream_under_cb)));
-
-        let attr = Self::buffer_attr(&spec);
-
         stream.connect_playback(
             None,
-            Some(&attr),
+            None,
             stream::FlagSet::INTERPOLATE_TIMING
                 | stream::FlagSet::AUTO_TIMING_UPDATE
                 | stream::FlagSet::EARLY_REQUESTS,
@@ -49,80 +56,79 @@ impl Audio {
             None,
         )?;
 
+        while stream.get_state() != stream::State::Ready {
+            mainloop.wait();
+        }
+
         Ok(Self {
-            stream,
-            mainloop,
-            context,
-            spec,
+            stream: Arc::new(Mutex::new(stream)),
+            _mainloop: mainloop,
+            _context: context,
         })
     }
 
-    pub fn play(&mut self) -> anyhow::Result<()> {
-        let size = 35000;
+    pub fn play(&mut self, path: Arc<Path>) -> anyhow::Result<()> {
+        let stream = self.stream.clone();
 
-        let len = size / std::mem::size_of::<i16>();
-        let mut data = vec![0i16; len];
+        thread::spawn(move || {
+            let src = fs::File::open(path).unwrap();
+            let mss = MediaSourceStream::new(Box::new(src), Default::default());
 
-        let twopi_over_sr = std::f32::consts::PI * 2.0 / self.spec.rate as f32;
+            let hint = Hint::new();
 
-        (0..len).step_by(self.spec.channels as usize).for_each(|i| {
-            let val = (32767.0 * 0.3 * (500. * i as f32 * twopi_over_sr).sin()) as i16;
-            (0..self.spec.channels).for_each(|j| {
-                data[i + j as usize] = val;
-            });
+            let probed = symphonia::default::get_probe()
+                .format(
+                    &hint,
+                    mss,
+                    &FormatOptions::default(),
+                    &MetadataOptions::default(),
+                )
+                .unwrap();
+            let mut format = probed.format;
+
+            let track = format
+                .tracks()
+                .iter()
+                .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
+                .unwrap();
+
+            let dec_opts = DecoderOptions::default();
+
+            let mut decoder = symphonia::default::get_codecs()
+                .make(&track.codec_params, &dec_opts)
+                .unwrap();
+
+            let track_id = track.id;
+
+            while let Ok(packet) = format.next_packet() {
+                while !format.metadata().is_latest() {
+                    format.metadata().pop();
+                }
+
+                if packet.track_id() != track_id {
+                    continue;
+                }
+
+                let decoded = decoder.decode(&packet).unwrap();
+                let mut sample_buf =
+                    SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
+                sample_buf.copy_interleaved_ref(decoded);
+
+                let i16_samples = sample_buf
+                    .samples()
+                    .iter()
+                    .map(|sample| (sample.clamp(-1.0, 1.0) * 32767.0) as i16)
+                    .collect::<Vec<_>>();
+
+                _ = stream.lock().unwrap().write(
+                    bytemuck::cast_slice(&i16_samples),
+                    None,
+                    0,
+                    libpulse_binding::stream::SeekMode::Relative,
+                );
+            }
         });
 
-        _ = self.stream.write(
-            bytemuck::cast_slice(&data),
-            None,
-            0,
-            libpulse_binding::stream::SeekMode::Relative,
-        );
-
         Ok(())
-    }
-
-    fn buffer_attr(spec: &Spec) -> BufferAttr {
-        let mut fragment_size = 0;
-        let mut n_fragments = 0;
-
-        let fs = spec.frame_size();
-
-        if n_fragments < 2 {
-            if fragment_size > 0 {
-                n_fragments = spec.bytes_per_second() / 2 / fragment_size;
-                if n_fragments < 2 {
-                    n_fragments = 2;
-                }
-            } else {
-                n_fragments = 12;
-            }
-        }
-
-        fragment_size = spec.bytes_per_second() / 2 / n_fragments;
-        if fragment_size < 1024 {
-            fragment_size = 1024;
-        }
-
-        fragment_size = (fragment_size / fs) * fs;
-        if fragment_size == 0 {
-            fragment_size = fs;
-        }
-
-        BufferAttr {
-            maxlength: (fragment_size * (n_fragments + 1)) as u32,
-            tlength: (fragment_size * n_fragments) as u32,
-            prebuf: fragment_size as u32,
-            minreq: fragment_size as u32,
-            ..Default::default()
-        }
-    }
-
-    fn stream_over_cb() {
-        log::warn!("Audio Device: stream overflow...");
-    }
-
-    fn stream_under_cb() {
-        log::warn!("Audio Device: stream underflow...");
     }
 }
