@@ -20,9 +20,10 @@ use symphonia::core::{
     probe::Hint,
 };
 
+#[allow(dead_code)]
 pub struct Audio {
-    _mainloop: Mainloop,
-    _context: Context,
+    mainloop: Mainloop,
+    context: Context,
     stream: Arc<Mutex<Stream>>,
 }
 
@@ -38,7 +39,7 @@ impl Audio {
         }
 
         let spec = Spec {
-            format: libpulse_binding::sample::Format::S16le,
+            format: libpulse_binding::sample::Format::FLOAT32NE,
             channels: 2,
             rate: 44100,
         };
@@ -62,8 +63,8 @@ impl Audio {
 
         Ok(Self {
             stream: Arc::new(Mutex::new(stream)),
-            _mainloop: mainloop,
-            _context: context,
+            mainloop,
+            context,
         })
     }
 
@@ -71,7 +72,14 @@ impl Audio {
         let stream = self.stream.clone();
 
         thread::spawn(move || {
-            let src = fs::File::open(path).unwrap();
+            let src = match fs::File::open(Arc::clone(&path)) {
+                Ok(file) => file,
+                Err(_) => {
+                    log::error!("Sound file {} doesn't exist", path.display());
+                    return;
+                }
+            };
+
             let mss = MediaSourceStream::new(Box::new(src), Default::default());
 
             let hint = Hint::new();
@@ -100,6 +108,9 @@ impl Audio {
 
             let track_id = track.id;
 
+            let Ok(mut stream) = stream.lock() else {
+                return;
+            };
             while let Ok(packet) = format.next_packet() {
                 while !format.metadata().is_latest() {
                     format.metadata().pop();
@@ -114,14 +125,8 @@ impl Audio {
                     SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
                 sample_buf.copy_interleaved_ref(decoded);
 
-                let i16_samples = sample_buf
-                    .samples()
-                    .iter()
-                    .map(|sample| (sample.clamp(-1.0, 1.0) * 32767.0) as i16)
-                    .collect::<Vec<_>>();
-
-                _ = stream.lock().unwrap().write(
-                    bytemuck::cast_slice(&i16_samples),
+                _ = stream.write(
+                    bytemuck::cast_slice(sample_buf.samples()),
                     None,
                     0,
                     libpulse_binding::stream::SeekMode::Relative,

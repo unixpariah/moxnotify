@@ -6,7 +6,7 @@ use crate::{
     button::ButtonType,
     config::{self, keymaps::Mode, Config, Queue},
     texture_renderer::TextureArea,
-    Moxnotify, NotificationData,
+    EmitEvent, Moxnotify, NotificationData,
 };
 use calloop::{
     timer::{TimeoutAction, Timer},
@@ -351,7 +351,7 @@ impl NotificationManager {
                 notification.registration_token = self
                     .loop_handle
                     .insert_source(timer, move |_, _, moxnotify| {
-                        moxnotify.dismiss(id);
+                        moxnotify.dismiss(id, Some(Reason::Expired));
                         TimeoutAction::Drop
                     })
                     .ok();
@@ -403,7 +403,7 @@ impl NotificationManager {
                     notification.registration_token = self
                         .loop_handle
                         .insert_source(timer, move |_, _, moxnotify| {
-                            moxnotify.dismiss(id);
+                            moxnotify.dismiss(id, Some(Reason::Expired));
                             TimeoutAction::Drop
                         })
                         .ok();
@@ -447,7 +447,7 @@ impl NotificationManager {
                         notification.registration_token = self
                             .loop_handle
                             .insert_source(timer, move |_, _, moxnotify| {
-                                moxnotify.dismiss(id);
+                                moxnotify.dismiss(id, Some(Reason::Expired));
                                 TimeoutAction::Drop
                             })
                             .ok();
@@ -485,14 +485,27 @@ impl NotificationManager {
     }
 }
 
+pub enum Reason {
+    Expired = 1,
+    DismissedByUser = 2,
+    CloseNotificationCall = 3,
+    Unkown = 4,
+}
+
 impl Moxnotify {
-    pub fn dismiss(&mut self, id: u32) {
+    pub fn dismiss(&mut self, id: u32, reason: Option<Reason>) {
         if let Some(index) = self.notifications.iter().position(|n| n.id() == id) {
             if self.notifications.selected_id() == Some(id) {
                 self.seat.keyboard.key_combination.mode = Mode::Normal;
             }
 
             self.notifications.dismiss(id);
+            if let Some(reason) = reason {
+                _ = self.emit_sender.send(EmitEvent::NotificationClosed {
+                    id,
+                    reason: reason as u32,
+                });
+            }
             if self.notifications.selected_id() == Some(id) {
                 let new_index = if index >= self.notifications.len() {
                     self.notifications.len().saturating_sub(1)

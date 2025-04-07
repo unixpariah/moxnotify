@@ -1,6 +1,7 @@
 use crate::{
     button::ButtonType,
     config::keymaps::{Key, KeyAction, KeyCombination, Mode, Modifiers},
+    notification_manager::Reason,
     EmitEvent, Moxnotify,
 };
 use calloop::{
@@ -12,8 +13,7 @@ use wayland_client::{
     protocol::{wl_keyboard, wl_seat},
     Connection, Dispatch, QueueHandle, WEnum,
 };
-use xkbcommon::xkb::Context;
-use xkbcommon::xkb::{Keymap, State};
+use xkbcommon::xkb::{Context, Keymap, State};
 
 struct Xkb {
     context: Context,
@@ -224,7 +224,7 @@ impl Moxnotify {
                         }
                         KeyAction::DismissNotification => {
                             if let Some(id) = self.notifications.selected_id() {
-                                self.dismiss(id);
+                                self.dismiss(id, Some(Reason::DismissedByUser));
                             }
                         }
                         KeyAction::Unfocus => {
@@ -252,7 +252,9 @@ impl Moxnotify {
                     } else {
                         let combination = self.seat.keyboard.key_combination.to_string();
                         match notification.buttons.get_by_character(&combination) {
-                            Some(ButtonType::Dismiss) => self.dismiss(id),
+                            Some(ButtonType::Dismiss) => {
+                                self.dismiss(id, Some(Reason::DismissedByUser))
+                            }
                             Some(ButtonType::Action { action, .. }) => {
                                 if let Some(surface) = self.surface.as_ref() {
                                     let token = surface.token.as_ref().map(Arc::clone);
@@ -264,7 +266,7 @@ impl Moxnotify {
                                 }
 
                                 if !notification.hints.resident {
-                                    self.dismiss(id);
+                                    self.dismiss(id, Some(Reason::DismissedByUser));
                                 } else {
                                     self.seat.keyboard.key_combination.mode = Mode::Normal;
                                 }

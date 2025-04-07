@@ -1,4 +1,6 @@
-use crate::{button::ButtonType, surface::FocusReason, EmitEvent, Moxnotify};
+use crate::{
+    button::ButtonType, notification_manager::Reason, surface::FocusReason, EmitEvent, Moxnotify,
+};
 use std::sync::Arc;
 use wayland_client::{
     delegate_noop,
@@ -241,7 +243,9 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                         if let Some(notification_id) = notification_id {
                             match button {
-                                Some(ButtonType::Dismiss) => state.dismiss(notification_id),
+                                Some(ButtonType::Dismiss) => {
+                                    state.dismiss(notification_id, Some(Reason::DismissedByUser))
+                                }
                                 Some(ButtonType::Action { action, .. }) => {
                                     if let Some(surface) = state.surface.as_ref() {
                                         let token = surface.token.as_ref().map(Arc::clone);
@@ -259,7 +263,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                                         .map(|n| n.hints.resident)
                                         .unwrap_or_default()
                                     {
-                                        state.dismiss(notification_id);
+                                        state.dismiss(notification_id, None);
                                     }
                                 }
                                 _ => {}

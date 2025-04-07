@@ -19,7 +19,7 @@ use calloop_wayland_source::WaylandSource;
 use config::Config;
 use dbus::xdg::NotificationData;
 use image_data::ImageData;
-use notification_manager::NotificationManager;
+use notification_manager::{NotificationManager, Reason};
 use seat::Seat;
 use serde::{Deserialize, Serialize};
 use std::{path::Path, sync::Arc};
@@ -114,18 +114,18 @@ impl Moxnotify {
                         .map(|notification| notification.id())
                         .collect();
 
-                    ids.iter().for_each(|id| self.dismiss(*id));
+                    ids.iter().for_each(|id| self.dismiss(*id, Some(Reason::DismissedByUser)));
                     return Ok(());
                 }
 
                 if id == 0 {
                     if let Some(notification) = self.notifications.notifications().first() {
-                        self.dismiss(notification.id());
+                        self.dismiss(notification.id(), Some(Reason::DismissedByUser));
                     }
                     return Ok(());
                 }
 
-                self.dismiss(id);
+                self.dismiss(id, Some(Reason::DismissedByUser));
             }
             Event::Notify(data) => {
                 let path = match (data.hints.sound_file.as_ref().map(Arc::clone), data.hints.sound_name.as_ref().map(Arc::clone)) {
@@ -145,7 +145,7 @@ impl Moxnotify {
                     audio.play(path)?;
                 }
             }
-            Event::CloseNotification(id) => self.dismiss(id),
+            Event::CloseNotification(id) => self.dismiss(id, Some(Reason::CloseNotificationCall)),
             Event::FocusSurface => {
                 if let Some(surface) = self.surface.as_mut() {
                     if surface.focus_reason.is_none() {
