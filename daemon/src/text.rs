@@ -18,6 +18,7 @@ static ALT_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"alt\s*=\s*["']([^"']*)["']"#).unwrap());
 static URL_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)\b(https?://|ftp://|www\.)\S+\b").unwrap());
+static SPLIT_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(<[^>]+>)|([^<]+)").unwrap());
 
 #[derive(Debug)]
 pub struct Anchor {
@@ -67,7 +68,7 @@ impl Text {
         font: &Font,
         font_system: &mut FontSystem,
         summary: &str,
-        body: &str,
+        mut body: String,
         max_width: f32,
     ) -> Self {
         let attrs = Attrs::new().family(glyphon::Family::Name(&font.family));
@@ -89,7 +90,23 @@ impl Text {
             let mut current_attrs = attrs;
             let mut last_pos = 0;
 
-            REGEX.captures_iter(body).for_each(|cap| {
+            body = SPLIT_REGEX
+                .replace_all(&body, |caps: &regex::Captures| {
+                    if let Some(tag) = caps.get(1) {
+                        tag.as_str().to_string()
+                    } else if let Some(text) = caps.get(2) {
+                        URL_REGEX
+                            .replace_all(text.as_str(), |url_caps: &regex::Captures| {
+                                format!("<a href=\"{}\">{}</a>", &url_caps[0], &url_caps[0])
+                            })
+                            .to_string()
+                    } else {
+                        String::new()
+                    }
+                })
+                .into_owned();
+
+            REGEX.captures_iter(&body).for_each(|cap| {
                 let full_match = cap.get(0).unwrap();
                 let is_closing = !cap[1].is_empty();
                 let tag: Box<str> = cap[2].into();

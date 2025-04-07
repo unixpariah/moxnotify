@@ -97,7 +97,7 @@ impl Notification {
             &config.styles.default.font,
             font_system,
             &data.summary,
-            &data.body,
+            data.body.to_string(),
             config.styles.default.width.resolve(0.)
                 - icon_width
                 - buttons
@@ -297,7 +297,7 @@ impl Notification {
             &style.font,
             font_system,
             summary,
-            body,
+            body.to_string(),
             text_extents.width,
         );
     }
