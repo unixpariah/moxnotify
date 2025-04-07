@@ -105,9 +105,11 @@ impl ButtonManager {
                 .buttons
                 .iter()
                 .map(|button| {
-                    button
-                        .hint
-                        .instance(&button.extents(container_hovered), scale, urgency)
+                    button.hint.instance(
+                        &button.rendered_extents(container_hovered),
+                        scale,
+                        urgency,
+                    )
                 })
                 .collect::<Vec<_>>();
             buttons.extend_from_slice(&hints);
@@ -134,9 +136,11 @@ impl ButtonManager {
                 .buttons
                 .iter()
                 .map(|button| {
-                    button
-                        .hint
-                        .text_area(&button.extents(container_hovered), scale, urgency)
+                    button.hint.text_area(
+                        &button.rendered_extents(container_hovered),
+                        scale,
+                        urgency,
+                    )
                 })
                 .collect::<Vec<_>>();
             text_areas.extend_from_slice(&hints);
@@ -146,14 +150,14 @@ impl ButtonManager {
     }
 }
 
-struct Hint {
+pub struct Hint {
     text: Text,
     combination: Arc<str>,
     config: Arc<Config>,
 }
 
 impl Hint {
-    fn new(combination: &str, config: Arc<Config>, font_system: &mut FontSystem) -> Self {
+    pub fn new(combination: &str, config: Arc<Config>, font_system: &mut FontSystem) -> Self {
         Self {
             combination: combination.into(),
             text: Text::new(&config.styles.default.font, font_system, combination),
@@ -161,7 +165,7 @@ impl Hint {
         }
     }
 
-    fn instance(
+    pub fn instance(
         &self,
         button_extents: &Extents,
         scale: f32,
@@ -172,7 +176,7 @@ impl Hint {
 
         buffers::Instance {
             rect_pos: [
-                button_extents.x,
+                button_extents.x - style.width.resolve(text_extents.0) / 2.,
                 button_extents.y - style.height.resolve(text_extents.1) / 2.,
             ],
             rect_size: [
@@ -213,12 +217,14 @@ impl Hint {
 
         TextArea {
             buffer: &self.text.buffer,
-            left: button_extents.x + style.padding.left.resolve(pl),
+            left: button_extents.x + style.padding.left.resolve(pl)
+                - style.width.resolve(text_extents.0) / 2.,
             top: button_extents.y + style.padding.top.resolve(pl)
                 - style.height.resolve(text_extents.1) / 2.,
             scale,
             bounds: glyphon::TextBounds {
-                left: (button_extents.x + style.padding.left.resolve(pl)) as i32,
+                left: (button_extents.x + style.padding.left.resolve(pl)
+                    - style.height.resolve(text_extents.0)) as i32,
                 top: (button_extents.y + style.padding.top.resolve(pt)
                     - style.height.resolve(text_extents.1) / 2.) as i32,
                 right: (button_extents.x

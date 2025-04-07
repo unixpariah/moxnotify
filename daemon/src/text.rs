@@ -30,6 +30,14 @@ pub struct Anchor {
     pub end: usize,
 }
 
+impl Anchor {
+    pub fn coordinates(&self, buffer: &Buffer) -> (f32, f32) {
+        let line = buffer.layout_runs().nth(self.line).unwrap();
+
+        (line.glyphs.get(self.start).unwrap().x, line.line_y)
+    }
+}
+
 fn create_buffer(font: &Font, font_system: &mut FontSystem, max_width: Option<f32>) -> Buffer {
     let dpi = 96.0;
     let font_size = font.size * dpi / 72.0;
@@ -212,6 +220,13 @@ impl Text {
     pub fn set_buffer_position(&mut self, x: f32, y: f32) {
         self.x = x;
         self.y = y;
+    }
+
+    pub fn anchor_positions(&self) -> Vec<(f32, f32)> {
+        self.anchors
+            .iter()
+            .map(|anchor| anchor.coordinates(&self.buffer))
+            .collect()
     }
 
     pub fn hit(&self, x: f32, y: f32) -> Option<&Anchor> {

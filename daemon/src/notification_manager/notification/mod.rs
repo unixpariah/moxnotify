@@ -437,6 +437,29 @@ impl Notification {
 
         instances.extend_from_slice(&button_instances);
 
+        //if mode == Mode::Hint {
+        //let style = &self.config.styles.hover.hint;
+        //let hints = self
+        //.text
+        //.anchor_positions()
+        //.iter()
+        //.map(|anchor| buffers::Instance {
+        //rect_pos: [
+        //self.text_extents().x + anchor.0 - style.width.resolve(0.) / 2.,
+        //self.text_extents().y + anchor.1 - style.height.resolve(0.) / 2.,
+        //],
+        //rect_size: [style.width.resolve(0.), style.height.resolve(0.)],
+        //rect_color: style.background.to_linear(self.urgency()),
+        //border_radius: style.border.radius.into(),
+        //border_size: style.border.size.into(),
+        //border_color: style.border.color.to_linear(self.urgency()),
+        //scale,
+        //})
+        //.collect::<Vec<_>>();
+
+        //instances.extend_from_slice(&hints);
+        //}
+
         instances
     }
 

@@ -73,8 +73,8 @@ impl NotificationManager {
                     );
 
                     textures.extend_from_slice(&texture);
-                    instances.extend_from_slice(&instance);
                     text_areas.extend_from_slice(&text);
+                    instances.extend_from_slice(&instance);
 
                     (instances, text_areas, textures)
                 },
