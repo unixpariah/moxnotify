@@ -243,6 +243,15 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                             match button {
                                 Some(ButtonType::Dismiss) => state.dismiss(notification_id),
                                 Some(ButtonType::Action { action, .. }) => {
+                                    if let Some(surface) = state.surface.as_ref() {
+                                        let token = surface.token.as_ref().map(Arc::clone);
+                                        _ = state.emit_sender.send(EmitEvent::ActionInvoked {
+                                            id: notification_id,
+                                            action_key: action,
+                                            token: token.unwrap_or_default(),
+                                        });
+                                    }
+
                                     if !state
                                         .notifications
                                         .iter()
@@ -251,15 +260,6 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                                         .unwrap_or_default()
                                     {
                                         state.dismiss(notification_id);
-                                    }
-
-                                    if let Some(surface) = state.surface.as_ref() {
-                                        let token = surface.token.as_ref().map(Arc::clone);
-                                        _ = state.emit_sender.send(EmitEvent::ActionInvoked {
-                                            id: notification_id,
-                                            action_key: action,
-                                            token: token.unwrap_or_default(),
-                                        });
                                     }
                                 }
                                 _ => {}

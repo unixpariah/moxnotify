@@ -1,3 +1,3 @@
-pub mod desktop_portal;
 pub mod moxnotify;
+pub mod portal;
 pub mod xdg;

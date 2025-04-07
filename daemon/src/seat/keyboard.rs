@@ -254,12 +254,6 @@ impl Moxnotify {
                         match notification.buttons.get_by_character(&combination) {
                             Some(ButtonType::Dismiss) => self.dismiss(id),
                             Some(ButtonType::Action { action, .. }) => {
-                                if !notification.hints.resident {
-                                    self.dismiss(id);
-                                } else {
-                                    self.seat.keyboard.key_combination.mode = Mode::Normal;
-                                }
-
                                 if let Some(surface) = self.surface.as_ref() {
                                     let token = surface.token.as_ref().map(Arc::clone);
                                     _ = self.emit_sender.send(EmitEvent::ActionInvoked {
@@ -267,6 +261,12 @@ impl Moxnotify {
                                         action_key: action,
                                         token: token.unwrap_or_default(),
                                     });
+                                }
+
+                                if !notification.hints.resident {
+                                    self.dismiss(id);
+                                } else {
+                                    self.seat.keyboard.key_combination.mode = Mode::Normal;
                                 }
                             }
                             None => {}

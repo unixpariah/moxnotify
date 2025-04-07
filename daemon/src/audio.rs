@@ -70,8 +70,8 @@ impl Audio {
     pub fn play(&mut self, path: Arc<Path>) -> anyhow::Result<()> {
         let stream = self.stream.clone();
 
-        thread::spawn(move || {
-            let src = fs::File::open(path).unwrap();
+        thread::spawn(move || -> anyhow::Result<()> {
+            let src = fs::File::open(path)?;
             let mss = MediaSourceStream::new(Box::new(src), Default::default());
 
             let hint = Hint::new();
@@ -127,6 +127,7 @@ impl Audio {
                     libpulse_binding::stream::SeekMode::Relative,
                 );
             }
+            Ok(())
         });
 
         Ok(())

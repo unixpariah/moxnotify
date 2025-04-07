@@ -354,7 +354,7 @@ async fn main() -> anyhow::Result<()> {
     })?;
 
     scheduler.schedule(async move {
-        if let Err(e) = dbus::desktop_portal::serve(emit_receiver).await {
+        if let Err(e) = dbus::portal::serve(emit_receiver).await {
             log::error!("{e}");
         }
     })?;

@@ -59,6 +59,18 @@ mod tests {
     use std::time::Duration;
 
     #[tokio::test]
+    async fn audio_test() {
+        let mut hints = HashMap::new();
+        hints.insert("sound-file", "/run/current-system/sw/share/sounds/freedesktop/stereo/bell.oga".into());
+        let notification = Notification {
+            summary: "sound-file test",
+            hints,
+            ..Default::default()
+        };
+        assert!(emit(notification).await.is_ok());
+    }
+
+    #[tokio::test]
     async fn image_test() {
         let mut hints = HashMap::new();
         hints.insert("image-path", "zen-beta".into());
