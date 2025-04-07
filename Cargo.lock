@@ -618,6 +618,7 @@ dependencies = [
  "env_logger",
  "fast_image_resize",
  "freedesktop-icons",
+ "freedesktop-sound",
  "futures-lite",
  "glyphon",
  "image",
@@ -984,6 +985,18 @@ dependencies = [
  "ini_core",
  "once_cell",
  "thiserror 1.0.69",
+ "tracing",
+ "xdg",
+]
+
+[[package]]
+name = "freedesktop-sound"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8c0042ff7d036cc631aec8a30c938a66bef47077f3ea0a93d388b5943d591516"
+dependencies = [
+ "ini_core",
+ "thiserror 2.0.12",
  "tracing",
  "xdg",
 ]

@@ -128,13 +128,15 @@ impl Moxnotify {
                 self.dismiss(id);
             }
             Event::Notify(data) => {
-                let path = match data.hints.sound_file.clone() {
-                    Some(sound_file) => Some(sound_file),
-                    None => match data.hints.urgency {
+                let path = match (data.hints.sound_file.as_ref().map(Arc::clone), data.hints.sound_name.as_ref().map(Arc::clone)) {
+                    (Some(sound_file), None) => Some(sound_file),
+                    (None, Some(sound_name)) => freedesktop_sound::lookup(&sound_name).with_cache().find().map(|s| s.into()),
+                    (None, None) => match data.hints.urgency {
                         Urgency::Low => self.config.default_sound_file.urgency_low.as_ref().map(Arc::clone),
                         Urgency::Normal=> self.config.default_sound_file.urgency_normal.as_ref().map(Arc::clone),
                         Urgency::Critical=> self.config.default_sound_file.urgency_critical.as_ref().map(Arc::clone),
                     }
+                    (Some(sound_file), Some(_)) => Some(sound_file),
                 };
 
                 self.notifications.add(*data)?;

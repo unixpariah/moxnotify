@@ -16,7 +16,7 @@ pub struct NotificationHints {
     pub desktop_entry: Option<String>,
     pub resident: bool,
     pub sound_file: Option<Arc<Path>>,
-    pub sound_name: Option<Box<str>>,
+    pub sound_name: Option<Arc<str>>,
     pub suppress_sound: bool,
     pub transient: bool,
     pub x: i32,
