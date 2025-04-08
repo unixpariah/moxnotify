@@ -1,6 +1,5 @@
 use crate::{
-    button::Hint,
-    config::{Config, Font},
+    config::Font,
     notification_manager::notification::{icons::get_icon, Extents},
 };
 use glyphon::{
@@ -26,24 +25,16 @@ static SPLIT_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(<[^>]+>)|([
 
 pub struct Anchor {
     text: Arc<str>,
-    char_num: usize,
     pub href: Arc<str>,
     pub line: usize,
     pub start: usize,
     pub end: usize,
-    pub hint: Hint,
+    pub extents: Extents,
 }
 
 impl Anchor {
-    pub fn extents(&self, buffer: &Buffer) -> Extents {
-        let line = buffer.layout_runs().nth(self.line).unwrap();
-
-        Extents {
-            x: line.glyphs.get(self.start).unwrap().x,
-            y: line.line_top,
-            width: 0.,
-            height: line.line_height,
-        }
+    pub fn extents(&self) -> Extents {
+        Extents { ..self.extents }
     }
 }
 
@@ -83,7 +74,6 @@ impl Text {
     }
 
     pub fn new_notification(
-        config: &Arc<Config>,
         font: &Font,
         font_system: &mut FontSystem,
         summary: &str,
@@ -152,13 +142,12 @@ impl Text {
                             if let Some(href_cap) = HREF_REGEX.captures(full_match.as_str()) {
                                 let href = Arc::from(&href_cap[1]);
                                 anchor_stack.push(Anchor {
-                                    char_num: start_pos,
                                     text: "".into(),
                                     href,
                                     line: 0,
-                                    start: 0,
+                                    start: start_pos,
                                     end: 0,
-                                    hint: Hint::new("a", Arc::clone(config), font_system),
+                                    extents: Extents::default(),
                                 });
                             }
                         }
@@ -211,10 +200,23 @@ impl Text {
                 line.text()
                     .match_indices(&*anchor.text)
                     .for_each(|(start, _)| {
-                        if total + start == anchor.char_num {
+                        if total + start == anchor.start {
                             anchor.start = start;
                             anchor.end = start + anchor.text.len();
                             anchor.line = i;
+                            anchor.extents = match buffer.layout_runs().nth(anchor.line) {
+                                Some(line) => Extents {
+                                    x: line.glyphs.get(anchor.start).unwrap().x
+                                        + line.glyphs.get(anchor.start).unwrap().w,
+                                    y: line.line_top + line.line_height,
+                                    width: (line.glyphs.get(anchor.end - 1).unwrap().x
+                                        + line.glyphs.get(anchor.end - 1).unwrap().w)
+                                        - line.glyphs.get(anchor.start).unwrap().x,
+                                    height: line.line_height,
+                                },
+
+                                None => Extents::default(),
+                            }
                         }
                     });
                 total += line.text().len();
@@ -232,23 +234,6 @@ impl Text {
     pub fn set_buffer_position(&mut self, x: f32, y: f32) {
         self.x = x;
         self.y = y;
-    }
-
-    pub fn hit(&self, x: f32, y: f32) -> Option<&Arc<Anchor>> {
-        let cursor = self.buffer.hit(x - self.x, y - self.y)?;
-
-        let line_width = self.buffer.layout_runs().nth(cursor.line)?.line_w;
-        if x - self.x < 0.
-            || (x - self.x).abs() > line_width
-            || y - self.y < 0.
-            || y - self.y > self.extents().1
-        {
-            return None;
-        }
-
-        self.anchors.iter().find(|anchor| {
-            anchor.line == cursor.line && anchor.start <= cursor.index && anchor.end >= cursor.index
-        })
     }
 
     pub fn extents(&self) -> (f32, f32) {

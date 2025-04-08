@@ -135,20 +135,6 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     state.seat.pointer.change_state(PointerState::Default);
                 }
 
-                let pointer = &state.seat.pointer;
-                if let Some(under_pointer) =
-                    state.notifications.get_by_coordinates(pointer.x, pointer.y)
-                {
-                    if under_pointer
-                        .text
-                        .hit(pointer.x as f32, pointer.y as f32)
-                        .is_some()
-                    {
-                        state.seat.pointer.change_state(PointerState::Hover);
-                        return;
-                    }
-                }
-
                 match (hovered_id, state.notifications.selected_id()) {
                     (Some(new_id), Some(old_id)) if new_id != old_id => {
                         state.notifications.select(new_id);

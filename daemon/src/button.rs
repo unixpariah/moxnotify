@@ -324,6 +324,15 @@ impl Button {
             + style.margin.top
             + style.margin.bottom;
 
+        if let ButtonType::Anchor { anchor } = &self.button_type {
+            return Extents {
+                x: self.x + anchor.extents().x,
+                y: self.y + anchor.extents().y,
+                width: anchor.extents().width,
+                height: anchor.extents().height,
+            };
+        }
+
         Extents {
             x: self.x,
             y: self.y,
@@ -421,41 +430,29 @@ impl Button {
         let style = self.style(container_hovered);
         let extents = self.rendered_extents(container_hovered);
 
-        match self.button_type {
-            ButtonType::Dismiss => buffers::Instance {
-                rect_pos: [extents.x, extents.y],
-                rect_size: [
-                    extents.width - style.border.size.left - style.border.size.right,
-                    extents.height - style.border.size.top - style.border.size.bottom,
-                ],
-                rect_color: style.background.to_linear(urgency),
-                border_radius: style.border.radius.into(),
-                border_size: style.border.size.into(),
-                border_color: style.border.color.to_linear(urgency),
-                scale,
-            },
-            ButtonType::Action { .. } => buffers::Instance {
-                rect_pos: [extents.x, extents.y],
-                rect_size: [
-                    extents.width - style.border.size.left - style.border.size.right,
-                    extents.height - style.border.size.top - style.border.size.bottom,
-                ],
-                rect_color: style.background.to_linear(urgency),
-                border_radius: style.border.radius.into(),
-                border_size: style.border.size.into(),
-                border_color: style.border.color.to_linear(urgency),
-                scale,
-            },
-            // Adding Anchor as a button is just for hint rendering
-            ButtonType::Anchor { .. } => buffers::Instance {
+        if let ButtonType::Anchor { .. } = self.button_type {
+            return buffers::Instance {
                 rect_pos: [0., 0.],
                 rect_size: [0., 0.],
-                rect_color: [0., 0., 0., 0.],
-                border_radius: [0., 0., 0., 0.],
-                border_size: [0., 0., 0., 0.],
-                border_color: [0., 0., 0., 0.],
+                rect_color: style.background.to_linear(urgency),
+                border_radius: style.border.radius.into(),
+                border_size: style.border.size.into(),
+                border_color: style.border.color.to_linear(urgency),
                 scale,
-            },
+            };
+        }
+
+        buffers::Instance {
+            rect_pos: [extents.x, extents.y],
+            rect_size: [
+                extents.width - style.border.size.left - style.border.size.right,
+                extents.height - style.border.size.top - style.border.size.bottom,
+            ],
+            rect_color: style.background.to_linear(urgency),
+            border_radius: style.border.radius.into(),
+            border_size: style.border.size.into(),
+            border_color: style.border.color.to_linear(urgency),
+            scale,
         }
     }
 }

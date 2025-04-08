@@ -93,7 +93,6 @@ impl Notification {
             .map(|i| i.width as f32 + style.padding.right.resolve(0.))
             .unwrap_or(0.);
         let text = text::Text::new_notification(
-            &config,
             &config.styles.default.font,
             font_system,
             &data.summary,
@@ -162,112 +161,96 @@ impl Notification {
     }
 
     pub fn set_position(&mut self, x: f32, y: f32) {
-        self.y = y;
         self.x = x;
+        self.y = y;
         self.update_text_position();
+
         let extents = self.rendered_extents();
-        let style = self.config.find_style(&self.app_name, self.hovered());
+        let hovered = self.hovered();
+        let style = self.config.find_style(&self.app_name, hovered);
 
-        self.icons.set_position(
-            &extents,
-            style,
-            &self.progress,
-            &self.buttons,
-            self.hovered(),
-        );
-
+        self.icons
+            .set_position(&extents, style, &self.progress, &self.buttons, hovered);
         if let Some(progress) = self.progress.as_mut() {
             progress.set_position(&extents, style);
         }
 
         let extents = self.rendered_extents();
-        let hovered = self.hovered();
 
-        if let Some(button) = self
+        let dismiss_bottom_y = self
             .buttons
             .buttons_mut()
             .iter_mut()
             .find(|button| button.button_type == ButtonType::Dismiss)
-        {
-            let (x, y) = (
-                extents.x + extents.width
-                    - style.border.size.right.resolve(0.)
-                    - style.padding.right.resolve(0.)
-                    - button.extents(hovered).width,
-                extents.y
-                    + style.margin.top.resolve(0.)
-                    + style.border.size.top.resolve(0.)
-                    + style.padding.top.resolve(0.),
-            );
-
-            button.set_position(x, y)
-        }
-
-        let height = self
-            .buttons
-            .buttons_mut()
-            .iter_mut()
-            .find(|button| button.button_type == ButtonType::Dismiss)
-            .map(|b| {
-                let extents = b.extents(hovered);
-                extents.y + extents.height
+            .map(|button| {
+                let x = extents.x + extents.width
+                    - style.border.size.right
+                    - style.padding.right
+                    - button.extents(hovered).width;
+                let y = extents.y + style.margin.top + style.border.size.top + style.padding.top;
+                button.set_position(x, y);
+                let button_extents = button.extents(hovered);
+                button_extents.y + button_extents.height
             })
-            .unwrap_or(0.);
-
-        let actions_count = self
-            .buttons
-            .buttons()
-            .iter()
-            .filter(|button| matches!(button.button_type, ButtonType::Action { .. }))
-            .count() as f32;
+            .unwrap_or(0.0);
 
         self.buttons
             .buttons_mut()
             .iter_mut()
-            .filter(|b| matches!(b.button_type, ButtonType::Action { .. }))
-            .enumerate()
-            .for_each(|(i, button)| {
-                let button_style = button.style(hovered);
+            .filter(|button| matches!(button.button_type, ButtonType::Anchor { .. }))
+            .for_each(|button| button.set_position(extents.x, extents.y));
 
-                let available_width = extents.width
-                    - style.border.size.left.resolve(0.)
-                    - style.border.size.right.resolve(0.)
-                    - style.padding.left.resolve(0.)
-                    - style.padding.right.resolve(0.)
-                    - button_style.margin.left.resolve(0.)
-                    - button_style.margin.right.resolve(0.);
+        let action_buttons = self
+            .buttons
+            .buttons()
+            .iter()
+            .filter(|button| matches!(button.button_type, ButtonType::Action { .. }))
+            .count();
 
-                let spacing_between =
-                    button_style.margin.left.resolve(0.) + button_style.margin.right.resolve(0.);
+        if action_buttons > 0 {
+            let button_style = self
+                .buttons
+                .buttons()
+                .iter()
+                .find(|b| matches!(b.button_type, ButtonType::Action { .. }))
+                .map(|b| b.style(hovered))
+                .unwrap_or_else(|| &style.buttons.action.default);
 
-                let total_spacing = (actions_count - 1.) * spacing_between;
+            let side_padding = style.border.size.left
+                + style.border.size.right
+                + style.padding.left
+                + style.padding.right;
+            let button_margin = button_style.margin.left + button_style.margin.right;
+            let available_width = extents.width - side_padding - button_margin;
 
-                let button_width = (available_width - total_spacing) / actions_count;
-                button.width = button_width;
+            let action_buttons_f32 = action_buttons as f32;
+            let total_spacing = (action_buttons_f32 - 1.0) * button_margin;
+            let button_width = (available_width - total_spacing) / action_buttons_f32;
 
-                let (x, y) = if let ButtonType::Action { .. } = button.button_type {
-                    let base_x = extents.x
-                        + style.border.size.left.resolve(0.)
-                        + style.padding.left.resolve(0.);
-                    let x_position = base_x + (button_width + spacing_between) * i as f32;
+            let progress_height = self
+                .progress
+                .map(|p| p.extents(&extents, style).height)
+                .unwrap_or_default();
 
+            let base_x = extents.x + style.border.size.left + style.padding.left;
+            let bottom_padding = style.border.size.bottom + style.padding.bottom + progress_height;
+
+            self.buttons
+                .buttons_mut()
+                .iter_mut()
+                .filter(|b| matches!(b.button_type, ButtonType::Action { .. }))
+                .enumerate()
+                .for_each(|(i, button)| {
+                    button.width = button_width;
+                    let x_position = base_x + (button_width + button_margin) * i as f32;
                     let y_position = (extents.y + extents.height
-                        - style.border.size.bottom.resolve(0.)
-                        - style.padding.bottom.resolve(0.)
-                        - self
-                            .progress
-                            .map(|p| p.extents(&extents, style).height)
-                            .unwrap_or_default()
+                        - bottom_padding
                         - button.extents(hovered).height)
-                        .max(height);
+                        .max(dismiss_bottom_y);
 
-                    (x_position, y_position)
-                } else {
-                    return;
-                };
-
-                button.set_position(x, y);
-            });
+                    button.set_position(x_position, y_position);
+                });
+        }
     }
 
     pub fn timeout(&self) -> Option<u64> {
@@ -306,7 +289,6 @@ impl Notification {
         let text_extents = self.text_extents();
 
         self.text = text::Text::new_notification(
-            &self.config,
             &style.font,
             font_system,
             summary,
