@@ -210,36 +210,18 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                         let (x, y) = (state.seat.pointer.x, state.seat.pointer.y);
 
-                        let (href, notification_id, button) = {
+                        let (notification_id, button) = {
                             if let Some(under_pointer) =
                                 state.notifications.get_by_coordinates(x, y)
                             {
                                 let notification_id = under_pointer.id();
-                                let href = under_pointer
-                                    .text
-                                    .hit(x as f32, y as f32)
-                                    .map(|anchor| Arc::clone(&anchor.href));
-
                                 let button = state.notifications.get_button_by_coordinates(x, y);
 
-                                (href, Some(notification_id), button)
+                                (Some(notification_id), button)
                             } else {
-                                (None, None, None)
+                                (None, None)
                             }
                         };
-
-                        if let Some(href) = href {
-                            if let Some(surface) = state.surface.as_ref() {
-                                let token = surface.token.as_ref().map(Arc::clone);
-                                if state
-                                    .emit_sender
-                                    .send(EmitEvent::Open { uri: href, token })
-                                    .is_ok()
-                                {
-                                    state.notifications.deselect();
-                                }
-                            }
-                        }
 
                         if let Some(notification_id) = notification_id {
                             match button {
@@ -264,6 +246,21 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                                         .unwrap_or_default()
                                     {
                                         state.dismiss(notification_id, None);
+                                    }
+                                }
+                                Some(ButtonType::Anchor { anchor }) => {
+                                    if let Some(surface) = state.surface.as_ref() {
+                                        let token = surface.token.as_ref().map(Arc::clone);
+                                        if state
+                                            .emit_sender
+                                            .send(EmitEvent::Open {
+                                                uri: Arc::clone(&anchor.href),
+                                                token,
+                                            })
+                                            .is_ok()
+                                        {
+                                            state.notifications.deselect();
+                                        }
                                     }
                                 }
                                 _ => {}

@@ -2,16 +2,25 @@ use crate::{
     buffers,
     config::{button::ButtonState, keymaps::Mode, Config},
     notification_manager::notification::Extents,
-    text::Text,
+    text::{Anchor, Text},
     Urgency,
 };
 use glyphon::{FontSystem, TextArea};
 use std::sync::Arc;
 
-#[derive(PartialEq, Clone)]
+#[derive(Clone)]
 pub enum ButtonType {
     Dismiss,
     Action { text: Arc<str>, action: Arc<str> },
+    Anchor { anchor: Arc<Anchor> },
+}
+
+use std::mem::discriminant;
+
+impl PartialEq for ButtonType {
+    fn eq(&self, other: &Self) -> bool {
+        discriminant(self) == discriminant(other)
+    }
 }
 
 #[derive(Default)]
@@ -177,7 +186,7 @@ impl Hint {
         buffers::Instance {
             rect_pos: [
                 button_extents.x - style.width.resolve(text_extents.0) / 2.,
-                button_extents.y - style.height.resolve(text_extents.1) / 2.,
+                button_extents.y - button_extents.height / 2.,
             ],
             rect_size: [
                 style.width.resolve(text_extents.0) + style.padding.left + style.padding.right,
@@ -191,7 +200,7 @@ impl Hint {
         }
     }
 
-    fn text_area(&self, button_extents: &Extents, scale: f32, urgency: &Urgency) -> TextArea {
+    pub fn text_area(&self, button_extents: &Extents, scale: f32, urgency: &Urgency) -> TextArea {
         let style = &self.config.styles.hover.hint;
         let text_extents = self.text.extents();
 
@@ -261,11 +270,15 @@ impl Button {
         let font = match button_type {
             ButtonType::Dismiss => &config.styles.default.buttons.dismiss.default.font,
             ButtonType::Action { .. } => &config.styles.default.buttons.action.default.font,
+            // Adding Anchor as a button is just for hint rendering
+            ButtonType::Anchor { .. } => &config.styles.default.buttons.action.default.font,
         };
 
         let text = match &button_type {
             ButtonType::Dismiss => Text::new(font, font_system, "X"),
             ButtonType::Action { text, .. } => Text::new(font, font_system, text),
+            // Adding Anchor as a button is just for hint rendering
+            ButtonType::Anchor { .. } => Text::new(font, font_system, ""),
         };
 
         Self {
@@ -294,6 +307,8 @@ impl Button {
         let width = match &self.button_type {
             ButtonType::Dismiss => style.width.resolve(text_extents.0),
             ButtonType::Action { .. } => style.width.resolve(self.width),
+            // Adding Anchor as a button is just for hint rendering
+            ButtonType::Anchor { .. } => 0.,
         } + style.border.size.left
             + style.border.size.right
             + style.padding.left
@@ -335,6 +350,7 @@ impl Button {
             (ButtonType::Dismiss, false) => &self.config.styles.default.buttons.dismiss,
             (ButtonType::Action { .. }, true) => &self.config.styles.hover.buttons.action,
             (ButtonType::Action { .. }, false) => &self.config.styles.default.buttons.action,
+            _ => &self.config.styles.default.buttons.action,
         };
 
         if self.hovered {
@@ -428,6 +444,16 @@ impl Button {
                 border_radius: style.border.radius.into(),
                 border_size: style.border.size.into(),
                 border_color: style.border.color.to_linear(urgency),
+                scale,
+            },
+            // Adding Anchor as a button is just for hint rendering
+            ButtonType::Anchor { .. } => buffers::Instance {
+                rect_pos: [0., 0.],
+                rect_size: [0., 0.],
+                rect_color: [0., 0., 0., 0.],
+                border_radius: [0., 0., 0., 0.],
+                border_size: [0., 0., 0., 0.],
+                border_color: [0., 0., 0., 0.],
                 scale,
             },
         }

@@ -1,4 +1,8 @@
-use crate::{config::Font, notification_manager::notification::icons::get_icon};
+use crate::{
+    button::Hint,
+    config::{Config, Font},
+    notification_manager::notification::{icons::get_icon, Extents},
+};
 use glyphon::{
     Attrs, Buffer, Cache, Color, FontSystem, Shaping, Style, SwashCache, TextArea, TextAtlas,
     TextRenderer, Viewport, Weight,
@@ -20,7 +24,6 @@ static URL_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)\b(https?://|ftp://|www\.)\S+\b").unwrap());
 static SPLIT_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(<[^>]+>)|([^<]+)").unwrap());
 
-#[derive(Debug)]
 pub struct Anchor {
     text: Arc<str>,
     char_num: usize,
@@ -28,13 +31,19 @@ pub struct Anchor {
     pub line: usize,
     pub start: usize,
     pub end: usize,
+    pub hint: Hint,
 }
 
 impl Anchor {
-    pub fn coordinates(&self, buffer: &Buffer) -> (f32, f32) {
+    pub fn extents(&self, buffer: &Buffer) -> Extents {
         let line = buffer.layout_runs().nth(self.line).unwrap();
 
-        (line.glyphs.get(self.start).unwrap().x, line.line_y)
+        Extents {
+            x: line.glyphs.get(self.start).unwrap().x,
+            y: line.line_top,
+            width: 0.,
+            height: line.line_height,
+        }
     }
 }
 
@@ -52,7 +61,7 @@ fn create_buffer(font: &Font, font_system: &mut FontSystem, max_width: Option<f3
 
 pub struct Text {
     pub buffer: Buffer,
-    anchors: Vec<Anchor>,
+    pub anchors: Vec<Arc<Anchor>>,
     x: f32,
     y: f32,
 }
@@ -64,6 +73,7 @@ impl Text {
             .weight(Weight::BOLD);
         let mut buffer = create_buffer(font, font_system, None);
         buffer.set_text(font_system, body, attrs, Shaping::Advanced);
+
         Self {
             buffer,
             anchors: Vec::new(),
@@ -73,6 +83,7 @@ impl Text {
     }
 
     pub fn new_notification(
+        config: &Arc<Config>,
         font: &Font,
         font_system: &mut FontSystem,
         summary: &str,
@@ -147,6 +158,7 @@ impl Text {
                                     line: 0,
                                     start: 0,
                                     end: 0,
+                                    hint: Hint::new("a", Arc::clone(config), font_system),
                                 });
                             }
                         }
@@ -211,7 +223,7 @@ impl Text {
 
         Self {
             buffer,
-            anchors,
+            anchors: anchors.into_iter().map(Arc::new).collect(),
             x: 0.,
             y: 0.,
         }
@@ -222,14 +234,7 @@ impl Text {
         self.y = y;
     }
 
-    pub fn anchor_positions(&self) -> Vec<(f32, f32)> {
-        self.anchors
-            .iter()
-            .map(|anchor| anchor.coordinates(&self.buffer))
-            .collect()
-    }
-
-    pub fn hit(&self, x: f32, y: f32) -> Option<&Anchor> {
+    pub fn hit(&self, x: f32, y: f32) -> Option<&Arc<Anchor>> {
         let cursor = self.buffer.hit(x - self.x, y - self.y)?;
 
         let line_width = self.buffer.layout_runs().nth(cursor.line)?.line_w;

@@ -79,7 +79,6 @@ impl Notification {
         let style = &config.styles.default;
         let mut buttons = ButtonManager::default();
         buttons.add(ButtonType::Dismiss, Arc::clone(&config), font_system);
-
         data.actions.iter().cloned().for_each(|(action, text)| {
             buttons.add(
                 ButtonType::Action { text, action },
@@ -94,6 +93,7 @@ impl Notification {
             .map(|i| i.width as f32 + style.padding.right.resolve(0.))
             .unwrap_or(0.);
         let text = text::Text::new_notification(
+            &config,
             &config.styles.default.font,
             font_system,
             &data.summary,
@@ -106,6 +106,16 @@ impl Notification {
                     .map(|b| b.rendered_extents(false).width)
                     .unwrap_or_default(),
         );
+
+        text.anchors.iter().for_each(|anchor| {
+            buttons.add(
+                ButtonType::Anchor {
+                    anchor: Arc::clone(anchor),
+                },
+                Arc::clone(&config),
+                font_system,
+            );
+        });
 
         let notification_style_entry = config
             .styles
@@ -274,12 +284,14 @@ impl Notification {
             .iter()
             .find(|button| button.button_type == ButtonType::Dismiss);
 
+        let extents = self.rendered_extents();
+
         Extents {
-            x: style.padding.left.resolve(0.)
+            x: extents.x
+                + style.padding.left.resolve(0.)
                 + style.border.size.left.resolve(0.)
-                + style.margin.left.resolve(0.)
                 + icon_extents.width,
-            y: style.margin.top.resolve(0.) + style.border.size.top.resolve(0.),
+            y: extents.y + style.border.size.top.resolve(0.) + style.padding.top.resolve(0.),
             width: style.width.resolve(0.)
                 - icon_extents.width
                 - dismiss_button
@@ -294,6 +306,7 @@ impl Notification {
         let text_extents = self.text_extents();
 
         self.text = text::Text::new_notification(
+            &self.config,
             &style.font,
             font_system,
             summary,
@@ -436,29 +449,6 @@ impl Notification {
             .instances(mode, self.hovered(), self.urgency(), scale);
 
         instances.extend_from_slice(&button_instances);
-
-        //if mode == Mode::Hint {
-        //let style = &self.config.styles.hover.hint;
-        //let hints = self
-        //.text
-        //.anchor_positions()
-        //.iter()
-        //.map(|anchor| buffers::Instance {
-        //rect_pos: [
-        //self.text_extents().x + anchor.0 - style.width.resolve(0.) / 2.,
-        //self.text_extents().y + anchor.1 - style.height.resolve(0.) / 2.,
-        //],
-        //rect_size: [style.width.resolve(0.), style.height.resolve(0.)],
-        //rect_color: style.background.to_linear(self.urgency()),
-        //border_radius: style.border.radius.into(),
-        //border_size: style.border.size.into(),
-        //border_color: style.border.color.to_linear(self.urgency()),
-        //scale,
-        //})
-        //.collect::<Vec<_>>();
-
-        //instances.extend_from_slice(&hints);
-        //}
 
         instances
     }

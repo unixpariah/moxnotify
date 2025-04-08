@@ -527,7 +527,7 @@ impl Moxnotify {
                 &self.wgpu_state.queue,
                 &self.notifications,
             ) {
-                eprintln!("Render error: {:?}", e);
+                log::error!("Render error: {}", e);
             }
         }
 

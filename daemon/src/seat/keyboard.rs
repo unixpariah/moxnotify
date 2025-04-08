@@ -271,6 +271,22 @@ impl Moxnotify {
                                     self.seat.keyboard.key_combination.mode = Mode::Normal;
                                 }
                             }
+                            Some(ButtonType::Anchor { anchor }) => {
+                                if let Some(surface) = self.surface.as_ref() {
+                                    let token = surface.token.as_ref().map(Arc::clone);
+                                    if self
+                                        .emit_sender
+                                        .send(EmitEvent::Open {
+                                            uri: Arc::clone(&anchor.href),
+                                            token,
+                                        })
+                                        .is_ok()
+                                    {
+                                        self.notifications.deselect();
+                                        self.seat.keyboard.key_combination.mode = Mode::Normal;
+                                    }
+                                }
+                            }
                             None => {}
                         }
                     }
