@@ -1,8 +1,10 @@
+mod audio;
 pub mod buffers;
 pub mod button;
 mod config;
 mod dbus;
 mod image_data;
+pub mod math;
 mod notification_manager;
 mod seat;
 pub mod shape_renderer;
@@ -10,8 +12,6 @@ mod surface;
 pub mod text;
 pub mod texture_renderer;
 mod wgpu_state;
-mod audio;
-pub mod math;
 
 use audio::Audio;
 use calloop::EventLoop;
@@ -114,7 +114,8 @@ impl Moxnotify {
                         .map(|notification| notification.id())
                         .collect();
 
-                    ids.iter().for_each(|id| self.dismiss(*id, Some(Reason::DismissedByUser)));
+                    ids.iter()
+                        .for_each(|id| self.dismiss(*id, Some(Reason::DismissedByUser)));
                     return Ok(());
                 }
 
@@ -128,21 +129,46 @@ impl Moxnotify {
                 self.dismiss(id, Some(Reason::DismissedByUser));
             }
             Event::Notify(data) => {
-                let path = match (data.hints.sound_file.as_ref().map(Arc::clone), data.hints.sound_name.as_ref().map(Arc::clone)) {
+                let path = match (
+                    data.hints.sound_file.as_ref().map(Arc::clone),
+                    data.hints.sound_name.as_ref().map(Arc::clone),
+                ) {
                     (Some(sound_file), None) => Some(sound_file),
-                    (None, Some(sound_name)) => freedesktop_sound::lookup(&sound_name).with_cache().find().map(|s| s.into()),
+                    (None, Some(sound_name)) => freedesktop_sound::lookup(&sound_name)
+                        .with_cache()
+                        .find()
+                        .map(|s| s.into()),
                     (None, None) => match data.hints.urgency {
-                        Urgency::Low => self.config.default_sound_file.urgency_low.as_ref().map(Arc::clone),
-                        Urgency::Normal=> self.config.default_sound_file.urgency_normal.as_ref().map(Arc::clone),
-                        Urgency::Critical=> self.config.default_sound_file.urgency_critical.as_ref().map(Arc::clone),
-                    }
+                        Urgency::Low => self
+                            .config
+                            .default_sound_file
+                            .urgency_low
+                            .as_ref()
+                            .map(Arc::clone),
+                        Urgency::Normal => self
+                            .config
+                            .default_sound_file
+                            .urgency_normal
+                            .as_ref()
+                            .map(Arc::clone),
+                        Urgency::Critical => self
+                            .config
+                            .default_sound_file
+                            .urgency_critical
+                            .as_ref()
+                            .map(Arc::clone),
+                    },
                     (Some(sound_file), Some(_)) => Some(sound_file),
                 };
 
+                let suppress_sound = data.hints.suppress_sound;
+
                 self.notifications.add(*data)?;
                 self.update_surface_size();
-                if let (Some(audio), Some(path)) = (self.audio.as_mut(), path) {
-                    audio.play(path)?;
+                if !suppress_sound {
+                    if let (Some(audio), Some(path)) = (self.audio.as_mut(), path) {
+                        audio.play(path)?;
+                    }
                 }
             }
             Event::CloseNotification(id) => self.dismiss(id, Some(Reason::CloseNotificationCall)),
@@ -152,6 +178,14 @@ impl Moxnotify {
                         surface.focus(FocusReason::Ctl);
                         self.notifications.next();
                     }
+                }
+            }
+            Event::List => {
+                if self.surface.is_some() {
+                    let list = self.notifications.notifications().iter().map(|notification| {
+                        serde_json::to_string(&notification.data).unwrap()
+                    }).collect::<Vec<_>>();
+                    _ = self.emit_sender.send(EmitEvent::List(list));
                 }
             }
         };
@@ -217,12 +251,14 @@ pub enum EmitEvent {
         uri: Arc<str>,
         token: Option<Arc<str>>,
     },
+    List(Vec<String>)
 }
 
 pub enum Event {
     Dismiss { all: bool, id: u32 },
     Notify(Box<NotificationData>),
     CloseNotification(u32),
+    List,
     FocusSurface,
 }
 
@@ -341,7 +377,6 @@ async fn main() -> anyhow::Result<()> {
 
     {
         let event_sender = event_sender.clone();
-        let emit_receiver = emit_sender.subscribe();
         scheduler.schedule(async move {
             if let Err(e) = dbus::xdg::serve(event_sender, emit_receiver).await {
                 log::error!("{e}");
@@ -349,12 +384,14 @@ async fn main() -> anyhow::Result<()> {
         })?;
     }
 
+        let emit_receiver = emit_sender.subscribe();
     scheduler.schedule(async move {
-        if let Err(e) = dbus::moxnotify::serve(event_sender).await {
+        if let Err(e) = dbus::moxnotify::serve(event_sender, emit_receiver).await {
             log::error!("{e}");
         }
     })?;
 
+        let emit_receiver = emit_sender.subscribe();
     scheduler.schedule(async move {
         if let Err(e) = dbus::portal::serve(emit_receiver).await {
             log::error!("{e}");
@@ -377,9 +414,7 @@ async fn main() -> anyhow::Result<()> {
         })
         .map_err(|e| anyhow::anyhow!("Failed to insert source: {}", e))?;
 
-
     event_loop.run(None, &mut moxnotify, |_| {})?;
 
     Ok(())
 }
-

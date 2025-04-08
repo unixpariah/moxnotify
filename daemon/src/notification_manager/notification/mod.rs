@@ -6,7 +6,6 @@ use crate::{
     buffers,
     button::{ButtonManager, ButtonType},
     config::{keymaps::Mode, Size, StyleState},
-    dbus::xdg::NotificationHints,
     text, NotificationData, Urgency,
 };
 use calloop::RegistrationToken;
@@ -26,10 +25,8 @@ pub struct Extents {
 pub type NotificationId = u32;
 
 pub struct Notification {
-    id: NotificationId,
     pub y: f32,
     pub x: f32,
-    app_name: Box<str>,
     pub text: text::Text,
     timeout: Option<u64>,
     hovered: bool,
@@ -38,7 +35,7 @@ pub struct Notification {
     progress: Option<Progress>,
     pub registration_token: Option<RegistrationToken>,
     pub buttons: ButtonManager,
-    pub hints: NotificationHints,
+    pub data: NotificationData,
 }
 
 impl PartialEq for Notification {
@@ -53,11 +50,9 @@ impl Notification {
             || data.app_name == "prev_notification_count".into()
         {
             return Self {
-                hints: NotificationHints::default(),
-                id: 0,
                 y: 0.,
                 x: 0.,
-                app_name: data.app_name,
+                data,
                 text: text::Text::new(&config.styles.default.font, font_system, ""),
                 timeout: None,
                 hovered: false,
@@ -74,7 +69,7 @@ impl Notification {
             };
         }
 
-        let icons = Icons::new(data.hints.image.as_ref(), data.app_icon, &config);
+        let icons = Icons::new(data.hints.image.as_ref(), data.app_icon.as_deref(), &config);
 
         let style = &config.styles.default;
         let mut buttons = ButtonManager::default();
@@ -145,13 +140,11 @@ impl Notification {
 
         Self {
             progress: data.hints.value.map(Progress::new),
-            hints: data.hints,
             y: 0.,
             x: 0.,
             icons,
             buttons,
-            id: data.id,
-            app_name: data.app_name,
+            data,
             text,
             timeout,
             config,
@@ -167,7 +160,7 @@ impl Notification {
 
         let extents = self.rendered_extents();
         let hovered = self.hovered();
-        let style = self.config.find_style(&self.app_name, hovered);
+        let style = self.config.find_style(&self.data.app_name, hovered);
 
         self.icons
             .set_position(&extents, style, &self.progress, &self.buttons, hovered);
@@ -363,7 +356,7 @@ impl Notification {
     }
 
     pub fn urgency(&self) -> &Urgency {
-        &self.hints.urgency
+        &self.data.hints.urgency
     }
 
     pub fn hovered(&self) -> bool {
@@ -394,7 +387,7 @@ impl Notification {
     }
 
     pub fn id(&self) -> NotificationId {
-        self.id
+        self.data.id
     }
 
     fn background_instance(&self, scale: f32) -> buffers::Instance {
@@ -463,7 +456,7 @@ impl Notification {
             .styles
             .notification
             .iter()
-            .find(|n| n.app == self.app_name)
+            .find(|n| n.app == self.data.app_name)
             .map(|c| if self.hovered() { &c.hover } else { &c.default })
             .unwrap_or_else(|| {
                 if self.hovered() {
@@ -479,7 +472,7 @@ impl Notification {
         let style = self.style();
 
         Extents {
-            x: extents.x + style.margin.left + self.x + self.hints.x as f32,
+            x: extents.x + style.margin.left + self.x + self.data.hints.x as f32,
             y: extents.y + style.margin.top,
             width: extents.width - style.margin.left - style.margin.right,
             height: extents.height - style.margin.top - style.margin.bottom,

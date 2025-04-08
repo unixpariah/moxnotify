@@ -164,8 +164,8 @@ impl NotificationManager {
                 .iter()
                 .fold((f32::MAX, f32::MIN), |(min_x, max_x), notification| {
                     let extents = notification.extents();
-                    let left = extents.x + notification.hints.x as f32;
-                    let right = extents.x + extents.width + notification.hints.x as f32;
+                    let left = extents.x + notification.data.hints.x as f32;
+                    let right = extents.x + extents.width + notification.data.hints.x as f32;
                     (min_x.min(left), max_x.max(right))
                 });
 
@@ -376,7 +376,7 @@ impl NotificationManager {
         let x_offset = self
             .notifications
             .iter()
-            .map(|n| n.hints.x)
+            .map(|n| n.data.hints.x)
             .min()
             .unwrap_or_default()
             .abs() as f32;
@@ -475,7 +475,7 @@ impl NotificationManager {
         let x_offset = self
             .notifications
             .iter()
-            .map(|notification| notification.hints.x)
+            .map(|notification| notification.data.hints.x)
             .min()
             .unwrap_or_default()
             .abs();

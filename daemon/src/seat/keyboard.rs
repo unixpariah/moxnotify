@@ -265,7 +265,7 @@ impl Moxnotify {
                                     });
                                 }
 
-                                if !notification.hints.resident {
+                                if !notification.data.hints.resident {
                                     self.dismiss(id, Some(Reason::DismissedByUser));
                                 } else {
                                     self.seat.keyboard.key_combination.mode = Mode::Normal;

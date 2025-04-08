@@ -1,14 +1,12 @@
 use crate::{image_data::ImageData, EmitEvent, Event, Image, Urgency};
-use std::{
-    collections::HashMap,
-    path::Path,
-    sync::Arc,
-};
+use std::{collections::HashMap, path::Path, sync::Arc};
+use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use zbus::{fdo::RequestNameFlags, object_server::SignalEmitter, zvariant::Str};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
+#[derive(Default, Deserialize, Serialize)]
 pub struct NotificationHints {
     pub action_icons: bool,
     pub category: Option<Box<str>>,
@@ -23,26 +21,6 @@ pub struct NotificationHints {
     pub y: Option<i32>,
     pub urgency: Urgency,
     pub image: Option<Image>,
-}
-
-impl Default for NotificationHints {
-    fn default() -> Self {
-        Self {
-            action_icons: false,
-            category: None,
-            value: None,
-            desktop_entry: None,
-            resident: false,
-            sound_file: None,
-            sound_name: None,
-            suppress_sound: false,
-            transient: false,
-            x: 0,
-            y: None,
-            urgency: Urgency::Normal,
-            image: None,
-        }
-    }
 }
 
 impl NotificationHints {
@@ -104,7 +82,7 @@ impl NotificationHints {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Deserialize, Serialize)]
 pub struct NotificationData {
     pub id: u32,
     pub app_name: Box<str>,
@@ -131,8 +109,7 @@ impl NotificationsImpl {
             "body-hyperlinks",
             "body-images",
             "body-markup",
-            // "icon-multi",
-            "icon-static",
+            "icon-multi",
             "persistence",
             "sound",
         ]
@@ -166,19 +143,22 @@ impl NotificationsImpl {
             Some(app_icon.into())
         };
 
-        if let Err(e) = self.event_sender.send(Event::Notify(Box::new(NotificationData {
-            id,
-            app_name: app_name.into(),
-            summary: summary.into(),
-            body: body.into(),
-            timeout: expire_timeout,
-            actions: actions
-                .chunks_exact(2)
-                .map(|action| (action[0].into(), action[1].into()))
-                .collect(),
-            hints: NotificationHints::new(hints),
-            app_icon,
-        }))) {
+        if let Err(e) = self
+            .event_sender
+            .send(Event::Notify(Box::new(NotificationData {
+                id,
+                app_name: app_name.into(),
+                summary: summary.into(),
+                body: body.into(),
+                timeout: expire_timeout,
+                actions: actions
+                    .chunks_exact(2)
+                    .map(|action| (action[0].into(), action[1].into()))
+                    .collect(),
+                hints: NotificationHints::new(hints),
+                app_icon,
+            })))
+        {
             log::error!("{e}");
         }
 

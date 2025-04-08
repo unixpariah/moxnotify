@@ -61,7 +61,10 @@ mod tests {
     #[tokio::test]
     async fn audio_test() {
         let mut hints = HashMap::new();
-        hints.insert("sound-file", "/run/current-system/sw/share/sounds/freedesktop/stereo/bell.oga".into());
+        hints.insert(
+            "sound-file",
+            "/run/current-system/sw/share/sounds/freedesktop/stereo/bell.oga".into(),
+        );
         let notification = Notification {
             summary: "sound-file test",
             hints,
