@@ -1,5 +1,6 @@
 use crate::{
-    button::ButtonType, notification_manager::Reason, surface::FocusReason, EmitEvent, Moxnotify,
+    button::ButtonType, config::keymaps::Mode, notification_manager::Reason, surface::FocusReason,
+    EmitEvent, Moxnotify,
 };
 use std::sync::Arc;
 use wayland_client::{
@@ -165,6 +166,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     (None, Some(_)) => {
                         state.notifications.deselect();
                         state.update_surface_size();
+                        state.seat.keyboard.key_combination.mode = Mode::Normal;
 
                         if let Some(surface) = state.surface.as_mut() {
                             _ = surface.render(
