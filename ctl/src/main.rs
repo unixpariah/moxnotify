@@ -23,12 +23,7 @@ enum NotifyCommand {
         )]
         all: bool,
 
-        #[arg(
-            short,
-            long,
-            help = "Dismiss a specific notification by index",
-            required_unless_present("all")
-        )]
+        #[arg(short, long, help = "Dismiss a specific notification by index")]
         notification: Option<u32>,
     },
 
@@ -36,10 +31,18 @@ enum NotifyCommand {
     List,
     Unmute,
     Mute,
-    ShowHistory,
-    HideHistory,
+    History {
+        #[command(subcommand)]
+        action: HistoryAction,
+    },
     Inhibit,
     Uninhibit,
+}
+
+#[derive(Subcommand)]
+enum HistoryAction {
+    Show,
+    Hide,
 }
 
 #[tokio::main]
@@ -53,14 +56,16 @@ async fn main() -> anyhow::Result<()> {
             if all {
                 notify::emit(notify::Event::DismissAll).await?
             } else {
-                let idx = notification.expect("Clap should enforce this is present");
+                let idx = notification.unwrap_or_default();
                 notify::emit(notify::Event::DismissOne(idx)).await?
             }
         }
         NotifyCommand::Unmute => notify::emit(notify::Event::Unmute).await?,
         NotifyCommand::Mute => notify::emit(notify::Event::Mute).await?,
-        NotifyCommand::ShowHistory => notify::emit(notify::Event::ShowHistory).await?,
-        NotifyCommand::HideHistory => notify::emit(notify::Event::HideHistory).await?,
+        NotifyCommand::History { action } => match action {
+            HistoryAction::Show => notify::emit(notify::Event::ShowHistory).await?,
+            HistoryAction::Hide => notify::emit(notify::Event::HideHistory).await?,
+        },
         NotifyCommand::Inhibit => notify::emit(notify::Event::Inhibit).await?,
         NotifyCommand::Uninhibit => notify::emit(notify::Event::Uninhibit).await?,
     }

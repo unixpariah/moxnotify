@@ -100,7 +100,7 @@ impl Moxnotify {
         let db = rusqlite::Connection::open(&config.history.path)?;
         db.execute(
             "CREATE TABLE IF NOT EXISTS notifications (
-            _rowid INTEGER PRIMARY KEY AUTOINCREMENT,
+            rowid UNSIGNED INTEGER PRIMARY KEY AUTOINCREMENT,
             id INTEGER,
             app_name TEXT,
             app_icon TEXT,
@@ -207,11 +207,17 @@ impl Moxnotify {
                     ],
                 )?;
 
-                if self.inhibited {
+                if self.inhibited && self.history == History::Hidden {
                     return Ok(());
                 }
 
-                self.notifications.add(*data)?;
+                let id = match self.history {
+                    History::Shown => self.db.last_insert_rowid() as u32,
+                    History::Hidden => data.id,
+                };
+
+                self.notifications.add(NotificationData { id, ..*data })?;
+
                 self.update_surface_size();
 
                 if suppress_sound {
@@ -239,29 +245,6 @@ impl Moxnotify {
                     .map(|notification| serde_json::to_string(&notification.data).unwrap())
                     .collect::<Vec<_>>();
                 _ = self.emit_sender.send(EmitEvent::List(list));
-
-                //let mut stmt = self.db.prepare("SELECT id, app_name, app_icon, summary, body, timeout, actions, hints FROM notifications")?;
-                //let rows = stmt.query_map([], |row| {
-                //Ok(NotificationData {
-                //id: row.get(0)?,
-                //app_name: row.get::<_, String>(1)?.into_boxed_str(),
-                //app_icon: row.get::<_, Option<String>>(2)?.map(|s| s.into_boxed_str()),
-                //summary: row.get::<_, String>(3)?.into_boxed_str(),
-                //body: row.get::<_, String>(4)?.into_boxed_str(),
-                //timeout: row.get(5)?,
-                //actions: {
-                //let json: String = row.get(6)?;
-                //serde_json::from_str(&json).unwrap()
-                //},
-                //hints: {
-                //let json: String = row.get(7)?;
-                //serde_json::from_str(&json).unwrap()
-                //},
-                //})
-                //})?;
-
-                //let notifications: Vec<_> = rows.collect::<Result<_, _>>()?;
-                //println!("{:#?}", notifications);
             }
             Event::Mute => {
                 if let Some(audio) = self.audio.as_mut() {
@@ -283,12 +266,62 @@ impl Moxnotify {
                 if self.history == History::Hidden {
                     _ = self.emit_sender.send(EmitEvent::HistoryStateChanged(true));
                     self.history = History::Shown;
+
+                    let ids: Vec<_> = self
+                        .notifications
+                        .notifications()
+                        .iter()
+                        .map(|notification| notification.id())
+                        .collect();
+
+                    ids.iter()
+                        .for_each(|id| self.dismiss(*id, Some(Reason::DismissedByUser)));
+
+                    let mut stmt = self.db.prepare("SELECT rowid, app_name, app_icon, summary, body, timeout, actions, hints FROM notifications")?;
+                    let rows = stmt.query_map([], |row| {
+                        Ok(NotificationData {
+                            id: row.get(0)?,
+                            app_name: row.get::<_, String>(1)?.into_boxed_str(),
+                            app_icon: row.get::<_, Option<String>>(2)?.map(|s| s.into_boxed_str()),
+                            summary: row.get::<_, String>(3)?.into_boxed_str(),
+                            body: row.get::<_, String>(4)?.into_boxed_str(),
+                            timeout: row.get(5)?,
+                            actions: {
+                                let json: String = row.get(6)?;
+                                serde_json::from_str(&json).unwrap()
+                            },
+                            hints: {
+                                let json: String = row.get(7)?;
+                                serde_json::from_str(&json).unwrap()
+                            },
+                        })
+                    })?;
+
+                    let notifications: Vec<_> = rows.collect::<Result<_, _>>()?;
+
+                    notifications.into_iter().for_each(|notification| {
+                        self.notifications.add(NotificationData {
+                            timeout: 0,
+                            ..notification
+                        });
+                    });
+                    drop(stmt);
+
+                    self.update_surface_size();
                 }
             }
             Event::HideHistory => {
-                if self.history == History::Hidden {
+                if self.history == History::Shown {
                     _ = self.emit_sender.send(EmitEvent::HistoryStateChanged(false));
                     self.history = History::Hidden;
+
+                    let ids: Vec<_> = self
+                        .notifications
+                        .notifications()
+                        .iter()
+                        .map(|notification| notification.id())
+                        .collect();
+                    ids.iter().for_each(|id| self.dismiss(*id, None));
                 }
             }
             Event::Inhibit => {

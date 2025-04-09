@@ -16,7 +16,13 @@
   };
 
   outputs =
-    { nixpkgs, rust-overlay, ... }@inputs:
+    {
+      nixpkgs,
+      rust-overlay,
+      wgsl_analyzer,
+      moxctl,
+      ...
+    }@inputs:
     let
       systems = [
         "x86_64-linux"
@@ -56,7 +62,7 @@
               vulkan-loader
               vulkan-headers
               vulkan-validation-layers
-              inputs.wgsl_analyzer.packages.${system}.default
+              wgsl_analyzer.packages.${system}.default
               wayland
               libpulseaudio
             ];
@@ -65,9 +71,7 @@
       });
 
       packages = forAllSystems (pkgs: {
-        default = pkgs.callPackage ./nix/package.nix {
-          moxctl = inputs.moxctl.packages.${pkgs.system}.default;
-        };
+        default = pkgs.callPackage ./nix/package.nix { moxctl = moxctl.packages.${pkgs.system}.default; };
       });
 
       homeManagerModules = {
