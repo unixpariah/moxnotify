@@ -35,6 +35,7 @@ use wayland_client::{
 use wayland_protocols::xdg::activation::v1::client::{xdg_activation_token_v1, xdg_activation_v1};
 use wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_shell_v1;
 use wgpu_state::WgpuState;
+use zbus::zvariant::Type;
 
 #[derive(Debug)]
 pub struct Output {
@@ -55,8 +56,8 @@ impl Output {
     }
 }
 
-#[derive(Default, PartialEq)]
-enum History {
+#[derive(Default, PartialEq, Clone, Copy, Type, Serialize)]
+pub enum History {
     #[default]
     Hidden,
     Shown,
@@ -100,13 +101,11 @@ impl Moxnotify {
         let db = rusqlite::Connection::open(&config.history.path)?;
         db.execute(
             "CREATE TABLE IF NOT EXISTS notifications (
-            rowid UNSIGNED INTEGER PRIMARY KEY AUTOINCREMENT,
-            id INTEGER,
+            rowid INTEGER PRIMARY KEY AUTOINCREMENT,
             app_name TEXT,
             app_icon TEXT,
             summary TEXT,
             body TEXT,
-            timeout INTEGER,
             actions TEXT,
             hints JSON
         );",
@@ -192,16 +191,27 @@ impl Moxnotify {
 
                 let suppress_sound = data.hints.suppress_sound;
 
+                let count: i64 =
+                    self.db
+                        .query_row("SELECT COUNT(*) FROM notifications", [], |row| row.get(0))?;
+
+                if count >= self.config.history.size {
+                    self.db.execute(
+                        "DELETE FROM notifications WHERE _rowid = (
+                        SELECT _rowid FROM notifications ORDER BY _rowid ASC LIMIT 1
+                         )",
+                        [],
+                    )?;
+                }
+
                 self.db.execute(
-                    "INSERT INTO notifications (id, app_name, app_icon, summary, body, timeout, actions, hints)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    "INSERT INTO notifications (app_name, app_icon, summary, body, actions, hints)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                     params![
-                        data.id,
                         data.app_name,
                         data.app_icon,
                         data.summary,
                         data.body,
-                        data.timeout,
                         serde_json::to_string(&data.actions)?,
                         serde_json::to_string(&data.hints)?
                     ],
@@ -257,15 +267,19 @@ impl Moxnotify {
             Event::Unmute => {
                 if let Some(audio) = self.audio.as_mut() {
                     if audio.muted() {
-                        _ = self.emit_sender.send(EmitEvent::MuteStateChanged(false));
                         audio.unmute();
+                        _ = self
+                            .emit_sender
+                            .send(EmitEvent::MuteStateChanged(audio.muted()));
                     }
                 }
             }
             Event::ShowHistory => {
                 if self.history == History::Hidden {
-                    _ = self.emit_sender.send(EmitEvent::HistoryStateChanged(true));
                     self.history = History::Shown;
+                    _ = self
+                        .emit_sender
+                        .send(EmitEvent::HistoryStateChanged(self.history));
 
                     let ids: Vec<_> = self
                         .notifications
@@ -277,7 +291,7 @@ impl Moxnotify {
                     ids.iter()
                         .for_each(|id| self.dismiss(*id, Some(Reason::DismissedByUser)));
 
-                    let mut stmt = self.db.prepare("SELECT rowid, app_name, app_icon, summary, body, timeout, actions, hints FROM notifications")?;
+                    let mut stmt = self.db.prepare("SELECT rowid, app_name, app_icon, summary, body, actions, hints FROM notifications")?;
                     let rows = stmt.query_map([], |row| {
                         Ok(NotificationData {
                             id: row.get(0)?,
@@ -285,13 +299,13 @@ impl Moxnotify {
                             app_icon: row.get::<_, Option<String>>(2)?.map(|s| s.into_boxed_str()),
                             summary: row.get::<_, String>(3)?.into_boxed_str(),
                             body: row.get::<_, String>(4)?.into_boxed_str(),
-                            timeout: row.get(5)?,
+                            timeout: 0,
                             actions: {
-                                let json: String = row.get(6)?;
+                                let json: String = row.get(5)?;
                                 serde_json::from_str(&json).unwrap()
                             },
                             hints: {
-                                let json: String = row.get(7)?;
+                                let json: String = row.get(6)?;
                                 serde_json::from_str(&json).unwrap()
                             },
                         })
@@ -299,12 +313,9 @@ impl Moxnotify {
 
                     let notifications: Vec<_> = rows.collect::<Result<_, _>>()?;
 
-                    notifications.into_iter().for_each(|notification| {
-                        self.notifications.add(NotificationData {
-                            timeout: 0,
-                            ..notification
-                        });
-                    });
+                    notifications
+                        .into_iter()
+                        .try_for_each(|notification| self.notifications.add(notification))?;
                     drop(stmt);
 
                     self.update_surface_size();
@@ -312,8 +323,10 @@ impl Moxnotify {
             }
             Event::HideHistory => {
                 if self.history == History::Shown {
-                    _ = self.emit_sender.send(EmitEvent::HistoryStateChanged(false));
                     self.history = History::Hidden;
+                    _ = self
+                        .emit_sender
+                        .send(EmitEvent::HistoryStateChanged(self.history));
 
                     let ids: Vec<_> = self
                         .notifications
@@ -326,15 +339,30 @@ impl Moxnotify {
             }
             Event::Inhibit => {
                 if !self.inhibited {
-                    _ = self.emit_sender.send(EmitEvent::Inhibited(true));
                     self.inhibited = true;
+                    _ = self
+                        .emit_sender
+                        .send(EmitEvent::InhibitStateChanged(self.inhibited));
                 }
             }
             Event::Uninhibit => {
                 if self.inhibited {
-                    _ = self.emit_sender.send(EmitEvent::Inhibited(false));
                     self.inhibited = false;
+                    _ = self
+                        .emit_sender
+                        .send(EmitEvent::InhibitStateChanged(self.inhibited));
                 }
+            }
+            Event::GetMuted => {
+                _ = self.emit_sender.send(EmitEvent::Muted(
+                    self.audio.as_ref().map(|a| a.muted()).unwrap_or(true),
+                ))
+            }
+            Event::GetInhibited => {
+                _ = self.emit_sender.send(EmitEvent::Inhibited(self.inhibited));
+            }
+            Event::GetHistory => {
+                _ = self.emit_sender.send(EmitEvent::HistoryState(self.history));
             }
         };
 
@@ -401,7 +429,10 @@ pub enum EmitEvent {
     },
     List(Vec<String>),
     MuteStateChanged(bool),
-    HistoryStateChanged(bool),
+    HistoryStateChanged(History),
+    InhibitStateChanged(bool),
+    Muted(bool),
+    HistoryState(History),
     Inhibited(bool),
 }
 
@@ -413,10 +444,13 @@ pub enum Event {
     FocusSurface,
     Mute,
     Unmute,
+    GetMuted,
     ShowHistory,
     HideHistory,
+    GetHistory,
     Inhibit,
     Uninhibit,
+    GetInhibited,
 }
 
 impl Dispatch<wl_registry::WlRegistry, GlobalListContents> for Moxnotify {

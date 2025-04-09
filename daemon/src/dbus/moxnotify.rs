@@ -1,4 +1,4 @@
-use crate::{EmitEvent, Event};
+use crate::{EmitEvent, Event, History};
 use tokio::sync::broadcast;
 use zbus::{fdo::RequestNameFlags, object_server::SignalEmitter};
 
@@ -44,6 +44,18 @@ impl MoxnotifyInterface {
         }
     }
 
+    async fn muted(&mut self) -> bool {
+        if let Err(e) = self.event_sender.send(Event::GetMuted) {
+            log::error!("{}", e);
+            return false;
+        }
+
+        match self.emit_receiver.recv().await {
+            Ok(EmitEvent::Muted(muted)) => muted,
+            _ => false,
+        }
+    }
+
     #[zbus(signal)]
     async fn mute_state_changed(
         signal_emitter: &SignalEmitter<'_>,
@@ -62,10 +74,22 @@ impl MoxnotifyInterface {
         }
     }
 
+    async fn history(&mut self) -> History {
+        if let Err(e) = self.event_sender.send(Event::GetHistory) {
+            log::error!("{}", e);
+            return History::Hidden;
+        }
+
+        match self.emit_receiver.recv().await {
+            Ok(EmitEvent::HistoryState(history)) => history,
+            _ => History::Hidden,
+        }
+    }
+
     #[zbus(signal)]
     async fn history_state_changed(
         signal_emitter: &SignalEmitter<'_>,
-        muted: bool,
+        history: History,
     ) -> zbus::Result<()>;
 
     async fn inhibit(&self) {
@@ -77,6 +101,18 @@ impl MoxnotifyInterface {
     async fn uninhibit(&self) {
         if let Err(e) = self.event_sender.send(Event::Uninhibit) {
             log::error!("{}", e);
+        }
+    }
+
+    async fn inhibited(&mut self) -> bool {
+        if let Err(e) = self.event_sender.send(Event::GetInhibited) {
+            log::error!("{}", e);
+            return false;
+        }
+
+        match self.emit_receiver.recv().await {
+            Ok(EmitEvent::Inhibited(inhibited)) => inhibited,
+            _ => false,
         }
     }
 
@@ -130,7 +166,7 @@ pub async fn serve(
                         log::error!("{e}");
                     }
                 }
-                Ok(EmitEvent::Inhibited(inhibited)) => {
+                Ok(EmitEvent::InhibitStateChanged(inhibited)) => {
                     if let Err(e) = MoxnotifyInterfaceSignals::inhibit_changed(
                         iface.signal_emitter(),
                         inhibited,

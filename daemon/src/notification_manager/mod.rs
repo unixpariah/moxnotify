@@ -6,7 +6,7 @@ use crate::{
     button::ButtonType,
     config::{self, keymaps::Mode, Config, Queue},
     texture_renderer::TextureArea,
-    EmitEvent, Moxnotify, NotificationData,
+    EmitEvent, History, Moxnotify, NotificationData,
 };
 use calloop::{
     timer::{TimeoutAction, Timer},
@@ -15,6 +15,7 @@ use calloop::{
 use glyphon::{FontSystem, TextArea};
 use notification::{Notification, NotificationId};
 use notification_view::NotificationView;
+use rusqlite::params;
 use std::{ops::Deref, sync::Arc, time::Duration};
 
 pub struct NotificationManager {
@@ -494,27 +495,37 @@ pub enum Reason {
 
 impl Moxnotify {
     pub fn dismiss(&mut self, id: u32, reason: Option<Reason>) {
-        if let Some(index) = self.notifications.iter().position(|n| n.id() == id) {
-            if self.notifications.selected_id() == Some(id) {
-                self.seat.keyboard.key_combination.mode = Mode::Normal;
+        match self.history {
+            History::Shown => {
+                _ = self
+                    .db
+                    .execute("DELETE FROM notifications WHERE rowid = ?1", params![id]);
+                self.notifications.dismiss(id);
             }
+            History::Hidden => {
+                if let Some(index) = self.notifications.iter().position(|n| n.id() == id) {
+                    if self.notifications.selected_id() == Some(id) {
+                        self.seat.keyboard.key_combination.mode = Mode::Normal;
+                    }
 
-            self.notifications.dismiss(id);
-            if let Some(reason) = reason {
-                _ = self.emit_sender.send(EmitEvent::NotificationClosed {
-                    id,
-                    reason: reason as u32,
-                });
-            }
-            if self.notifications.selected_id() == Some(id) {
-                let new_index = if index >= self.notifications.len() {
-                    self.notifications.len().saturating_sub(1)
-                } else {
-                    index
-                };
+                    self.notifications.dismiss(id);
+                    if let Some(reason) = reason {
+                        _ = self.emit_sender.send(EmitEvent::NotificationClosed {
+                            id,
+                            reason: reason as u32,
+                        });
+                    }
+                    if self.notifications.selected_id() == Some(id) {
+                        let new_index = if index >= self.notifications.len() {
+                            self.notifications.len().saturating_sub(1)
+                        } else {
+                            index
+                        };
 
-                if let Some(notification) = self.notifications.get(new_index) {
-                    self.notifications.select(notification.id());
+                        if let Some(notification) = self.notifications.get(new_index) {
+                            self.notifications.select(notification.id());
+                        }
+                    }
                 }
             }
         }

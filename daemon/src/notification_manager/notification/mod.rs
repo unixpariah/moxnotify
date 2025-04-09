@@ -28,7 +28,6 @@ pub struct Notification {
     pub y: f32,
     pub x: f32,
     pub text: text::Text,
-    timeout: Option<u64>,
     hovered: bool,
     config: Arc<Config>,
     pub icons: Icons,
@@ -54,7 +53,6 @@ impl Notification {
                 x: 0.,
                 data,
                 text: text::Text::new(&config.styles.default.font, font_system, ""),
-                timeout: None,
                 hovered: false,
                 config: Arc::clone(&config),
                 icons: Icons {
@@ -111,33 +109,6 @@ impl Notification {
             );
         });
 
-        let notification_style_entry = config
-            .styles
-            .notification
-            .iter()
-            .find(|entry| entry.app == data.app_name);
-
-        let ignore_timeout = notification_style_entry
-            .and_then(|entry| entry.ignore_timeout)
-            .unwrap_or(config.ignore_timeout);
-
-        let default_timeout = notification_style_entry
-            .and_then(|entry| entry.default_timeout.as_ref())
-            .unwrap_or(&config.default_timeout);
-
-        let timeout = if ignore_timeout {
-            (default_timeout.get(&data.hints.urgency) > 0)
-                .then(|| (default_timeout.get(&data.hints.urgency) as u64) * 1000)
-        } else {
-            match data.timeout {
-                0 => None,
-                -1 => (default_timeout.get(&data.hints.urgency) > 0)
-                    .then(|| (default_timeout.get(&data.hints.urgency) as u64) * 1000),
-                t if t > 0 => Some(t as u64),
-                _ => None,
-            }
-        };
-
         Self {
             progress: data.hints.value.map(Progress::new),
             y: 0.,
@@ -146,10 +117,39 @@ impl Notification {
             buttons,
             data,
             text,
-            timeout,
             config,
             hovered: false,
             registration_token: None,
+        }
+    }
+
+    pub fn timeout(&self) -> Option<u64> {
+        let notification_style_entry = self
+            .config
+            .styles
+            .notification
+            .iter()
+            .find(|entry| entry.app == self.data.app_name);
+
+        let ignore_timeout = notification_style_entry
+            .and_then(|entry| entry.ignore_timeout)
+            .unwrap_or(self.config.ignore_timeout);
+
+        let default_timeout = notification_style_entry
+            .and_then(|entry| entry.default_timeout.as_ref())
+            .unwrap_or(&self.config.default_timeout);
+
+        if ignore_timeout {
+            (default_timeout.get(&self.data.hints.urgency) > 0)
+                .then(|| (default_timeout.get(&self.data.hints.urgency) as u64) * 1000)
+        } else {
+            match self.data.timeout {
+                0 => None,
+                -1 => (default_timeout.get(&self.data.hints.urgency) > 0)
+                    .then(|| (default_timeout.get(&self.data.hints.urgency) as u64) * 1000),
+                t if t > 0 => Some(t as u64),
+                _ => None,
+            }
         }
     }
 
@@ -244,10 +244,6 @@ impl Notification {
                     button.set_position(x_position, y_position);
                 });
         }
-    }
-
-    pub fn timeout(&self) -> Option<u64> {
-        self.timeout
     }
 
     fn text_extents(&self) -> Extents {

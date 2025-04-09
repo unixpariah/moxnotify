@@ -98,7 +98,7 @@ impl<'de> Deserialize<'de> for SoundFile {
 #[derive(Deserialize)]
 #[serde(default)]
 pub struct History {
-    pub size: u32,
+    pub size: i64,
     pub path: PathBuf,
 }
 
@@ -116,7 +116,7 @@ impl Default for History {
             std::fs::create_dir_all(dir).ok();
         }
 
-        Self { size: 10000, path }
+        Self { size: 1000, path }
     }
 }
 
