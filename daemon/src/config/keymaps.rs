@@ -278,6 +278,15 @@ pub enum KeyAction {
     Noop,
     HintMode,
     NormalMode,
+    Mute,
+    Unmute,
+    ToggleMute,
+    Ihibit,
+    Uninhibit,
+    ToggleInhibit,
+    ShowHistory,
+    HideHistory,
+    ToggleHistory,
 }
 
 #[derive(Deserialize, PartialEq, Eq, Hash, Debug, Default, Clone)]

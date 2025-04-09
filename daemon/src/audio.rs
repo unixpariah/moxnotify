@@ -25,18 +25,29 @@ pub struct Audio {
     muted: bool,
     mainloop: Mainloop,
     context: Context,
-    stream: Arc<Mutex<Stream>>,
 }
 
 impl Audio {
     pub fn new() -> anyhow::Result<Self> {
         let mut mainloop = Mainloop::new().ok_or(PAErr(0))?;
-        let mut context = Context::new(&mainloop, "audio-playback").ok_or(PAErr(0))?;
+        let mut context = Context::new(&mainloop, "moxnotify").ok_or(PAErr(0))?;
         context.connect(None, context::FlagSet::NOFLAGS, None)?;
         mainloop.start()?;
 
         while context.get_state() != State::Ready {
             mainloop.wait();
+        }
+
+        Ok(Self {
+            muted: false,
+            mainloop,
+            context,
+        })
+    }
+
+    pub fn play(&mut self, path: Arc<Path>) -> anyhow::Result<()> {
+        if self.muted {
+            return Ok(());
         }
 
         let spec = Spec {
@@ -46,7 +57,7 @@ impl Audio {
         };
 
         let mut stream =
-            Stream::new(&mut context, "audio-playback", &spec, None).ok_or(PAErr(0))?;
+            Stream::new(&mut self.context, "moxnotify", &spec, None).ok_or(PAErr(0))?;
 
         stream.connect_playback(
             None,
@@ -59,23 +70,10 @@ impl Audio {
         )?;
 
         while stream.get_state() != stream::State::Ready {
-            mainloop.wait();
+            self.mainloop.wait();
         }
 
-        Ok(Self {
-            muted: false,
-            stream: Arc::new(Mutex::new(stream)),
-            mainloop,
-            context,
-        })
-    }
-
-    pub fn play(&mut self, path: Arc<Path>) -> anyhow::Result<()> {
-        if self.muted {
-            return Ok(());
-        }
-
-        let stream = self.stream.clone();
+        let stream = Arc::new(Mutex::new(stream));
 
         thread::spawn(move || {
             let src = match fs::File::open(Arc::clone(&path)) {
@@ -114,6 +112,7 @@ impl Audio {
 
             let track_id = track.id;
 
+            let stream_clone = stream.clone();
             let Ok(mut stream) = stream.lock() else {
                 return;
             };
@@ -138,6 +137,11 @@ impl Audio {
                     libpulse_binding::stream::SeekMode::Relative,
                 );
             }
+            stream.drain(Some(Box::new(move |_: bool| {
+                if let Ok(mut stream) = stream_clone.lock() {
+                    stream.cork(None);
+                }
+            })));
         });
 
         Ok(())

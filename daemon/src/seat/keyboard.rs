@@ -2,7 +2,7 @@ use crate::{
     button::ButtonType,
     config::keymaps::{Key, KeyAction, KeyCombination, Mode, Modifiers},
     notification_manager::Reason,
-    EmitEvent, Moxnotify,
+    EmitEvent, History, Moxnotify,
 };
 use calloop::{
     timer::{TimeoutAction, Timer},
@@ -236,6 +236,35 @@ impl Moxnotify {
                             }
                         }
                         KeyAction::HintMode => self.seat.keyboard.key_combination.mode = Mode::Hint,
+                        KeyAction::ShowHistory => self.history = History::Shown,
+                        KeyAction::HideHistory => self.history = History::Hidden,
+                        KeyAction::ToggleHistory => {
+                            self.history = match self.history {
+                                History::Shown => History::Hidden,
+                                History::Hidden => History::Shown,
+                            }
+                        }
+                        KeyAction::Uninhibit => self.inhibited = false,
+                        KeyAction::Ihibit => self.inhibited = true,
+                        KeyAction::ToggleInhibit => self.inhibited = !self.inhibited,
+                        KeyAction::Mute => {
+                            if let Some(audio) = self.audio.as_mut() {
+                                audio.mute();
+                            }
+                        }
+                        KeyAction::Unmute => {
+                            if let Some(audio) = self.audio.as_mut() {
+                                audio.unmute();
+                            }
+                        }
+                        KeyAction::ToggleMute => {
+                            if let Some(audio) = self.audio.as_mut() {
+                                match audio.muted() {
+                                    true => audio.unmute(),
+                                    false => audio.mute(),
+                                }
+                            }
+                        }
                         _ => {}
                     }
                 } else {
