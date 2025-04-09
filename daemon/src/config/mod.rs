@@ -131,6 +131,7 @@ pub struct Config {
     pub max_visible: u32,
     pub icon_size: u32,
     pub app_icon_size: u32,
+    pub margin: Insets,
     pub anchor: Anchor,
     pub layer: Layer,
     pub queue: Queue,
@@ -144,6 +145,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            margin: Insets::default(),
             history: History::default(),
             default_sound_file: SoundFile::default(),
             ignore_sound_file: false,
@@ -270,7 +272,8 @@ impl<'de> Deserialize<'de> for Selector {
     }
 }
 
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Deserialize)]
+#[serde(default)]
 pub struct Insets {
     pub left: Size,
     pub right: Size,

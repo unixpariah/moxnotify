@@ -5,12 +5,7 @@ use libpulse_binding::{
     sample::Spec,
     stream::{self, Stream},
 };
-use std::{
-    fs,
-    path::Path,
-    sync::{Arc, Mutex},
-    thread,
-};
+use std::{cell::RefCell, fs, path::Path, rc::Rc, sync::Arc, thread};
 use symphonia::core::{
     audio::SampleBuffer,
     codecs::{DecoderOptions, CODEC_TYPE_NULL},
@@ -50,14 +45,41 @@ impl Audio {
             return Ok(());
         }
 
-        let spec = Spec {
-            format: libpulse_binding::sample::Format::FLOAT32NE,
-            channels: 2,
-            rate: 44100,
-        };
+        let src = fs::File::open(&path)?;
+        let mss = MediaSourceStream::new(Box::new(src), Default::default());
+        let hint = Hint::new();
 
-        let mut stream =
-            Stream::new(&mut self.context, "moxnotify", &spec, None).ok_or(PAErr(0))?;
+        let probed = symphonia::default::get_probe()
+            .format(
+                &hint,
+                mss,
+                &FormatOptions::default(),
+                &MetadataOptions::default(),
+            )
+            .unwrap();
+
+        let mut format = probed.format;
+        let track = format
+            .tracks()
+            .iter()
+            .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
+            .ok_or(anyhow::anyhow!(""))?;
+
+        let mut stream = Stream::new(
+            &mut self.context,
+            "moxnotify",
+            &Spec {
+                format: libpulse_binding::sample::Format::FLOAT32NE,
+                channels: track
+                    .codec_params
+                    .channels
+                    .map(|channels| channels.count())
+                    .unwrap_or(1) as u8,
+                rate: track.codec_params.sample_rate.unwrap_or(44100),
+            },
+            None,
+        )
+        .ok_or(PAErr(0))?;
 
         stream.connect_playback(
             None,
@@ -73,30 +95,8 @@ impl Audio {
             self.mainloop.wait();
         }
 
-        let stream = Arc::new(Mutex::new(stream));
-
         thread::spawn(move || {
-            let src = match fs::File::open(Arc::clone(&path)) {
-                Ok(file) => file,
-                Err(_) => {
-                    log::error!("Sound file {} doesn't exist", path.display());
-                    return;
-                }
-            };
-
-            let mss = MediaSourceStream::new(Box::new(src), Default::default());
-
-            let hint = Hint::new();
-
-            let probed = symphonia::default::get_probe()
-                .format(
-                    &hint,
-                    mss,
-                    &FormatOptions::default(),
-                    &MetadataOptions::default(),
-                )
-                .unwrap();
-            let mut format = probed.format;
+            let stream = Rc::new(RefCell::new(stream));
 
             let track = format
                 .tracks()
@@ -105,17 +105,12 @@ impl Audio {
                 .unwrap();
 
             let dec_opts = DecoderOptions::default();
-
             let mut decoder = symphonia::default::get_codecs()
                 .make(&track.codec_params, &dec_opts)
                 .unwrap();
 
             let track_id = track.id;
 
-            let stream_clone = stream.clone();
-            let Ok(mut stream) = stream.lock() else {
-                return;
-            };
             while let Ok(packet) = format.next_packet() {
                 while !format.metadata().is_latest() {
                     format.metadata().pop();
@@ -130,16 +125,18 @@ impl Audio {
                     SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
                 sample_buf.copy_interleaved_ref(decoded);
 
-                _ = stream.write(
+                _ = stream.borrow_mut().write(
                     bytemuck::cast_slice(sample_buf.samples()),
                     None,
                     0,
                     libpulse_binding::stream::SeekMode::Relative,
                 );
             }
-            stream.drain(Some(Box::new(move |_: bool| {
-                if let Ok(mut stream) = stream_clone.lock() {
-                    stream.cork(None);
+
+            stream.borrow_mut().drain(Some(Box::new({
+                let stream = Rc::clone(&stream);
+                move |_: bool| {
+                    stream.borrow_mut().cork(None);
                 }
             })));
         });

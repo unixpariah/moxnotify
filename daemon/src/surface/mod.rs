@@ -221,6 +221,12 @@ impl Surface {
             }
             Anchor::CenterLeft => zwlr_layer_surface_v1::Anchor::Left,
         });
+        layer_surface.set_margin(
+            config.margin.top.resolve(0.) as i32,
+            config.margin.right.resolve(0.) as i32,
+            config.margin.bottom.resolve(0.) as i32,
+            config.margin.left.resolve(0.) as i32,
+        );
         layer_surface.set_exclusive_zone(-1);
         (layer_surface, scale)
     }
