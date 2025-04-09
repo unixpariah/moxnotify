@@ -34,6 +34,8 @@ enum NotifyCommand {
 
     #[command(about = "List active notifications")]
     List,
+    Unmute,
+    Mute,
 }
 
 #[tokio::main]
@@ -51,6 +53,8 @@ async fn main() -> anyhow::Result<()> {
                 notify::emit(notify::Event::DismissOne(idx)).await?
             }
         }
+        NotifyCommand::Unmute => notify::emit(notify::Event::Unmute).await?,
+        NotifyCommand::Mute => notify::emit(notify::Event::Mute).await?,
     }
 
     Ok(())

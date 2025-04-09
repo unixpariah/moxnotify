@@ -5,6 +5,8 @@ pub enum Event {
     List,
     DismissAll,
     DismissOne(u32),
+    Mute,
+    Unmute,
 }
 
 #[zbus::proxy(
@@ -18,8 +20,11 @@ trait Notify {
     async fn list(&self) -> zbus::Result<Vec<String>>;
 
     async fn dismiss(&self, all: bool, id: u32) -> zbus::Result<()>;
-}
 
+    async fn mute(&self) -> zbus::Result<()>;
+
+    async fn unmute(&self) -> zbus::Result<()>;
+}
 
 pub async fn emit(event: Event) -> zbus::Result<()> {
     let conn = zbus::Connection::session().await?;
@@ -36,8 +41,9 @@ pub async fn emit(event: Event) -> zbus::Result<()> {
         }
         Event::DismissAll => notify.dismiss(true, 0).await?,
         Event::DismissOne(index) => notify.dismiss(false, index).await?,
+        Event::Unmute => notify.unmute().await?,
+        Event::Mute => notify.mute().await?,
     }
 
     Ok(())
 }
-

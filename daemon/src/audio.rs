@@ -22,6 +22,7 @@ use symphonia::core::{
 
 #[allow(dead_code)]
 pub struct Audio {
+    muted: bool,
     mainloop: Mainloop,
     context: Context,
     stream: Arc<Mutex<Stream>>,
@@ -62,6 +63,7 @@ impl Audio {
         }
 
         Ok(Self {
+            muted: false,
             stream: Arc::new(Mutex::new(stream)),
             mainloop,
             context,
@@ -69,6 +71,10 @@ impl Audio {
     }
 
     pub fn play(&mut self, path: Arc<Path>) -> anyhow::Result<()> {
+        if self.muted {
+            return Ok(());
+        }
+
         let stream = self.stream.clone();
 
         thread::spawn(move || {
@@ -135,5 +141,17 @@ impl Audio {
         });
 
         Ok(())
+    }
+
+    pub fn mute(&mut self) {
+        self.muted = true;
+    }
+
+    pub fn unmute(&mut self) {
+        self.muted = false;
+    }
+
+    pub fn muted(&self) -> bool {
+        self.muted
     }
 }

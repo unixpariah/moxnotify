@@ -181,11 +181,28 @@ impl Moxnotify {
                 }
             }
             Event::List => {
-                if self.surface.is_some() {
-                    let list = self.notifications.notifications().iter().map(|notification| {
-                        serde_json::to_string(&notification.data).unwrap()
-                    }).collect::<Vec<_>>();
-                    _ = self.emit_sender.send(EmitEvent::List(list));
+                let list = self
+                    .notifications
+                    .notifications()
+                    .iter()
+                    .map(|notification| serde_json::to_string(&notification.data).unwrap())
+                    .collect::<Vec<_>>();
+                _ = self.emit_sender.send(EmitEvent::List(list));
+            }
+            Event::Mute => {
+                if let Some(audio) = self.audio.as_mut() {
+                    if !audio.muted() {
+                        _ = self.emit_sender.send(EmitEvent::MuteStateChanged(true));
+                        audio.mute();
+                    }
+                }
+            }
+            Event::Unmute => {
+                if let Some(audio) = self.audio.as_mut() {
+                    if audio.muted() {
+                        _ = self.emit_sender.send(EmitEvent::MuteStateChanged(false));
+                        audio.unmute();
+                    }
                 }
             }
         };
@@ -251,7 +268,8 @@ pub enum EmitEvent {
         uri: Arc<str>,
         token: Option<Arc<str>>,
     },
-    List(Vec<String>)
+    List(Vec<String>),
+    MuteStateChanged(bool),
 }
 
 pub enum Event {
@@ -260,6 +278,8 @@ pub enum Event {
     CloseNotification(u32),
     List,
     FocusSurface,
+    Mute,
+    Unmute,
 }
 
 impl Dispatch<wl_registry::WlRegistry, GlobalListContents> for Moxnotify {
@@ -341,7 +361,7 @@ delegate_noop!(Moxnotify: zwlr_layer_shell_v1::ZwlrLayerShellV1);
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     env_logger::Builder::new()
-        .filter_level(log::LevelFilter::Warn)
+        .filter(Some("daemon"), log::LevelFilter::Info)
         .init();
 
     let conn = Connection::connect_to_env().expect("Failed to connect to Wayland");
@@ -384,14 +404,14 @@ async fn main() -> anyhow::Result<()> {
         })?;
     }
 
-        let emit_receiver = emit_sender.subscribe();
+    let emit_receiver = emit_sender.subscribe();
     scheduler.schedule(async move {
         if let Err(e) = dbus::moxnotify::serve(event_sender, emit_receiver).await {
             log::error!("{e}");
         }
     })?;
 
-        let emit_receiver = emit_sender.subscribe();
+    let emit_receiver = emit_sender.subscribe();
     scheduler.schedule(async move {
         if let Err(e) = dbus::portal::serve(emit_receiver).await {
             log::error!("{e}");

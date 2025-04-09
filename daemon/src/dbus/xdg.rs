@@ -1,6 +1,6 @@
 use crate::{image_data::ImageData, EmitEvent, Event, Image, Urgency};
-use std::{collections::HashMap, path::Path, sync::Arc};
 use serde::{Deserialize, Serialize};
+use std::{collections::HashMap, path::Path, sync::Arc};
 use tokio::sync::broadcast;
 use zbus::{fdo::RequestNameFlags, object_server::SignalEmitter, zvariant::Str};
 
@@ -135,7 +135,9 @@ impl NotificationsImpl {
             }
             false => replaces_id,
         };
-        log::info!("Notification sent {id}");
+        log::info!(
+    "Received notification: app_name='{app_name}', replaces_id={replaces_id}, summary='{summary}', body='{body}'"
+);
 
         let app_icon: Option<Box<str>> = if app_icon.is_empty() {
             None
