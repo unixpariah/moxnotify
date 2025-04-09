@@ -36,6 +36,10 @@ enum NotifyCommand {
     List,
     Unmute,
     Mute,
+    ShowHistory,
+    HideHistory,
+    Inhibit,
+    Uninhibit,
 }
 
 #[tokio::main]
@@ -55,6 +59,10 @@ async fn main() -> anyhow::Result<()> {
         }
         NotifyCommand::Unmute => notify::emit(notify::Event::Unmute).await?,
         NotifyCommand::Mute => notify::emit(notify::Event::Mute).await?,
+        NotifyCommand::ShowHistory => notify::emit(notify::Event::ShowHistory).await?,
+        NotifyCommand::HideHistory => notify::emit(notify::Event::HideHistory).await?,
+        NotifyCommand::Inhibit => notify::emit(notify::Event::Inhibit).await?,
+        NotifyCommand::Uninhibit => notify::emit(notify::Event::Uninhibit).await?,
     }
 
     Ok(())

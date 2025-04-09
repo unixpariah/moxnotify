@@ -74,7 +74,6 @@ impl NotificationView {
                     Arc::clone(&self.config),
                     &mut self.font_system,
                     NotificationData {
-                        app_name: "prev_notification_count".into(),
                         summary: summary.into(),
                         ..Default::default()
                     },
@@ -111,7 +110,6 @@ impl NotificationView {
                     Arc::clone(&self.config),
                     &mut self.font_system,
                     NotificationData {
-                        app_name: "next_notification_count".into(),
                         summary: summary.into(),
                         ..Default::default()
                     },

@@ -11,19 +11,19 @@ struct MoxnotifyInterface {
 impl MoxnotifyInterface {
     async fn focus(&self) {
         if let Err(e) = self.event_sender.send(Event::FocusSurface) {
-            log::warn!("{}", e);
+            log::error!("{}", e);
         }
     }
 
     async fn dismiss(&self, all: bool, id: u32) {
         if let Err(e) = self.event_sender.send(Event::Dismiss { all, id }) {
-            log::warn!("{}", e);
+            log::error!("{}", e);
         }
     }
 
     async fn list(&mut self) -> Vec<String> {
         if let Err(e) = self.event_sender.send(Event::List) {
-            log::warn!("{}", e);
+            log::error!("{}", e);
         }
         if let Ok(EmitEvent::List(list)) = self.emit_receiver.recv().await {
             list
@@ -34,13 +34,13 @@ impl MoxnotifyInterface {
 
     async fn mute(&self) {
         if let Err(e) = self.event_sender.send(Event::Mute) {
-            log::warn!("{}", e);
+            log::error!("{}", e);
         }
     }
 
     async fn unmute(&self) {
         if let Err(e) = self.event_sender.send(Event::Unmute) {
-            log::warn!("{}", e);
+            log::error!("{}", e);
         }
     }
 
@@ -48,6 +48,42 @@ impl MoxnotifyInterface {
     async fn mute_state_changed(
         signal_emitter: &SignalEmitter<'_>,
         muted: bool,
+    ) -> zbus::Result<()>;
+
+    async fn show_history(&self) {
+        if let Err(e) = self.event_sender.send(Event::ShowHistory) {
+            log::error!("{}", e);
+        }
+    }
+
+    async fn hide_history(&self) {
+        if let Err(e) = self.event_sender.send(Event::HideHistory) {
+            log::error!("{}", e);
+        }
+    }
+
+    #[zbus(signal)]
+    async fn history_state_changed(
+        signal_emitter: &SignalEmitter<'_>,
+        muted: bool,
+    ) -> zbus::Result<()>;
+
+    async fn inhibit(&self) {
+        if let Err(e) = self.event_sender.send(Event::Inhibit) {
+            log::error!("{}", e);
+        }
+    }
+
+    async fn uninhibit(&self) {
+        if let Err(e) = self.event_sender.send(Event::Uninhibit) {
+            log::error!("{}", e);
+        }
+    }
+
+    #[zbus(signal)]
+    async fn inhibit_changed(
+        signal_emitter: &SignalEmitter<'_>,
+        inhibited: bool,
     ) -> zbus::Result<()>;
 }
 
@@ -78,12 +114,33 @@ pub async fn serve(
             match emit_receiver.recv().await {
                 Ok(EmitEvent::MuteStateChanged(muted)) => {
                     if let Err(e) =
-                        MoxnotifyInterface::mute_state_changed(iface.signal_emitter(), muted).await
+                        MoxnotifyInterfaceSignals::mute_state_changed(iface.signal_emitter(), muted)
+                            .await
                     {
-                        log::error!("Failed to emmit activation token signal: {e}");
+                        log::error!("{e}");
                     }
                 }
-                Err(e) => log::error!("Failed to receive emit event: {e}"),
+                Ok(EmitEvent::HistoryStateChanged(history)) => {
+                    if let Err(e) = MoxnotifyInterfaceSignals::history_state_changed(
+                        iface.signal_emitter(),
+                        history,
+                    )
+                    .await
+                    {
+                        log::error!("{e}");
+                    }
+                }
+                Ok(EmitEvent::Inhibited(inhibited)) => {
+                    if let Err(e) = MoxnotifyInterfaceSignals::inhibit_changed(
+                        iface.signal_emitter(),
+                        inhibited,
+                    )
+                    .await
+                    {
+                        log::error!("{e}");
+                    }
+                }
+                Err(e) => log::error!("{e}"),
                 _ => {}
             };
         }

@@ -7,6 +7,10 @@ pub enum Event {
     DismissOne(u32),
     Mute,
     Unmute,
+    ShowHistory,
+    HideHistory,
+    Inhibit,
+    Uninhibit,
 }
 
 #[zbus::proxy(
@@ -24,6 +28,14 @@ trait Notify {
     async fn mute(&self) -> zbus::Result<()>;
 
     async fn unmute(&self) -> zbus::Result<()>;
+
+    async fn show_history(&self) -> zbus::Result<()>;
+
+    async fn hide_history(&self) -> zbus::Result<()>;
+
+    async fn inhibit(&self) -> zbus::Result<()>;
+
+    async fn uninhibit(&self) -> zbus::Result<()>;
 }
 
 pub async fn emit(event: Event) -> zbus::Result<()> {
@@ -43,6 +55,10 @@ pub async fn emit(event: Event) -> zbus::Result<()> {
         Event::DismissOne(index) => notify.dismiss(false, index).await?,
         Event::Unmute => notify.unmute().await?,
         Event::Mute => notify.mute().await?,
+        Event::ShowHistory => notify.show_history().await?,
+        Event::HideHistory => notify.hide_history().await?,
+        Event::Inhibit => notify.inhibit().await?,
+        Event::Uninhibit => notify.uninhibit().await?,
     }
 
     Ok(())

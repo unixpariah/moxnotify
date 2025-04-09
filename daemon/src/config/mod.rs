@@ -97,7 +97,33 @@ impl<'de> Deserialize<'de> for SoundFile {
 
 #[derive(Deserialize)]
 #[serde(default)]
+pub struct History {
+    pub size: u32,
+    pub path: PathBuf,
+}
+
+impl Default for History {
+    fn default() -> Self {
+        let path = std::env::var("XDG_DATA_HOME")
+            .map(|data_home| PathBuf::from(data_home).join("moxnotify/db.mox"))
+            .or_else(|_| {
+                std::env::var("HOME")
+                    .map(|home| PathBuf::from(home).join(".local/share/moxnotify/db.mox"))
+            })
+            .unwrap_or_else(|_| PathBuf::from(""));
+
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir).ok();
+        }
+
+        Self { size: 10000, path }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(default)]
 pub struct Config {
+    pub history: History,
     pub default_sound_file: SoundFile,
     pub ignore_sound_file: bool,
     pub scroll_sensitivity: f64,
@@ -118,6 +144,7 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            history: History::default(),
             default_sound_file: SoundFile::default(),
             ignore_sound_file: false,
             hint_characters: "sadfjklewcmpgh".into(),
