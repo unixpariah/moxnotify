@@ -1,4 +1,6 @@
+use serde::Deserialize;
 use std::io::{self, Write};
+use zbus::zvariant::Type;
 
 pub enum Event {
     Focus,
@@ -11,6 +13,16 @@ pub enum Event {
     HideHistory,
     Inhibit,
     Uninhibit,
+    ToggleHistory,
+    ToggleInhibit,
+    ToggleMute,
+}
+
+#[derive(Default, PartialEq, Clone, Copy, Type, Deserialize)]
+pub enum History {
+    #[default]
+    Hidden,
+    Shown,
 }
 
 #[zbus::proxy(
@@ -29,13 +41,19 @@ trait Notify {
 
     async fn unmute(&self) -> zbus::Result<()>;
 
+    async fn muted(&self) -> zbus::Result<bool>;
+
     async fn show_history(&self) -> zbus::Result<()>;
 
     async fn hide_history(&self) -> zbus::Result<()>;
 
+    async fn history(&self) -> zbus::Result<History>;
+
     async fn inhibit(&self) -> zbus::Result<()>;
 
     async fn uninhibit(&self) -> zbus::Result<()>;
+
+    async fn inhibited(&self) -> zbus::Result<bool>;
 }
 
 pub async fn emit(event: Event) -> zbus::Result<()> {
@@ -55,10 +73,31 @@ pub async fn emit(event: Event) -> zbus::Result<()> {
         Event::DismissOne(index) => notify.dismiss(false, index).await?,
         Event::Unmute => notify.unmute().await?,
         Event::Mute => notify.mute().await?,
+        Event::ToggleMute => {
+            if notify.muted().await? {
+                notify.unmute().await?
+            } else {
+                notify.mute().await?
+            }
+        }
         Event::ShowHistory => notify.show_history().await?,
         Event::HideHistory => notify.hide_history().await?,
+        Event::ToggleHistory => {
+            if notify.history().await? == History::Shown {
+                notify.hide_history().await?
+            } else {
+                notify.show_history().await?
+            }
+        }
         Event::Inhibit => notify.inhibit().await?,
         Event::Uninhibit => notify.uninhibit().await?,
+        Event::ToggleInhibit => {
+            if notify.inhibited().await? {
+                notify.uninhibit().await?
+            } else {
+                notify.inhibit().await?
+            }
+        }
     }
 
     Ok(())

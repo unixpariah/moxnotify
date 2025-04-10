@@ -300,15 +300,22 @@ impl Button {
     }
 
     pub fn extents(&self, container_hovered: bool) -> Extents {
-        let style = self.style(container_hovered);
+        if let ButtonType::Anchor { anchor } = &self.button_type {
+            return Extents {
+                x: self.x + anchor.extents().x,
+                y: self.y + anchor.extents().y,
+                width: anchor.extents().width,
+                height: anchor.extents().height,
+            };
+        }
 
+        let style = self.style(container_hovered);
         let text_extents = self.text.extents();
 
         let width = match &self.button_type {
             ButtonType::Dismiss => style.width.resolve(text_extents.0),
             ButtonType::Action { .. } => style.width.resolve(self.width),
-            // Adding Anchor as a button is just for hint rendering
-            ButtonType::Anchor { .. } => 0.,
+            ButtonType::Anchor { .. } => unreachable!(),
         } + style.border.size.left
             + style.border.size.right
             + style.padding.left
@@ -323,15 +330,6 @@ impl Button {
             + style.padding.bottom
             + style.margin.top
             + style.margin.bottom;
-
-        if let ButtonType::Anchor { anchor } = &self.button_type {
-            return Extents {
-                x: self.x + anchor.extents().x,
-                y: self.y + anchor.extents().y,
-                width: anchor.extents().width,
-                height: anchor.extents().height,
-            };
-        }
 
         Extents {
             x: self.x,

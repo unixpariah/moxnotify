@@ -212,13 +212,45 @@ where
     deserializer.deserialize_any(SelectorsVisitor)
 }
 
-#[derive(Default, Deserialize, Clone, Copy)]
-#[serde(rename_all = "snake_case")]
+#[derive(Default, Clone)]
 pub enum State {
     #[default]
     Default,
     Hover,
     ContainerHover,
+    NamedContainerHover(Arc<str>),
+}
+
+impl<'de> Deserialize<'de> for State {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        match s.as_str() {
+            "default" => Ok(State::Default),
+            "hover" => Ok(State::Hover),
+            "container_hover" => Ok(State::ContainerHover),
+            _ => {
+                if let Some(container) = s.strip_prefix("container_hover:") {
+                    Ok(State::NamedContainerHover(container.into()))
+                } else {
+                    Err(serde::de::Error::unknown_variant(
+                        &s,
+                        &[
+                            "*",
+                            "prev_counter",
+                            "next_counter",
+                            "notification",
+                            "notification:...",
+                            "action",
+                            "dismiss",
+                        ],
+                    ))
+                }
+            }
+        }
+    }
 }
 
 pub enum Selector {
@@ -662,16 +694,20 @@ impl<'de> Deserialize<'de> for Styles {
                     (Selector::All, _) => 1,
                     (Selector::AllNotifications, State::Default) => 2,
                     (Selector::AllNotifications, State::Hover) => 3,
-                    (Selector::AllNotifications, State::ContainerHover) => 5,
+                    (Selector::AllNotifications, State::ContainerHover) => 4,
+                    (Selector::AllNotifications, State::NamedContainerHover(_)) => 5,
                     (Selector::Notification(_), State::Default) => 6,
                     (Selector::Notification(_), State::Hover) => 7,
-                    (Selector::Notification(_), State::ContainerHover) => 9,
+                    (Selector::Notification(_), State::ContainerHover) => 8,
+                    (Selector::Notification(_), State::NamedContainerHover(_)) => 9,
                     (Selector::ActionButton, State::Default) => 10,
                     (Selector::ActionButton, State::Hover) => 11,
-                    (Selector::ActionButton, State::ContainerHover) => 13,
+                    (Selector::ActionButton, State::ContainerHover) => 12,
+                    (Selector::ActionButton, State::NamedContainerHover(_)) => 13,
                     (Selector::DismissButton, State::Default) => 14,
                     (Selector::DismissButton, State::Hover) => 15,
-                    (Selector::DismissButton, State::ContainerHover) => 17,
+                    (Selector::DismissButton, State::ContainerHover) => 16,
+                    (Selector::DismissButton, State::NamedContainerHover(_)) => 17,
                     (Selector::Icon, _) => 18,
                     (Selector::Progress, _) => 19,
                     (Selector::PrevCounter, _) => 20,
@@ -695,7 +731,7 @@ impl<'de> Deserialize<'de> for Styles {
                 .flat_map(|style| {
                     style.selector.into_iter().map(move |selector| Style {
                         selector: vec![selector],
-                        state: style.state,
+                        state: style.state.clone(),
                         style: style.style.clone(),
                     })
                 })
@@ -736,6 +772,7 @@ impl<'de> Deserialize<'de> for Styles {
                 (Selector::Progress, State::ContainerHover) => {
                     styles.hover.progress.apply(&style.style);
                 }
+                (Selector::Progress, State::NamedContainerHover(_)) => {}
                 (Selector::Progress, _) => {
                     styles.default.progress.apply(&style.style);
                     styles.hover.progress.apply(&style.style);
@@ -746,6 +783,7 @@ impl<'de> Deserialize<'de> for Styles {
                         styles.hover.icon.border.apply(border);
                     }
                 }
+                (Selector::Icon, State::NamedContainerHover(_)) => {}
                 (Selector::Icon, _) => {
                     if let Some(border) = style.style.border.as_ref() {
                         styles.default.icon.border.apply(border);
@@ -757,27 +795,11 @@ impl<'de> Deserialize<'de> for Styles {
                     styles.default.apply(&style.style);
                     styles.hover.apply(&style.style);
                 }
-                (Selector::AllNotifications, State::Hover | State::ContainerHover) => {
+                (Selector::AllNotifications, _) => {
                     styles.hover.apply(&style.style);
                 }
-                (Selector::Notification(_), State::Default) => {
-                    //if let Some(notification) = styles
-                    //.notification
-                    //.iter()
-                    //.find(|notification| &notification.app == app_name)
-                    //{
-                    //} else {
-                    //}
-                }
-                (Selector::Notification(_), State::Hover | State::ContainerHover) => {
-                    //if let Some(notification) = styles
-                    //.notification
-                    //.iter()
-                    //.find(|notification| &notification.app == app_name)
-                    //{
-                    //} else {
-                    //}
-                }
+                (Selector::Notification(_), State::Default) => {}
+                (Selector::Notification(_), _) => {}
                 (Selector::ActionButton, State::Default) => {
                     styles.default.buttons.action.apply(&style.style);
                     styles.hover.buttons.action.apply(&style.style);
@@ -789,6 +811,7 @@ impl<'de> Deserialize<'de> for Styles {
                 (Selector::ActionButton, State::ContainerHover) => {
                     styles.hover.buttons.action.apply(&style.style);
                 }
+                (Selector::ActionButton, State::NamedContainerHover(_)) => {}
                 (Selector::DismissButton, State::Default) => {
                     styles.default.buttons.dismiss.apply(&style.style);
                     styles.hover.buttons.dismiss.apply(&style.style);
@@ -800,6 +823,7 @@ impl<'de> Deserialize<'de> for Styles {
                 (Selector::DismissButton, State::ContainerHover) => {
                     styles.hover.buttons.dismiss.apply(&style.style);
                 }
+                (Selector::DismissButton, State::NamedContainerHover(_)) => {}
             }
         });
 

@@ -29,46 +29,64 @@ enum NotifyCommand {
 
     #[command(about = "List active notifications")]
     List,
-    Unmute,
-    Mute,
+
+    #[command(about = "Mute notifications")]
+    Mute {
+        #[command(subcommand)]
+        action: SwitchAction,
+    },
+
+    #[command(about = "Manage notification history visibility")]
     History {
         #[command(subcommand)]
-        action: HistoryAction,
+        action: SwitchAction,
     },
-    Inhibit,
-    Uninhibit,
+
+    #[command(about = "Inhibit notifications")]
+    Inhibit {
+        #[command(subcommand)]
+        action: SwitchAction,
+    },
 }
 
 #[derive(Subcommand)]
-enum HistoryAction {
-    Show,
-    Hide,
+enum SwitchAction {
+    On,
+    Off,
+    Toggle,
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    match cli.command {
-        NotifyCommand::Focus => notify::emit(notify::Event::Focus).await?,
-        NotifyCommand::List => notify::emit(notify::Event::List).await?,
+    let event = match cli.command {
+        NotifyCommand::Focus => notify::Event::Focus,
+        NotifyCommand::List => notify::Event::List,
         NotifyCommand::Dismiss { all, notification } => {
             if all {
-                notify::emit(notify::Event::DismissAll).await?
+                notify::Event::DismissAll
             } else {
                 let idx = notification.unwrap_or_default();
-                notify::emit(notify::Event::DismissOne(idx)).await?
+                notify::Event::DismissOne(idx)
             }
         }
-        NotifyCommand::Unmute => notify::emit(notify::Event::Unmute).await?,
-        NotifyCommand::Mute => notify::emit(notify::Event::Mute).await?,
-        NotifyCommand::History { action } => match action {
-            HistoryAction::Show => notify::emit(notify::Event::ShowHistory).await?,
-            HistoryAction::Hide => notify::emit(notify::Event::HideHistory).await?,
+        NotifyCommand::Mute { action } => match action {
+            SwitchAction::On => notify::Event::Mute,
+            SwitchAction::Off => notify::Event::Unmute,
+            SwitchAction::Toggle => notify::Event::ToggleMute,
         },
-        NotifyCommand::Inhibit => notify::emit(notify::Event::Inhibit).await?,
-        NotifyCommand::Uninhibit => notify::emit(notify::Event::Uninhibit).await?,
-    }
+        NotifyCommand::History { action } => match action {
+            SwitchAction::On => notify::Event::ShowHistory,
+            SwitchAction::Off => notify::Event::HideHistory,
+            SwitchAction::Toggle => notify::Event::ToggleHistory,
+        },
+        NotifyCommand::Inhibit { action } => match action {
+            SwitchAction::On => notify::Event::Inhibit,
+            SwitchAction::Off => notify::Event::Uninhibit,
+            SwitchAction::Toggle => notify::Event::ToggleInhibit,
+        },
+    };
 
-    Ok(())
+    notify::emit(event).await.map_err(Into::into)
 }

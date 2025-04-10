@@ -191,7 +191,9 @@ impl Notification {
             .buttons_mut()
             .iter_mut()
             .filter(|button| matches!(button.button_type, ButtonType::Anchor { .. }))
-            .for_each(|button| button.set_position(extents.x, extents.y));
+            .for_each(|button| {
+                button.set_position(extents.x + self.icons.extents(style).width, extents.y)
+            });
 
         let action_buttons = self
             .buttons
