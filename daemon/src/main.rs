@@ -197,8 +197,8 @@ impl Moxnotify {
 
                 if count >= self.config.history.size {
                     self.db.execute(
-                        "DELETE FROM notifications WHERE _rowid = (
-                        SELECT _rowid FROM notifications ORDER BY _rowid ASC LIMIT 1
+                        "DELETE FROM notifications WHERE rowid = (
+                        SELECT rowid FROM notifications ORDER BY rowid ASC LIMIT 1
                          )",
                         [],
                     )?;
@@ -291,21 +291,21 @@ impl Moxnotify {
                     ids.iter()
                         .for_each(|id| self.dismiss(*id, Some(Reason::DismissedByUser)));
 
-                    let mut stmt = self.db.prepare("SELECT rowid, app_name, app_icon, summary, body, actions, hints FROM notifications")?;
+                    let mut stmt = self.db.prepare("SELECT rowid, app_name, app_icon, summary, body, actions, hints FROM notifications ORDER BY rowid DESC")?;
                     let rows = stmt.query_map([], |row| {
                         Ok(NotificationData {
                             id: row.get(0)?,
-                            app_name: row.get::<_, String>(1)?.into_boxed_str(),
-                            app_icon: row.get::<_, Option<String>>(2)?.map(|s| s.into_boxed_str()),
-                            summary: row.get::<_, String>(3)?.into_boxed_str(),
-                            body: row.get::<_, String>(4)?.into_boxed_str(),
+                            app_name: row.get::<_, Box<str>>(1)?,
+                            app_icon: row.get::<_, Option<Box<str>>>(2)?,
+                            summary: row.get::<_, Box<str>>(3)?,
+                            body: row.get::<_, Box<str>>(4)?,
                             timeout: 0,
                             actions: {
-                                let json: String = row.get(5)?;
+                                let json: Box<str> = row.get(5)?;
                                 serde_json::from_str(&json).unwrap()
                             },
                             hints: {
-                                let json: String = row.get(6)?;
+                                let json: Box<str> = row.get(6)?;
                                 serde_json::from_str(&json).unwrap()
                             },
                         })

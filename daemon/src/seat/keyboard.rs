@@ -1,6 +1,6 @@
 use crate::{
     button::ButtonType,
-    config::keymaps::{Key, KeyAction, KeyCombination, Mode, Modifiers},
+    config::keymaps::{Key, KeyAction, KeyCombination, Mode},
     notification_manager::Reason,
     EmitEvent, History, Moxnotify,
 };
@@ -20,11 +20,19 @@ struct Xkb {
     state: Option<State>,
 }
 
+#[derive(PartialEq, Default, Clone)]
+pub struct Modifiers {
+    pub control: bool,
+    pub alt: bool,
+    pub meta: bool,
+}
+
 pub struct Keyboard {
     _wl_keyboard: wl_keyboard::WlKeyboard,
     pub repeat: RepeatInfo,
     xkb: Xkb,
     pub key_combination: KeyCombination,
+    modifiers: Modifiers,
 }
 
 #[derive(Default)]
@@ -49,6 +57,7 @@ impl Keyboard {
             },
             _wl_keyboard: wl_keyboard,
             repeat: RepeatInfo::default(),
+            modifiers: Modifiers::default(),
         }
     }
 }
@@ -96,7 +105,7 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
                 if let Some(xkb_state) = state.seat.keyboard.xkb.state.as_mut() {
                     xkb_state.update_mask(mods_depressed, mods_latched, mods_locked, 0, 0, group);
 
-                    state.seat.keyboard.key_combination.modifiers = Modifiers {
+                    state.seat.keyboard.modifiers = Modifiers {
                         control: xkb_state
                             .mod_name_is_active("Control", xkbcommon::xkb::STATE_MODS_EFFECTIVE),
                         alt: xkb_state
@@ -236,13 +245,17 @@ impl Moxnotify {
                             }
                         }
                         KeyAction::HintMode => self.seat.keyboard.key_combination.mode = Mode::Hint,
-                        KeyAction::ShowHistory => self.history = History::Shown,
-                        KeyAction::HideHistory => self.history = History::Hidden,
+                        KeyAction::ShowHistory => {
+                            self.handle_app_event(crate::Event::ShowHistory)?
+                        }
+                        KeyAction::HideHistory => {
+                            self.handle_app_event(crate::Event::HideHistory)?
+                        }
                         KeyAction::ToggleHistory => {
-                            self.history = match self.history {
-                                History::Shown => History::Hidden,
-                                History::Hidden => History::Shown,
-                            }
+                            match self.history {
+                                History::Shown => self.handle_app_event(crate::Event::HideHistory),
+                                History::Hidden => self.handle_app_event(crate::Event::ShowHistory),
+                            }?;
                         }
                         KeyAction::Uninhibit => self.inhibited = false,
                         KeyAction::Ihibit => self.inhibited = true,

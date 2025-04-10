@@ -81,6 +81,27 @@ fn default_key_combinations() -> Vec<(KeyCombination, KeyAction)> {
             },
             KeyAction::HintMode,
         ),
+        (
+            KeyCombination {
+                keys: vec![Key::Character('h')],
+                ..Default::default()
+            },
+            KeyAction::ToggleHistory,
+        ),
+        (
+            KeyCombination {
+                keys: vec![Key::Character('m')],
+                ..Default::default()
+            },
+            KeyAction::ToggleMute,
+        ),
+        (
+            KeyCombination {
+                keys: vec![Key::Character('i')],
+                ..Default::default()
+            },
+            KeyAction::ToggleInhibit,
+        ),
     ]
 }
 
@@ -126,7 +147,6 @@ pub struct KeyCombination {
     #[serde(default)]
     pub mode: Mode,
     pub keys: Vec<Key>,
-    pub modifiers: Modifiers,
 }
 
 impl fmt::Display for KeyCombination {
@@ -151,7 +171,6 @@ impl fmt::Display for KeyCombination {
 impl KeyCombination {
     pub fn clear(&mut self) {
         self.keys.clear();
-        self.modifiers = Modifiers::default();
     }
 }
 
@@ -177,18 +196,7 @@ impl FromStr for KeyCombination {
         }
 
         let mut key_parts = key_comb_str.split('+');
-        let mut modifiers = Modifiers::default();
         let key_str = key_parts.next_back().ok_or("Invalid key combination")?;
-
-        key_parts.try_for_each(|part| {
-            match part.to_lowercase().as_str() {
-                "ctrl" => modifiers.control = true,
-                "alt" => modifiers.alt = true,
-                "meta" => modifiers.meta = true,
-                _ => return Err(format!("Invalid modifier: {}", part)),
-            }
-            Ok(())
-        })?;
 
         let keys: Vec<Key> = match key_str {
             "<CR>" => vec![Key::SpecialKey(SpecialKeyCode::Enter)],
@@ -200,14 +208,28 @@ impl FromStr for KeyCombination {
             "<Left>" => vec![Key::SpecialKey(SpecialKeyCode::Left)],
             "<Right>" => vec![Key::SpecialKey(SpecialKeyCode::Right)],
             "<Down>" => vec![Key::SpecialKey(SpecialKeyCode::Down)],
+            "<Home>" => vec![Key::SpecialKey(SpecialKeyCode::Home)],
+            "<End>" => vec![Key::SpecialKey(SpecialKeyCode::End)],
+            "<PageUp>" => vec![Key::SpecialKey(SpecialKeyCode::PageUp)],
+            "<PageDown>" => vec![Key::SpecialKey(SpecialKeyCode::PageDown)],
+            "<Insert>" => vec![Key::SpecialKey(SpecialKeyCode::Insert)],
+            "<Del>" => vec![Key::SpecialKey(SpecialKeyCode::Delete)],
+            "<F1>" => vec![Key::SpecialKey(SpecialKeyCode::F1)],
+            "<F2>" => vec![Key::SpecialKey(SpecialKeyCode::F2)],
+            "<F3>" => vec![Key::SpecialKey(SpecialKeyCode::F3)],
+            "<F4>" => vec![Key::SpecialKey(SpecialKeyCode::F4)],
+            "<F5>" => vec![Key::SpecialKey(SpecialKeyCode::F5)],
+            "<F6>" => vec![Key::SpecialKey(SpecialKeyCode::F6)],
+            "<F7>" => vec![Key::SpecialKey(SpecialKeyCode::F7)],
+            "<F8>" => vec![Key::SpecialKey(SpecialKeyCode::F8)],
+            "<F9>" => vec![Key::SpecialKey(SpecialKeyCode::F9)],
+            "<F10>" => vec![Key::SpecialKey(SpecialKeyCode::F10)],
+            "<F11>" => vec![Key::SpecialKey(SpecialKeyCode::F11)],
+            "<F12>" => vec![Key::SpecialKey(SpecialKeyCode::F12)],
             _ => key_str.chars().map(Key::Character).collect(),
         };
 
-        Ok(KeyCombination {
-            mode,
-            modifiers,
-            keys,
-        })
+        Ok(KeyCombination { mode, keys })
     }
 }
 
@@ -263,6 +285,24 @@ pub enum SpecialKeyCode {
     Down,
     Left,
     Right,
+    Home,
+    End,
+    PageUp,
+    PageDown,
+    Insert,
+    Delete,
+    F1,
+    F2,
+    F3,
+    F4,
+    F5,
+    F6,
+    F7,
+    F8,
+    F9,
+    F10,
+    F11,
+    F12,
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
@@ -287,13 +327,6 @@ pub enum KeyAction {
     ShowHistory,
     HideHistory,
     ToggleHistory,
-}
-
-#[derive(Deserialize, PartialEq, Eq, Hash, Debug, Default, Clone)]
-pub struct Modifiers {
-    pub control: bool,
-    pub alt: bool,
-    pub meta: bool,
 }
 
 fn deserialize_keycombination_map<'de, D>(
