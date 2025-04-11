@@ -243,29 +243,20 @@ pub async fn serve(
                     action_key,
                     token,
                 }) => {
-                    if let Err(e) =
-                        NotificationsImpl::activation_token(iface.signal_emitter(), id, &token)
-                            .await
-                    {
-                        log::error!("Failed to emmit activation token signal: {e}");
-                    }
+                    log::info!("{action_key} action invoked for notification with ID: {id}.");
 
-                    if let Err(e) =
-                        NotificationsImpl::action_invoked(iface.signal_emitter(), id, &action_key)
-                            .await
-                    {
-                        log::error!("Failed to emmit action invoked signal: {e}");
-                    }
+                    _ = NotificationsImpl::activation_token(iface.signal_emitter(), id, &token)
+                        .await;
+
+                    _ = NotificationsImpl::action_invoked(iface.signal_emitter(), id, &action_key)
+                        .await;
                 }
                 Ok(EmitEvent::NotificationClosed { id, reason }) => {
-                    if let Err(e) =
-                        NotificationsImpl::notification_closed(iface.signal_emitter(), id, reason)
-                            .await
-                    {
-                        log::error!("Failed to emmit notification closed signal: {e}");
-                    }
+                    log::info!("Notification with ID: {id} was closed. Reason: {reason}");
+
+                    _ = NotificationsImpl::notification_closed(iface.signal_emitter(), id, reason)
+                        .await;
                 }
-                Err(e) => log::error!("Failed to receive emit event: {e}"),
                 _ => {}
             };
         }

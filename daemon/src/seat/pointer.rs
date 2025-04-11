@@ -213,9 +213,8 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                         if let Some(notification_id) = notification_id {
                             match button {
-                                Some(ButtonType::Dismiss) => {
-                                    state.dismiss(notification_id, Some(Reason::DismissedByUser))
-                                }
+                                Some(ButtonType::Dismiss) => state
+                                    .dismiss_by_id(notification_id, Some(Reason::DismissedByUser)),
                                 Some(ButtonType::Action { action, .. }) => {
                                     if let Some(surface) = state.surface.as_ref() {
                                         let token = surface.token.as_ref().map(Arc::clone);
@@ -233,7 +232,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                                         .map(|n| n.data.hints.resident)
                                         .unwrap_or_default()
                                     {
-                                        state.dismiss(notification_id, None);
+                                        state.dismiss_by_id(notification_id, None);
                                     }
                                 }
                                 Some(ButtonType::Anchor { anchor }) => {

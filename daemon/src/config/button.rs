@@ -1,5 +1,6 @@
 use super::{partial::PartialStyle, Border, BorderRadius, Color, Font, Insets, Size};
 
+#[derive(Clone)]
 pub struct Buttons {
     pub dismiss: Button,
     pub action: Button,
@@ -14,6 +15,7 @@ impl Default for Buttons {
     }
 }
 
+#[derive(Clone)]
 pub struct Button {
     pub default: ButtonState,
     pub hover: ButtonState,

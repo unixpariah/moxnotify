@@ -233,7 +233,7 @@ impl Moxnotify {
                         }
                         KeyAction::DismissNotification => {
                             if let Some(id) = self.notifications.selected_id() {
-                                self.dismiss(id, Some(Reason::DismissedByUser));
+                                self.dismiss_by_id(id, Some(Reason::DismissedByUser));
                             }
                         }
                         KeyAction::Unfocus => {
@@ -295,7 +295,7 @@ impl Moxnotify {
                         let combination = self.seat.keyboard.key_combination.to_string();
                         match notification.buttons.get_by_character(&combination) {
                             Some(ButtonType::Dismiss) => {
-                                self.dismiss(id, Some(Reason::DismissedByUser))
+                                self.dismiss_by_id(id, Some(Reason::DismissedByUser))
                             }
                             Some(ButtonType::Action { action, .. }) => {
                                 if let Some(surface) = self.surface.as_ref() {
@@ -308,7 +308,7 @@ impl Moxnotify {
                                 }
 
                                 if !notification.data.hints.resident {
-                                    self.dismiss(id, Some(Reason::DismissedByUser));
+                                    self.dismiss_by_id(id, Some(Reason::DismissedByUser));
                                 } else {
                                     self.seat.keyboard.key_combination.mode = Mode::Normal;
                                 }

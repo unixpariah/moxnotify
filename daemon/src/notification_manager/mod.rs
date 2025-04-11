@@ -352,7 +352,7 @@ impl NotificationManager {
                 notification.registration_token = self
                     .loop_handle
                     .insert_source(timer, move |_, _, moxnotify| {
-                        moxnotify.dismiss(id, Some(Reason::Expired));
+                        moxnotify.dismiss_by_id(id, Some(Reason::Expired));
                         TimeoutAction::Drop
                     })
                     .ok();
@@ -404,7 +404,7 @@ impl NotificationManager {
                     notification.registration_token = self
                         .loop_handle
                         .insert_source(timer, move |_, _, moxnotify| {
-                            moxnotify.dismiss(id, Some(Reason::Expired));
+                            moxnotify.dismiss_by_id(id, Some(Reason::Expired));
                             TimeoutAction::Drop
                         })
                         .ok();
@@ -448,7 +448,7 @@ impl NotificationManager {
                         notification.registration_token = self
                             .loop_handle
                             .insert_source(timer, move |_, _, moxnotify| {
-                                moxnotify.dismiss(id, Some(Reason::Expired));
+                                moxnotify.dismiss_by_id(id, Some(Reason::Expired));
                                 TimeoutAction::Drop
                             })
                             .ok();
@@ -494,7 +494,20 @@ pub enum Reason {
 }
 
 impl Moxnotify {
-    pub fn dismiss(&mut self, id: u32, reason: Option<Reason>) {
+    pub fn dismiss_range<T>(&mut self, range: T)
+    where
+        T: std::slice::SliceIndex<[Notification], Output = [Notification]>,
+    {
+        let ids: Vec<_> = self.notifications.notifications()[range]
+            .iter()
+            .map(|notification| notification.id())
+            .collect();
+
+        ids.iter()
+            .for_each(|id| self.dismiss_by_id(*id, Some(Reason::DismissedByUser)));
+    }
+
+    pub fn dismiss_by_id(&mut self, id: u32, reason: Option<Reason>) {
         match self.history {
             History::Shown => {
                 _ = self

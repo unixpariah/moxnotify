@@ -18,7 +18,7 @@ use std::{
     sync::Arc,
 };
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct SoundFile {
     pub urgency_low: Option<Arc<Path>>,
     pub urgency_normal: Option<Arc<Path>>,
@@ -173,6 +173,14 @@ pub struct Style {
     #[serde(default)]
     pub state: State,
     pub style: PartialStyle,
+    #[serde(default)]
+    pub default_timeout: Option<Timeout>,
+    #[serde(default)]
+    pub ignore_timeout: Option<bool>,
+    #[serde(default)]
+    pub default_sound_file: Option<SoundFile>,
+    #[serde(default)]
+    pub ignore_sound_file: Option<bool>,
 }
 
 fn deserialize_selectors<'de, D>(deserializer: D) -> Result<Vec<Selector>, D::Error>
@@ -237,15 +245,7 @@ impl<'de> Deserialize<'de> for State {
                 } else {
                     Err(serde::de::Error::unknown_variant(
                         &s,
-                        &[
-                            "*",
-                            "prev_counter",
-                            "next_counter",
-                            "notification",
-                            "notification:...",
-                            "action",
-                            "dismiss",
-                        ],
+                        &["default", "hover", "container_hover", "container_hover:..."],
                     ))
                 }
             }
@@ -389,6 +389,7 @@ pub enum Queue {
     Ordered,
 }
 
+#[derive(Clone)]
 pub struct Icon {
     pub border: Border,
 }
@@ -487,6 +488,7 @@ impl Size {
     }
 }
 
+#[derive(Clone)]
 pub struct Progress {
     pub margin: Insets,
     pub height: Size,
@@ -546,6 +548,7 @@ impl Default for Progress {
     }
 }
 
+#[derive(Clone)]
 pub struct Hint {
     pub background: Color,
     pub width: Size,
@@ -591,6 +594,7 @@ impl Default for Hint {
     }
 }
 
+#[derive(Clone)]
 pub struct StyleState {
     pub hint: Hint,
     pub background: Color,
@@ -733,6 +737,10 @@ impl<'de> Deserialize<'de> for Styles {
                         selector: vec![selector],
                         state: style.state.clone(),
                         style: style.style.clone(),
+                        default_timeout: style.default_timeout,
+                        ignore_timeout: style.ignore_timeout,
+                        default_sound_file: style.default_sound_file.clone(),
+                        ignore_sound_file: style.ignore_sound_file,
                     })
                 })
                 .collect::<Vec<_>>();
@@ -772,23 +780,49 @@ impl<'de> Deserialize<'de> for Styles {
                 (Selector::Progress, State::ContainerHover) => {
                     styles.hover.progress.apply(&style.style);
                 }
-                (Selector::Progress, State::NamedContainerHover(_)) => {}
+                (Selector::Progress, State::NamedContainerHover(app_name)) => {
+                    if let Some(notification) = styles
+                        .notification
+                        .iter_mut()
+                        .find(|notification| *notification.app == **app_name)
+                    {
+                        notification.hover.progress.apply(&style.style);
+                    } else {
+                        let mut notification = NotificationStyleEntry::default();
+                        notification.default = styles.default.clone();
+                        notification.hover = styles.hover.clone();
+                        notification.hover.progress.apply(&style.style);
+                        notification.app = (&**app_name).into();
+                        styles.notification.push(notification);
+                    }
+                }
                 (Selector::Progress, _) => {
                     styles.default.progress.apply(&style.style);
                     styles.hover.progress.apply(&style.style);
                 }
                 (Selector::Icon, State::ContainerHover) => {
-                    if let Some(border) = style.style.border.as_ref() {
-                        styles.default.icon.border.apply(border);
-                        styles.hover.icon.border.apply(border);
+                    styles.default.icon.apply(&style.style);
+                    styles.hover.icon.apply(&style.style);
+                }
+                (Selector::Icon, State::NamedContainerHover(app_name)) => {
+                    if let Some(notification) = styles
+                        .notification
+                        .iter_mut()
+                        .find(|notification| *notification.app == **app_name)
+                    {
+                        notification.hover.icon.apply(&style.style);
+                    } else {
+                        let mut notification = NotificationStyleEntry::default();
+                        notification.default = styles.default.clone();
+                        notification.hover = styles.hover.clone();
+                        notification.hover.icon.apply(&style.style);
+                        notification.app = (&**app_name).into();
+                        styles.notification.push(notification);
                     }
                 }
-                (Selector::Icon, State::NamedContainerHover(_)) => {}
                 (Selector::Icon, _) => {
-                    if let Some(border) = style.style.border.as_ref() {
-                        styles.default.icon.border.apply(border);
-                        styles.hover.icon.border.apply(border);
-                    }
+                    styles.default.icon.apply(&style.style);
+                    styles.hover.icon.apply(&style.style);
                 }
 
                 (Selector::AllNotifications, State::Default) => {
@@ -798,8 +832,38 @@ impl<'de> Deserialize<'de> for Styles {
                 (Selector::AllNotifications, _) => {
                     styles.hover.apply(&style.style);
                 }
-                (Selector::Notification(_), State::Default) => {}
-                (Selector::Notification(_), _) => {}
+                (Selector::Notification(app_name), State::Default) => {
+                    if let Some(notification) = styles
+                        .notification
+                        .iter_mut()
+                        .find(|notification| *notification.app == **app_name)
+                    {
+                        notification.default.apply(&style.style);
+                    } else {
+                        let mut notification = NotificationStyleEntry::default();
+                        notification.default = styles.default.clone();
+                        notification.hover = styles.hover.clone();
+                        notification.default.apply(&style.style);
+                        notification.app = (&**app_name).into();
+                        styles.notification.push(notification);
+                    }
+                }
+                (Selector::Notification(app_name), _) => {
+                    if let Some(notification) = styles
+                        .notification
+                        .iter_mut()
+                        .find(|notification| *notification.app == **app_name)
+                    {
+                        notification.hover.apply(&style.style);
+                    } else {
+                        let mut notification = NotificationStyleEntry::default();
+                        notification.default = styles.default.clone();
+                        notification.hover = styles.hover.clone();
+                        notification.hover.apply(&style.style);
+                        notification.app = (&**app_name).into();
+                        styles.notification.push(notification);
+                    }
+                }
                 (Selector::ActionButton, State::Default) => {
                     styles.default.buttons.action.apply(&style.style);
                     styles.hover.buttons.action.apply(&style.style);
@@ -811,7 +875,22 @@ impl<'de> Deserialize<'de> for Styles {
                 (Selector::ActionButton, State::ContainerHover) => {
                     styles.hover.buttons.action.apply(&style.style);
                 }
-                (Selector::ActionButton, State::NamedContainerHover(_)) => {}
+                (Selector::ActionButton, State::NamedContainerHover(app_name)) => {
+                    if let Some(notification) = styles
+                        .notification
+                        .iter_mut()
+                        .find(|notification| *notification.app == **app_name)
+                    {
+                        notification.hover.buttons.action.apply(&style.style);
+                    } else {
+                        let mut notification = NotificationStyleEntry::default();
+                        notification.default = styles.default.clone();
+                        notification.hover = styles.hover.clone();
+                        notification.hover.buttons.action.apply(&style.style);
+                        notification.app = (&**app_name).into();
+                        styles.notification.push(notification);
+                    }
+                }
                 (Selector::DismissButton, State::Default) => {
                     styles.default.buttons.dismiss.apply(&style.style);
                     styles.hover.buttons.dismiss.apply(&style.style);
@@ -823,7 +902,22 @@ impl<'de> Deserialize<'de> for Styles {
                 (Selector::DismissButton, State::ContainerHover) => {
                     styles.hover.buttons.dismiss.apply(&style.style);
                 }
-                (Selector::DismissButton, State::NamedContainerHover(_)) => {}
+                (Selector::DismissButton, State::NamedContainerHover(app_name)) => {
+                    if let Some(notification) = styles
+                        .notification
+                        .iter_mut()
+                        .find(|notification| *notification.app == **app_name)
+                    {
+                        notification.hover.buttons.dismiss.apply(&style.style);
+                    } else {
+                        let mut notification = NotificationStyleEntry::default();
+                        notification.default = styles.default.clone();
+                        notification.hover = styles.hover.clone();
+                        notification.hover.buttons.dismiss.apply(&style.style);
+                        notification.app = (&**app_name).into();
+                        styles.notification.push(notification);
+                    }
+                }
             }
         });
 
@@ -894,6 +988,7 @@ pub enum Anchor {
     Center,
 }
 
+#[derive(Clone, Copy)]
 pub struct Timeout {
     urgency_low: i32,
     urgency_normal: i32,
@@ -1028,8 +1123,8 @@ pub struct NotificationStyleEntry {
     pub hover: StyleState,
     pub default_timeout: Option<Timeout>,
     pub ignore_timeout: Option<bool>,
-    pub default_sound_file: SoundFile,
-    pub ignore_sound_file: bool,
+    pub default_sound_file: Option<SoundFile>,
+    pub ignore_sound_file: Option<bool>,
 }
 
 pub struct NotificationCounter {

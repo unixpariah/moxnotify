@@ -135,26 +135,18 @@ impl Moxnotify {
         match event {
             Event::Dismiss { all, id } => {
                 if all {
-                    let ids: Vec<_> = self
-                        .notifications
-                        .notifications()
-                        .iter()
-                        .map(|notification| notification.id())
-                        .collect();
-
-                    ids.iter()
-                        .for_each(|id| self.dismiss(*id, Some(Reason::DismissedByUser)));
+                    self.dismiss_range(..);
                     return Ok(());
                 }
 
                 if id == 0 {
                     if let Some(notification) = self.notifications.notifications().first() {
-                        self.dismiss(notification.id(), Some(Reason::DismissedByUser));
+                        self.dismiss_by_id(notification.id(), Some(Reason::DismissedByUser));
                     }
                     return Ok(());
                 }
 
-                self.dismiss(id, Some(Reason::DismissedByUser));
+                self.dismiss_by_id(id, Some(Reason::DismissedByUser));
             }
             Event::Notify(data) => {
                 let path = match (
@@ -238,7 +230,9 @@ impl Moxnotify {
                     audio.play(path)?;
                 }
             }
-            Event::CloseNotification(id) => self.dismiss(id, Some(Reason::CloseNotificationCall)),
+            Event::CloseNotification(id) => {
+                self.dismiss_by_id(id, Some(Reason::CloseNotificationCall))
+            }
             Event::FocusSurface => {
                 if let Some(surface) = self.surface.as_mut() {
                     if surface.focus_reason.is_none() {
@@ -281,15 +275,7 @@ impl Moxnotify {
                         .emit_sender
                         .send(EmitEvent::HistoryStateChanged(self.history));
 
-                    let ids: Vec<_> = self
-                        .notifications
-                        .notifications()
-                        .iter()
-                        .map(|notification| notification.id())
-                        .collect();
-
-                    ids.iter()
-                        .for_each(|id| self.dismiss(*id, Some(Reason::DismissedByUser)));
+                    self.dismiss_range(..);
 
                     let mut stmt = self.db.prepare("SELECT rowid, app_name, app_icon, summary, body, actions, hints FROM notifications ORDER BY rowid DESC")?;
                     let rows = stmt.query_map([], |row| {
@@ -311,11 +297,8 @@ impl Moxnotify {
                         })
                     })?;
 
-                    let notifications: Vec<_> = rows.collect::<Result<_, _>>()?;
-
-                    notifications
-                        .into_iter()
-                        .try_for_each(|notification| self.notifications.add(notification))?;
+                    rows.into_iter()
+                        .try_for_each(|notification| self.notifications.add(notification?))?;
                     drop(stmt);
 
                     self.update_surface_size();
@@ -334,7 +317,7 @@ impl Moxnotify {
                         .iter()
                         .map(|notification| notification.id())
                         .collect();
-                    ids.iter().for_each(|id| self.dismiss(*id, None));
+                    ids.iter().for_each(|id| self.dismiss_by_id(*id, None));
                 }
             }
             Event::Inhibit => {
