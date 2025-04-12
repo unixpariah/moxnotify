@@ -325,7 +325,7 @@ impl Moxnotify {
                             }
                         }
                     }
-                    None => {}
+                    None => return Err(anyhow::anyhow!("")),
                 }
             }
         }

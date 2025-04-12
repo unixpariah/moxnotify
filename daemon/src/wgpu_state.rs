@@ -11,7 +11,7 @@ pub struct WgpuState {
 }
 
 impl WgpuState {
-    pub fn new(conn: &Connection) -> anyhow::Result<Self> {
+    pub async fn new(conn: &Connection) -> anyhow::Result<Self> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
             backends: wgpu::Backends::VULKAN,
             ..Default::default()
@@ -21,11 +21,14 @@ impl WgpuState {
             NonNull::new(conn.backend().display_ptr() as *mut _).unwrap(),
         ));
 
-        let adapter =
-            pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
-                .expect("Failed to find suitable adapter");
+        let adapter = instance
+            .request_adapter(&wgpu::RequestAdapterOptions::default())
+            .await
+            .expect("Failed to find suitable adapter");
 
-        let (device, queue) = pollster::block_on(adapter.request_device(&Default::default(), None))
+        let (device, queue) = adapter
+            .request_device(&Default::default(), None)
+            .await
             .expect("Failed to request device");
 
         Ok(Self {

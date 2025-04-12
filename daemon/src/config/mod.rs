@@ -788,11 +788,13 @@ impl<'de> Deserialize<'de> for Styles {
                     {
                         notification.hover.progress.apply(&style.style);
                     } else {
-                        let mut notification = NotificationStyleEntry::default();
-                        notification.default = styles.default.clone();
-                        notification.hover = styles.hover.clone();
+                        let mut notification = NotificationStyleEntry {
+                            default: styles.default.clone(),
+                            hover: styles.hover.clone(),
+                            app: (&**app_name).into(),
+                            ..Default::default()
+                        };
                         notification.hover.progress.apply(&style.style);
-                        notification.app = (&**app_name).into();
                         styles.notification.push(notification);
                     }
                 }
@@ -812,11 +814,13 @@ impl<'de> Deserialize<'de> for Styles {
                     {
                         notification.hover.icon.apply(&style.style);
                     } else {
-                        let mut notification = NotificationStyleEntry::default();
-                        notification.default = styles.default.clone();
-                        notification.hover = styles.hover.clone();
+                        let mut notification = NotificationStyleEntry {
+                            default: styles.default.clone(),
+                            hover: styles.hover.clone(),
+                            app: (&**app_name).into(),
+                            ..Default::default()
+                        };
                         notification.hover.icon.apply(&style.style);
-                        notification.app = (&**app_name).into();
                         styles.notification.push(notification);
                     }
                 }
@@ -840,11 +844,13 @@ impl<'de> Deserialize<'de> for Styles {
                     {
                         notification.default.apply(&style.style);
                     } else {
-                        let mut notification = NotificationStyleEntry::default();
-                        notification.default = styles.default.clone();
-                        notification.hover = styles.hover.clone();
+                        let mut notification = NotificationStyleEntry {
+                            default: styles.default.clone(),
+                            hover: styles.hover.clone(),
+                            app: (&**app_name).into(),
+                            ..Default::default()
+                        };
                         notification.default.apply(&style.style);
-                        notification.app = (&**app_name).into();
                         styles.notification.push(notification);
                     }
                 }
@@ -856,11 +862,13 @@ impl<'de> Deserialize<'de> for Styles {
                     {
                         notification.hover.apply(&style.style);
                     } else {
-                        let mut notification = NotificationStyleEntry::default();
-                        notification.default = styles.default.clone();
-                        notification.hover = styles.hover.clone();
+                        let mut notification = NotificationStyleEntry {
+                            default: styles.default.clone(),
+                            hover: styles.hover.clone(),
+                            app: (&**app_name).into(),
+                            ..Default::default()
+                        };
                         notification.hover.apply(&style.style);
-                        notification.app = (&**app_name).into();
                         styles.notification.push(notification);
                     }
                 }
@@ -883,11 +891,13 @@ impl<'de> Deserialize<'de> for Styles {
                     {
                         notification.hover.buttons.action.apply(&style.style);
                     } else {
-                        let mut notification = NotificationStyleEntry::default();
-                        notification.default = styles.default.clone();
-                        notification.hover = styles.hover.clone();
+                        let mut notification = NotificationStyleEntry {
+                            default: styles.default.clone(),
+                            hover: styles.hover.clone(),
+                            app: (&**app_name).into(),
+                            ..Default::default()
+                        };
                         notification.hover.buttons.action.apply(&style.style);
-                        notification.app = (&**app_name).into();
                         styles.notification.push(notification);
                     }
                 }
@@ -910,11 +920,13 @@ impl<'de> Deserialize<'de> for Styles {
                     {
                         notification.hover.buttons.dismiss.apply(&style.style);
                     } else {
-                        let mut notification = NotificationStyleEntry::default();
-                        notification.default = styles.default.clone();
-                        notification.hover = styles.hover.clone();
+                        let mut notification = NotificationStyleEntry {
+                            default: styles.default.clone(),
+                            hover: styles.hover.clone(),
+                            app: (&**app_name).into(),
+                            ..Default::default()
+                        };
                         notification.hover.buttons.dismiss.apply(&style.style);
-                        notification.app = (&**app_name).into();
                         styles.notification.push(notification);
                     }
                 }
@@ -1171,6 +1183,10 @@ impl Config {
         } else {
             Self::path()?
         };
+
+        if !config_path.exists() {
+            return Ok(Self::default());
+        }
 
         let lua_code = fs::read_to_string(&config_path).unwrap_or_default();
         let lua = Lua::new();

@@ -16,14 +16,20 @@ mod wgpu_state;
 use audio::Audio;
 use calloop::EventLoop;
 use calloop_wayland_source::WaylandSource;
+use clap::Parser;
 use config::Config;
 use dbus::xdg::NotificationData;
+use env_logger::Builder;
 use image_data::ImageData;
+use log::LevelFilter;
 use notification_manager::{NotificationManager, Reason};
 use rusqlite::params;
 use seat::Seat;
 use serde::{Deserialize, Serialize};
-use std::{path::Path, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use surface::{FocusReason, Surface};
 use tokio::sync::broadcast;
 use wayland_client::{
@@ -83,20 +89,21 @@ pub struct Moxnotify {
 }
 
 impl Moxnotify {
-    fn new(
+    async fn new(
         conn: &Connection,
         qh: QueueHandle<Moxnotify>,
         globals: GlobalList,
         loop_handle: calloop::LoopHandle<'static, Self>,
         emit_sender: broadcast::Sender<EmitEvent>,
+        config_path: Option<PathBuf>,
     ) -> anyhow::Result<Self> {
         let layer_shell = globals.bind(&qh, 1..=5, ())?;
         let compositor = globals.bind::<wl_compositor::WlCompositor, _, _>(&qh, 1..=6, ())?;
         let seat = Seat::new(&qh, &globals)?;
 
-        let config = Arc::new(Config::load(None)?);
+        let config = Arc::new(Config::load(config_path)?);
 
-        let wgpu_state = WgpuState::new(conn)?;
+        let wgpu_state = WgpuState::new(conn).await?;
 
         let db = rusqlite::Connection::open(&config.history.path)?;
         db.execute(
@@ -512,11 +519,46 @@ delegate_noop!(Moxnotify: xdg_activation_v1::XdgActivationV1);
 delegate_noop!(Moxnotify: wl_compositor::WlCompositor);
 delegate_noop!(Moxnotify: zwlr_layer_shell_v1::ZwlrLayerShellV1);
 
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    #[arg(short, long, action = clap::ArgAction::Count)]
+    verbose: u8,
+
+    #[arg(short, long, action = clap::ArgAction::Count)]
+    quiet: u8,
+
+    #[arg(short, long, value_name = "FILE", help = "Path to the config file")]
+    config: Option<PathBuf>,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    env_logger::Builder::new()
-        .filter(Some("daemon"), log::LevelFilter::Info)
-        .init();
+    let cli = Cli::parse();
+
+    let mut log_level = LevelFilter::Info;
+
+    (0..cli.verbose).for_each(|_| {
+        log_level = match log_level {
+            LevelFilter::Error => LevelFilter::Warn,
+            LevelFilter::Warn => LevelFilter::Info,
+            LevelFilter::Info => LevelFilter::Debug,
+            LevelFilter::Debug => LevelFilter::Trace,
+            _ => log_level,
+        };
+    });
+
+    (0..cli.quiet).for_each(|_| {
+        log_level = match log_level {
+            LevelFilter::Warn => LevelFilter::Error,
+            LevelFilter::Info => LevelFilter::Warn,
+            LevelFilter::Debug => LevelFilter::Info,
+            LevelFilter::Trace => LevelFilter::Debug,
+            _ => log_level,
+        };
+    });
+
+    Builder::new().filter(Some("moxidle"), log_level).init();
 
     let conn = Connection::connect_to_env().expect("Failed to connect to Wayland");
     let (globals, event_queue) = registry_queue_init(&conn)?;
@@ -524,8 +566,15 @@ async fn main() -> anyhow::Result<()> {
 
     let (emit_sender, emit_receiver) = broadcast::channel(std::mem::size_of::<EmitEvent>());
     let mut event_loop = EventLoop::try_new()?;
-    let mut moxnotify =
-        Moxnotify::new(&conn, qh, globals, event_loop.handle(), emit_sender.clone())?;
+    let mut moxnotify = Moxnotify::new(
+        &conn,
+        qh,
+        globals,
+        event_loop.handle(),
+        emit_sender.clone(),
+        cli.config,
+    )
+    .await?;
 
     WaylandSource::new(conn, event_queue)
         .insert(event_loop.handle())

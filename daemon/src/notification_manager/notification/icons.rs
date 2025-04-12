@@ -161,38 +161,6 @@ impl Icons {
     }
 }
 
-fn svg_to_rgba(file: &Path, max_icon_size: u32) -> Option<ImageData> {
-    let svg_data = std::fs::read_to_string(file).ok()?;
-
-    let mut options = usvg::Options::default();
-    options.fontdb_mut().load_system_fonts();
-
-    let tree = usvg::Tree::from_str(&svg_data, &options).ok()?;
-
-    let (width, height) = {
-        let size = tree.size();
-        let ratio = size.width() / size.height();
-        if size.width() > size.height() {
-            (max_icon_size, (max_icon_size as f32 / ratio) as u32)
-        } else {
-            ((max_icon_size as f32 * ratio) as u32, max_icon_size)
-        }
-    };
-
-    let mut pixmap = tiny_skia::Pixmap::new(width, height)?;
-    resvg::render(
-        &tree,
-        tiny_skia::Transform::identity(),
-        &mut pixmap.as_mut(),
-    );
-
-    let rgba_image = image::RgbaImage::from_raw(width, height, pixmap.data().to_vec())?;
-
-    ImageData::try_from(image::DynamicImage::ImageRgba8(rgba_image))
-        .ok()
-        .map(|d| d.into_rgba(max_icon_size))
-}
-
 fn find_icon(name: &str, icon_size: u16) -> Option<ImageData> {
     let icon_path = freedesktop_icons::lookup(name)
         .with_size(icon_size)
@@ -203,11 +171,7 @@ fn find_icon(name: &str, icon_size: u16) -> Option<ImageData> {
 }
 
 pub fn get_icon(icon_path: &Path, icon_size: u16) -> Option<ImageData> {
-    if icon_path.extension().and_then(|s| s.to_str()) == Some("svg") {
-        svg_to_rgba(icon_path, icon_size as u32)
-    } else {
-        let image = image::open(icon_path).ok()?;
-        let image_data = ImageData::try_from(image);
-        image_data.ok().map(|i| i.into_rgba(icon_size as u32))
-    }
+    let image = image::open(icon_path).ok()?;
+    let image_data = ImageData::try_from(image);
+    image_data.ok().map(|i| i.into_rgba(icon_size as u32))
 }
