@@ -271,7 +271,7 @@ impl Dispatch<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1, ()> for Moxnotify {
                 surface.layer_surface.ack_configure(serial);
                 surface.configured = true;
                 _ = surface.render(
-                    state.seat.keyboard.key_combination.mode,
+                    state.seat.keyboard.mode,
                     &state.wgpu_state.device,
                     &state.wgpu_state.queue,
                     &state.notifications,
@@ -306,7 +306,7 @@ impl Moxnotify {
             if let Some(surface) = self.surface.take() {
                 drop(surface);
             }
-            self.seat.keyboard.key_combination.keys.clear();
+            self.seat.keyboard.key_combination.clear();
             return;
         }
 

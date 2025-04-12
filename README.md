@@ -21,16 +21,20 @@ https://github.com/user-attachments/assets/1996d46c-85cc-4d47-bcf1-5088a58d2192
 
 Moxnotify configuration is written in lua and is located at $XDG_CONFIG_HOME/moxnotify/config.lua or ~/.config/moxnotify/config.lua.
 
-### Example configuration (format is still WIP)
+### Example configuration
 
 ```lua
 return {
   keymaps = {
-    d = {
-      action = "dismiss_notification"
+    {
+      mode = "n"
+      keys = "d",
+      action = "dismiss_notification",
     },
-    ge = {
-      action = "last_notification"
+    {
+      mode = "n"
+      keys = "ge",
+      action = "last_notification",
     }
   },
   styles = {

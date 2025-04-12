@@ -1,122 +1,159 @@
-use serde::{Deserialize, Deserializer};
-use std::{collections::HashMap, fmt, ops::Deref, str::FromStr};
+use serde::{de, Deserialize, Deserializer};
+use std::marker::PhantomData;
+use std::ops::DerefMut;
+use std::{fmt, ops::Deref, str::FromStr};
 use xkbcommon::xkb::Keysym;
 
-#[derive(Deserialize, Debug)]
-#[serde(default)]
-pub struct Keymaps(
-    #[serde(deserialize_with = "deserialize_keycombination_map")]
-    HashMap<KeyCombination, KeyAction>,
-);
+#[derive(Debug)]
+pub struct Keymaps(Vec<KeyCombination>);
 
 impl Keymaps {
-    pub fn matches(&self, sequence: &[Key]) -> bool {
-        self.0.keys().any(|kc| kc.keys.starts_with(sequence))
+    pub fn matches(&self, sequence: &[KeyWithModifiers]) -> bool {
+        self.iter().any(|kc| kc.keys.starts_with(sequence))
     }
 }
 
-fn default_key_combinations() -> Vec<(KeyCombination, KeyAction)> {
-    vec![
-        (
-            KeyCombination {
-                keys: vec![Key::Character('j')],
-                ..Default::default()
-            },
-            KeyAction::NextNotification,
-        ),
-        (
-            KeyCombination {
-                keys: vec![Key::Character('k')],
-                ..Default::default()
-            },
-            KeyAction::PreviousNotification,
-        ),
-        (
-            KeyCombination {
-                keys: vec![Key::Character('x')],
-                ..Default::default()
-            },
-            KeyAction::DismissNotification,
-        ),
-        (
-            KeyCombination {
-                keys: vec![Key::Character('d'), Key::Character('d')],
-                ..Default::default()
-            },
-            KeyAction::DismissNotification,
-        ),
-        (
-            KeyCombination {
-                keys: vec![Key::Character('G')],
-                ..Default::default()
-            },
-            KeyAction::LastNotification,
-        ),
-        (
-            KeyCombination {
-                keys: vec![Key::Character('g'), Key::Character('g')],
-                ..Default::default()
-            },
-            KeyAction::FirstNotification,
-        ),
-        (
-            KeyCombination {
-                mode: Mode::Hint,
-                keys: vec![Key::SpecialKey(SpecialKeyCode::Escape)],
-                ..Default::default()
-            },
-            KeyAction::NormalMode,
-        ),
-        (
-            KeyCombination {
-                keys: vec![Key::SpecialKey(SpecialKeyCode::Escape)],
-                ..Default::default()
-            },
-            KeyAction::Unfocus,
-        ),
-        (
-            KeyCombination {
-                keys: vec![Key::Character('f')],
-                ..Default::default()
-            },
-            KeyAction::HintMode,
-        ),
-        (
-            KeyCombination {
-                keys: vec![Key::Character('h')],
-                ..Default::default()
-            },
-            KeyAction::ToggleHistory,
-        ),
-        (
-            KeyCombination {
-                keys: vec![Key::Character('m')],
-                ..Default::default()
-            },
-            KeyAction::ToggleMute,
-        ),
-        (
-            KeyCombination {
-                keys: vec![Key::Character('i')],
-                ..Default::default()
-            },
-            KeyAction::ToggleInhibit,
-        ),
-    ]
+impl<'de> Deserialize<'de> for Keymaps {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let user_keycombs: Vec<KeyCombination> = Vec::deserialize(deserializer)?;
+
+        let mut merged = Self::default().0;
+
+        user_keycombs.into_iter().for_each(|kc| {
+            if let Some(pos) = merged
+                .iter()
+                .position(|default_kc| default_kc.mode == kc.mode && default_kc.keys == kc.keys)
+            {
+                merged[pos] = kc;
+            } else {
+                merged.push(kc);
+            }
+        });
+
+        Ok(Keymaps(merged))
+    }
 }
 
 impl Default for Keymaps {
     fn default() -> Self {
-        let mut keymaps = HashMap::new();
-        for (kc, action) in default_key_combinations() {
-            keymaps.insert(kc, action);
-        }
-        Self(keymaps)
+        Self(vec![
+            KeyCombination {
+                keys: Keys(vec![KeyWithModifiers {
+                    key: Key::Character('j'),
+                    modifiers: Modifiers::default(),
+                }]),
+                action: KeyAction::NextNotification,
+                mode: Mode::Normal,
+            },
+            KeyCombination {
+                keys: Keys(vec![KeyWithModifiers {
+                    key: Key::Character('k'),
+                    modifiers: Modifiers::default(),
+                }]),
+                mode: Mode::Normal,
+                action: KeyAction::PreviousNotification,
+            },
+            KeyCombination {
+                keys: Keys(vec![KeyWithModifiers {
+                    key: Key::Character('x'),
+                    modifiers: Modifiers::default(),
+                }]),
+                action: KeyAction::DismissNotification,
+                mode: Mode::Normal,
+            },
+            KeyCombination {
+                keys: Keys(vec![
+                    KeyWithModifiers {
+                        key: Key::Character('d'),
+                        modifiers: Modifiers::default(),
+                    },
+                    KeyWithModifiers {
+                        key: Key::Character('d'),
+                        modifiers: Modifiers::default(),
+                    },
+                ]),
+                action: KeyAction::DismissNotification,
+                mode: Mode::Normal,
+            },
+            KeyCombination {
+                keys: Keys(vec![KeyWithModifiers {
+                    key: Key::Character('G'),
+                    modifiers: Modifiers::default(),
+                }]),
+                action: KeyAction::LastNotification,
+                mode: Mode::Normal,
+            },
+            KeyCombination {
+                keys: Keys(vec![
+                    KeyWithModifiers {
+                        key: Key::Character('g'),
+                        modifiers: Modifiers::default(),
+                    },
+                    KeyWithModifiers {
+                        key: Key::Character('g'),
+                        modifiers: Modifiers::default(),
+                    },
+                ]),
+                mode: Mode::Normal,
+                action: KeyAction::FirstNotification,
+            },
+            KeyCombination {
+                keys: Keys(vec![KeyWithModifiers {
+                    key: Key::SpecialKey(SpecialKeyCode::Escape),
+                    modifiers: Modifiers::default(),
+                }]),
+                mode: Mode::Hint,
+                action: KeyAction::NormalMode,
+            },
+            KeyCombination {
+                keys: Keys(vec![KeyWithModifiers {
+                    key: Key::SpecialKey(SpecialKeyCode::Escape),
+                    modifiers: Modifiers::default(),
+                }]),
+                action: KeyAction::Unfocus,
+                mode: Mode::Normal,
+            },
+            KeyCombination {
+                keys: Keys(vec![KeyWithModifiers {
+                    key: Key::Character('f'),
+                    modifiers: Modifiers::default(),
+                }]),
+                action: KeyAction::HintMode,
+                mode: Mode::Normal,
+            },
+            KeyCombination {
+                keys: Keys(vec![KeyWithModifiers {
+                    key: Key::Character('h'),
+                    modifiers: Modifiers::default(),
+                }]),
+                action: KeyAction::ToggleHistory,
+                mode: Mode::Normal,
+            },
+            KeyCombination {
+                keys: Keys(vec![KeyWithModifiers {
+                    key: Key::Character('m'),
+                    modifiers: Modifiers::default(),
+                }]),
+                action: KeyAction::ToggleMute,
+                mode: Mode::Normal,
+            },
+            KeyCombination {
+                keys: Keys(vec![KeyWithModifiers {
+                    key: Key::Character('i'),
+                    modifiers: Modifiers::default(),
+                }]),
+                action: KeyAction::ToggleInhibit,
+                mode: Mode::Normal,
+            },
+        ])
     }
 }
 
 impl Deref for Keymaps {
-    type Target = HashMap<KeyCombination, KeyAction>;
+    type Target = Vec<KeyCombination>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -126,7 +163,9 @@ impl Deref for Keymaps {
 #[derive(Deserialize, PartialEq, Eq, Hash, Debug, Default, Clone, Copy)]
 pub enum Mode {
     #[default]
+    #[serde(rename = "n")]
     Normal,
+    #[serde(rename = "h")]
     Hint,
 }
 
@@ -142,11 +181,285 @@ impl FromStr for Mode {
     }
 }
 
-#[derive(Deserialize, PartialEq, Eq, Hash, Debug, Default)]
+#[derive(Deserialize, PartialEq, Eq, Hash, Debug, Default, Clone, Copy)]
+pub struct Modifiers {
+    pub control: bool,
+    pub alt: bool,
+    pub meta: bool,
+}
+
+#[derive(PartialEq, Debug)]
+pub struct Keys(pub Vec<KeyWithModifiers>);
+
+impl fmt::Display for Keys {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            self.0
+                .iter()
+                .map(|key| key.to_string())
+                .collect::<Vec<_>>()
+                .join("")
+        )
+    }
+}
+
+impl Deref for Keys {
+    type Target = Vec<KeyWithModifiers>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Keys {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+#[derive(Deserialize, PartialEq, Debug)]
 pub struct KeyCombination {
-    #[serde(default)]
     pub mode: Mode,
-    pub keys: Vec<Key>,
+    pub keys: Keys,
+    pub action: KeyAction,
+}
+
+impl<'de> Deserialize<'de> for Keys {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct KeysVisitor;
+
+        impl<'de> de::Visitor<'de> for KeysVisitor {
+            type Value = Keys;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a string or a sequence of key combinations")
+            }
+
+            fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                let mut keys = Vec::new();
+                let mut remaining = s;
+
+                while !remaining.is_empty() {
+                    let mut parsed = false;
+                    for len in (1..=remaining.len()).rev() {
+                        let candidate = &remaining[..len];
+                        match KeyWithModifiers::from_str(candidate) {
+                            Ok(key) => {
+                                keys.push(key);
+                                remaining = &remaining[len..];
+                                parsed = true;
+                                break;
+                            }
+                            Err(_) => continue,
+                        }
+                    }
+                    if !parsed {
+                        return Err(de::Error::custom(format!(
+                            "Failed to parse key sequence '{}' at '{}'",
+                            s, remaining
+                        )));
+                    }
+                }
+
+                Ok(Keys(keys))
+            }
+
+            fn visit_seq<S>(self, mut seq: S) -> Result<Self::Value, S::Error>
+            where
+                S: de::SeqAccess<'de>,
+            {
+                let mut keys = Vec::new();
+                while let Some(s) = seq.next_element::<String>()? {
+                    let key = KeyWithModifiers::from_str(&s).map_err(de::Error::custom)?;
+                    keys.push(key);
+                }
+                Ok(Keys(keys))
+            }
+        }
+
+        deserializer.deserialize_any(KeysVisitor)
+    }
+}
+
+#[derive(PartialEq, Eq, Hash, Debug, Default)]
+pub struct KeyWithModifiers {
+    pub key: Key,
+    pub modifiers: Modifiers,
+}
+
+impl fmt::Display for KeyWithModifiers {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut result = String::new();
+
+        if self.modifiers.control {
+            result.push_str("C-");
+        }
+        if self.modifiers.alt {
+            result.push_str("M-");
+        }
+        if self.modifiers.meta {
+            result.push_str("S-");
+        }
+
+        match self.key {
+            Key::Character(c) => {
+                if c == ' ' {
+                    result.push_str("<Space>");
+                } else {
+                    result.push(c);
+                }
+            }
+            Key::SpecialKey(special) => {
+                result.push_str(&format!(
+                    "<{}>",
+                    match special {
+                        SpecialKeyCode::Enter => "CR",
+                        SpecialKeyCode::Backspace => "BS",
+                        SpecialKeyCode::Tab => "Tab",
+                        SpecialKeyCode::Space => "Space",
+                        SpecialKeyCode::Escape => "Esc",
+                        SpecialKeyCode::Up => "Up",
+                        SpecialKeyCode::Down => "Down",
+                        SpecialKeyCode::Left => "Left",
+                        SpecialKeyCode::Right => "Right",
+                        SpecialKeyCode::Home => "Home",
+                        SpecialKeyCode::End => "End",
+                        SpecialKeyCode::PageUp => "PageUp",
+                        SpecialKeyCode::PageDown => "PageDown",
+                        SpecialKeyCode::Insert => "Insert",
+                        SpecialKeyCode::Delete => "Delete",
+                        SpecialKeyCode::F1 => "F1",
+                        SpecialKeyCode::F2 => "F2",
+                        SpecialKeyCode::F3 => "F3",
+                        SpecialKeyCode::F4 => "F4",
+                        SpecialKeyCode::F5 => "F5",
+                        SpecialKeyCode::F6 => "F6",
+                        SpecialKeyCode::F7 => "F7",
+                        SpecialKeyCode::F8 => "F8",
+                        SpecialKeyCode::F9 => "F9",
+                        SpecialKeyCode::F10 => "F10",
+                        SpecialKeyCode::F11 => "F11",
+                        SpecialKeyCode::F12 => "F12",
+                    }
+                ));
+            }
+        }
+
+        write!(f, "{}", result)
+    }
+}
+
+struct FromStrVisitor<T>(PhantomData<T>);
+
+impl<T> FromStrVisitor<T> {
+    fn new() -> Self {
+        FromStrVisitor(PhantomData)
+    }
+}
+
+impl<'de, T> de::Visitor<'de> for FromStrVisitor<T>
+where
+    T: FromStr,
+    T::Err: fmt::Display,
+{
+    type Value = T;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a string that can be parsed by FromStr")
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        T::from_str(value).map_err(|err| de::Error::custom(err))
+    }
+}
+
+impl<'de> Deserialize<'de> for KeyWithModifiers {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(FromStrVisitor::<KeyWithModifiers>::new())
+    }
+}
+
+impl std::str::FromStr for KeyWithModifiers {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut modifiers = Modifiers {
+            control: false,
+            alt: false,
+            meta: false,
+        };
+
+        let mut remaining = s;
+
+        while let Some(rest) = remaining.strip_prefix("C-") {
+            modifiers.control = true;
+            remaining = rest;
+        }
+
+        while let Some(rest) = remaining.strip_prefix("M-") {
+            modifiers.alt = true;
+            remaining = rest;
+        }
+
+        while let Some(rest) = remaining.strip_prefix("S-") {
+            modifiers.meta = true;
+            remaining = rest;
+        }
+
+        let key = if remaining.starts_with('<') && remaining.ends_with('>') {
+            let special_key = &remaining[1..remaining.len() - 1];
+            match special_key {
+                "Space" => Key::SpecialKey(SpecialKeyCode::Space),
+                "CR" => Key::SpecialKey(SpecialKeyCode::Enter),
+                "BS" => Key::SpecialKey(SpecialKeyCode::Backspace),
+                "Tab" => Key::SpecialKey(SpecialKeyCode::Tab),
+                "Esc" => Key::SpecialKey(SpecialKeyCode::Escape),
+                "Up" => Key::SpecialKey(SpecialKeyCode::Up),
+                "Down" => Key::SpecialKey(SpecialKeyCode::Down),
+                "Left" => Key::SpecialKey(SpecialKeyCode::Left),
+                "Right" => Key::SpecialKey(SpecialKeyCode::Right),
+                "Home" => Key::SpecialKey(SpecialKeyCode::Home),
+                "End" => Key::SpecialKey(SpecialKeyCode::End),
+                "PageUp" => Key::SpecialKey(SpecialKeyCode::PageUp),
+                "PageDown" => Key::SpecialKey(SpecialKeyCode::PageDown),
+                "Insert" => Key::SpecialKey(SpecialKeyCode::Insert),
+                "Delete" => Key::SpecialKey(SpecialKeyCode::Delete),
+                "F1" => Key::SpecialKey(SpecialKeyCode::F1),
+                "F2" => Key::SpecialKey(SpecialKeyCode::F2),
+                "F3" => Key::SpecialKey(SpecialKeyCode::F3),
+                "F4" => Key::SpecialKey(SpecialKeyCode::F4),
+                "F5" => Key::SpecialKey(SpecialKeyCode::F5),
+                "F6" => Key::SpecialKey(SpecialKeyCode::F6),
+                "F7" => Key::SpecialKey(SpecialKeyCode::F7),
+                "F8" => Key::SpecialKey(SpecialKeyCode::F8),
+                "F9" => Key::SpecialKey(SpecialKeyCode::F9),
+                "F10" => Key::SpecialKey(SpecialKeyCode::F10),
+                "F11" => Key::SpecialKey(SpecialKeyCode::F11),
+                "F12" => Key::SpecialKey(SpecialKeyCode::F12),
+                _ => return Err(format!("Unknown special key: {}", special_key)),
+            }
+        } else if remaining.len() == 1 {
+            Key::Character(remaining.chars().next().unwrap())
+        } else {
+            return Err(format!("Invalid key format: {}", remaining));
+        };
+
+        Ok(KeyWithModifiers { key, modifiers })
+    }
 }
 
 impl fmt::Display for KeyCombination {
@@ -156,80 +469,16 @@ impl fmt::Display for KeyCombination {
             "{}",
             self.keys
                 .iter()
-                .filter_map(|key| {
-                    if let Key::Character(c) = key {
-                        Some(*c)
-                    } else {
-                        None
-                    }
-                })
-                .collect::<String>()
+                .map(|key| key.to_string())
+                .collect::<Vec<String>>()
+                .join("")
         )
     }
 }
 
 impl KeyCombination {
     pub fn clear(&mut self) {
-        self.keys.clear();
-    }
-}
-
-impl FromStr for KeyCombination {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut parts = s.split(':');
-        let first_part = parts.next().ok_or("Invalid key combination")?;
-        let key_comb_str;
-        let mode;
-
-        if let Ok(parsed_mode) = match s.to_lowercase().as_str() {
-            "normal" => Ok(Mode::Normal),
-            "hint" => Ok(Mode::Hint),
-            _ => Err(format!("Invalid mode: {}", s)),
-        } {
-            mode = parsed_mode;
-            key_comb_str = parts.next().ok_or("Missing key combination")?;
-        } else {
-            mode = Mode::Normal;
-            key_comb_str = first_part;
-        }
-
-        let mut key_parts = key_comb_str.split('+');
-        let key_str = key_parts.next_back().ok_or("Invalid key combination")?;
-
-        let keys: Vec<Key> = match key_str {
-            "<CR>" => vec![Key::SpecialKey(SpecialKeyCode::Enter)],
-            "<BS>" => vec![Key::SpecialKey(SpecialKeyCode::Backspace)],
-            "<tab>" => vec![Key::SpecialKey(SpecialKeyCode::Tab)],
-            "<leader>" => vec![Key::SpecialKey(SpecialKeyCode::Space)],
-            "<Esc>" => vec![Key::SpecialKey(SpecialKeyCode::Escape)],
-            "<Up>" => vec![Key::SpecialKey(SpecialKeyCode::Up)],
-            "<Left>" => vec![Key::SpecialKey(SpecialKeyCode::Left)],
-            "<Right>" => vec![Key::SpecialKey(SpecialKeyCode::Right)],
-            "<Down>" => vec![Key::SpecialKey(SpecialKeyCode::Down)],
-            "<Home>" => vec![Key::SpecialKey(SpecialKeyCode::Home)],
-            "<End>" => vec![Key::SpecialKey(SpecialKeyCode::End)],
-            "<PageUp>" => vec![Key::SpecialKey(SpecialKeyCode::PageUp)],
-            "<PageDown>" => vec![Key::SpecialKey(SpecialKeyCode::PageDown)],
-            "<Insert>" => vec![Key::SpecialKey(SpecialKeyCode::Insert)],
-            "<Del>" => vec![Key::SpecialKey(SpecialKeyCode::Delete)],
-            "<F1>" => vec![Key::SpecialKey(SpecialKeyCode::F1)],
-            "<F2>" => vec![Key::SpecialKey(SpecialKeyCode::F2)],
-            "<F3>" => vec![Key::SpecialKey(SpecialKeyCode::F3)],
-            "<F4>" => vec![Key::SpecialKey(SpecialKeyCode::F4)],
-            "<F5>" => vec![Key::SpecialKey(SpecialKeyCode::F5)],
-            "<F6>" => vec![Key::SpecialKey(SpecialKeyCode::F6)],
-            "<F7>" => vec![Key::SpecialKey(SpecialKeyCode::F7)],
-            "<F8>" => vec![Key::SpecialKey(SpecialKeyCode::F8)],
-            "<F9>" => vec![Key::SpecialKey(SpecialKeyCode::F9)],
-            "<F10>" => vec![Key::SpecialKey(SpecialKeyCode::F10)],
-            "<F11>" => vec![Key::SpecialKey(SpecialKeyCode::F11)],
-            "<F12>" => vec![Key::SpecialKey(SpecialKeyCode::F12)],
-            _ => key_str.chars().map(Key::Character).collect(),
-        };
-
-        Ok(KeyCombination { mode, keys })
+        self.keys.0.clear();
     }
 }
 
@@ -306,7 +555,6 @@ pub enum SpecialKeyCode {
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
-#[serde(tag = "action")]
 #[serde(rename_all = "snake_case")]
 pub enum KeyAction {
     NextNotification,
@@ -327,27 +575,4 @@ pub enum KeyAction {
     ShowHistory,
     HideHistory,
     ToggleHistory,
-}
-
-fn deserialize_keycombination_map<'de, D>(
-    deserializer: D,
-) -> Result<HashMap<KeyCombination, KeyAction>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let map: HashMap<String, KeyAction> = HashMap::deserialize(deserializer)?;
-    let mut keymaps: HashMap<KeyCombination, KeyAction> = HashMap::new();
-    for (key_str, action) in map {
-        let key_combination =
-            KeyCombination::from_str(&key_str).map_err(serde::de::Error::custom)?;
-        keymaps.insert(key_combination, action);
-    }
-
-    for (kc, default_action) in default_key_combinations() {
-        if !keymaps.values().any(|action| *action == default_action) {
-            keymaps.insert(kc, default_action);
-        }
-    }
-
-    Ok(keymaps)
 }

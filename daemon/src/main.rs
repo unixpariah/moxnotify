@@ -351,7 +351,7 @@ impl Moxnotify {
 
         if let Some(surface) = self.surface.as_mut() {
             surface.render(
-                self.seat.keyboard.key_combination.mode,
+                self.seat.keyboard.mode,
                 &self.wgpu_state.device,
                 &self.wgpu_state.queue,
                 &self.notifications,

@@ -518,7 +518,7 @@ impl Moxnotify {
             History::Hidden => {
                 if let Some(index) = self.notifications.iter().position(|n| n.id() == id) {
                     if self.notifications.selected_id() == Some(id) {
-                        self.seat.keyboard.key_combination.mode = Mode::Normal;
+                        self.seat.keyboard.mode = Mode::Normal;
                     }
 
                     self.notifications.dismiss(id);
@@ -546,7 +546,7 @@ impl Moxnotify {
         self.update_surface_size();
         if let Some(surface) = self.surface.as_mut() {
             if let Err(e) = surface.render(
-                self.seat.keyboard.key_combination.mode,
+                self.seat.keyboard.mode,
                 &self.wgpu_state.device,
                 &self.wgpu_state.queue,
                 &self.notifications,

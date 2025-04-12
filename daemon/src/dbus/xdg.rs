@@ -136,8 +136,8 @@ impl NotificationsImpl {
             false => replaces_id,
         };
         log::info!(
-    "Received notification: app_name='{app_name}', replaces_id={replaces_id}, summary='{summary}', body='{body}'"
-);
+            "Received notification: app_name='{app_name}', replaces_id={replaces_id}, summary='{summary}', body='{body}'"
+        );
 
         let app_icon: Option<Box<str>> = if app_icon.is_empty() {
             None

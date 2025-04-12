@@ -1,6 +1,6 @@
 use crate::{
     button::ButtonType,
-    config::keymaps::{Key, KeyAction, KeyCombination, Mode},
+    config::keymaps::{Key, KeyAction, KeyWithModifiers, Keys, Mode, Modifiers},
     notification_manager::Reason,
     EmitEvent, History, Moxnotify,
 };
@@ -20,19 +20,13 @@ struct Xkb {
     state: Option<State>,
 }
 
-#[derive(PartialEq, Default, Clone)]
-pub struct Modifiers {
-    pub control: bool,
-    pub alt: bool,
-    pub meta: bool,
-}
-
 pub struct Keyboard {
     _wl_keyboard: wl_keyboard::WlKeyboard,
     pub repeat: RepeatInfo,
     xkb: Xkb,
-    pub key_combination: KeyCombination,
+    pub key_combination: Keys,
     modifiers: Modifiers,
+    pub mode: Mode,
 }
 
 #[derive(Default)]
@@ -50,7 +44,8 @@ impl Keyboard {
         let xkb_context = Context::new(0);
 
         Self {
-            key_combination: KeyCombination::default(),
+            mode: Mode::Normal,
+            key_combination: Keys(Vec::new()),
             xkb: Xkb {
                 context: xkb_context,
                 state: None,
@@ -130,7 +125,14 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
                         state.seat.keyboard.repeat.key = None;
                         if let Some(xkb_state) = state.seat.keyboard.xkb.state.as_ref() {
                             if let Some(key) = Key::from_keycode(xkb_state, keycode.into()) {
-                                if vec![key] != state.seat.keyboard.key_combination.keys {
+                                let key_with_modifiers = KeyWithModifiers {
+                                    key,
+                                    modifiers: state.seat.keyboard.modifiers,
+                                };
+
+                                if Keys(vec![key_with_modifiers])
+                                    != state.seat.keyboard.key_combination
+                                {
                                     return;
                                 }
                             }
@@ -145,7 +147,11 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
                             let key = Key::from_keycode(xkb_state, keycode.into());
                             state.seat.keyboard.repeat.key = key;
                             if let Some(key) = key {
-                                state.seat.keyboard.key_combination.keys.push(key);
+                                let key_with_modifiers = KeyWithModifiers {
+                                    key,
+                                    modifiers: state.seat.keyboard.modifiers,
+                                };
+                                state.seat.keyboard.key_combination.push(key_with_modifiers);
                             }
 
                             if xkb_state.get_keymap().key_repeats(keycode.into()) {
@@ -163,7 +169,15 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
                                     .loop_handle
                                     .insert_source(timer, move |_, _, moxnotify| {
                                         if let Some(key) = moxnotify.seat.keyboard.repeat.key {
-                                            moxnotify.seat.keyboard.key_combination.keys.push(key);
+                                            let key_with_modifiers = KeyWithModifiers {
+                                                key,
+                                                modifiers: moxnotify.seat.keyboard.modifiers,
+                                            };
+                                            moxnotify
+                                                .seat
+                                                .keyboard
+                                                .key_combination
+                                                .push(key_with_modifiers);
                                         }
                                         if moxnotify.handle_key().is_err() {
                                             return TimeoutAction::Drop;
@@ -197,141 +211,121 @@ impl Moxnotify {
         if !self
             .config
             .keymaps
-            .matches(&self.seat.keyboard.key_combination.keys)
+            .matches(&self.seat.keyboard.key_combination)
         {
-            self.seat.keyboard.key_combination.keys.drain(
-                ..self
-                    .seat
-                    .keyboard
-                    .key_combination
-                    .keys
-                    .len()
-                    .saturating_sub(1),
-            );
+            let len = self.seat.keyboard.key_combination.len().saturating_sub(1);
+            self.seat.keyboard.key_combination.drain(..len);
         }
 
-        match self.seat.keyboard.key_combination.mode {
-            Mode::Normal => {
-                if let Some(action) = self.config.keymaps.get(&self.seat.keyboard.key_combination) {
-                    match action {
-                        KeyAction::Noop => return Ok(()),
-                        KeyAction::NextNotification => self.notifications.next(),
-                        KeyAction::PreviousNotification => self.notifications.prev(),
-                        KeyAction::FirstNotification => {
-                            while self.notifications.selected_id()
-                                != self.notifications.first().map(|n| n.id())
-                            {
-                                self.notifications.prev();
-                            }
-                        }
-                        KeyAction::LastNotification => {
-                            while self.notifications.selected_id()
-                                != self.notifications.last().map(|n| n.id())
-                            {
-                                self.notifications.next();
-                            }
-                        }
-                        KeyAction::DismissNotification => {
-                            if let Some(id) = self.notifications.selected_id() {
-                                self.dismiss_by_id(id, Some(Reason::DismissedByUser));
-                            }
-                        }
-                        KeyAction::Unfocus => {
-                            if let Some(surface) = self.surface.as_mut() {
-                                surface.unfocus();
-                                self.seat.keyboard.key_combination.keys.clear();
-                                self.notifications.deselect();
-                                self.seat.keyboard.repeat.key = None;
-                            }
-                        }
-                        KeyAction::HintMode => self.seat.keyboard.key_combination.mode = Mode::Hint,
-                        KeyAction::ShowHistory => {
-                            self.handle_app_event(crate::Event::ShowHistory)?
-                        }
-                        KeyAction::HideHistory => {
-                            self.handle_app_event(crate::Event::HideHistory)?
-                        }
-                        KeyAction::ToggleHistory => {
-                            match self.history {
-                                History::Shown => self.handle_app_event(crate::Event::HideHistory),
-                                History::Hidden => self.handle_app_event(crate::Event::ShowHistory),
-                            }?;
-                        }
-                        KeyAction::Uninhibit => self.inhibited = false,
-                        KeyAction::Ihibit => self.inhibited = true,
-                        KeyAction::ToggleInhibit => self.inhibited = !self.inhibited,
-                        KeyAction::Mute => {
-                            if let Some(audio) = self.audio.as_mut() {
-                                audio.mute();
-                            }
-                        }
-                        KeyAction::Unmute => {
-                            if let Some(audio) = self.audio.as_mut() {
-                                audio.unmute();
-                            }
-                        }
-                        KeyAction::ToggleMute => {
-                            if let Some(audio) = self.audio.as_mut() {
-                                match audio.muted() {
-                                    true => audio.unmute(),
-                                    false => audio.mute(),
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                } else {
-                    return Err(anyhow::anyhow!(""));
-                }
-            }
-            Mode::Hint => {
-                if let Some(notification) = self.notifications.selected_notification_mut() {
-                    let id = notification.id();
-                    if let Some(KeyAction::NormalMode) =
-                        self.config.keymaps.get(&self.seat.keyboard.key_combination)
+        if let Some(key_combination) = self.config.keymaps.iter().find(|keymap| {
+            keymap.keys == self.seat.keyboard.key_combination
+                && keymap.mode == self.seat.keyboard.mode
+        }) {
+            match key_combination.action {
+                KeyAction::Noop => {}
+                KeyAction::NextNotification => self.notifications.next(),
+                KeyAction::PreviousNotification => self.notifications.prev(),
+                KeyAction::FirstNotification => {
+                    while self.notifications.selected_id()
+                        != self.notifications.first().map(|n| n.id())
                     {
-                        self.seat.keyboard.key_combination.mode = Mode::Normal;
-                    } else {
-                        let combination = self.seat.keyboard.key_combination.to_string();
-                        match notification.buttons.get_by_character(&combination) {
-                            Some(ButtonType::Dismiss) => {
-                                self.dismiss_by_id(id, Some(Reason::DismissedByUser))
-                            }
-                            Some(ButtonType::Action { action, .. }) => {
-                                if let Some(surface) = self.surface.as_ref() {
-                                    let token = surface.token.as_ref().map(Arc::clone);
-                                    _ = self.emit_sender.send(EmitEvent::ActionInvoked {
-                                        id,
-                                        action_key: action,
-                                        token: token.unwrap_or_default(),
-                                    });
-                                }
-
-                                if !notification.data.hints.resident {
-                                    self.dismiss_by_id(id, Some(Reason::DismissedByUser));
-                                } else {
-                                    self.seat.keyboard.key_combination.mode = Mode::Normal;
-                                }
-                            }
-                            Some(ButtonType::Anchor { anchor }) => {
-                                if let Some(surface) = self.surface.as_ref() {
-                                    let token = surface.token.as_ref().map(Arc::clone);
-                                    if self
-                                        .emit_sender
-                                        .send(EmitEvent::Open {
-                                            uri: Arc::clone(&anchor.href),
-                                            token,
-                                        })
-                                        .is_ok()
-                                    {
-                                        self.notifications.deselect();
-                                        self.seat.keyboard.key_combination.mode = Mode::Normal;
-                                    }
-                                }
-                            }
-                            None => {}
+                        self.notifications.prev();
+                    }
+                }
+                KeyAction::LastNotification => {
+                    while self.notifications.selected_id()
+                        != self.notifications.last().map(|n| n.id())
+                    {
+                        self.notifications.next();
+                    }
+                }
+                KeyAction::DismissNotification => {
+                    if let Some(id) = self.notifications.selected_id() {
+                        self.dismiss_by_id(id, Some(Reason::DismissedByUser));
+                    }
+                }
+                KeyAction::Unfocus => {
+                    if let Some(surface) = self.surface.as_mut() {
+                        surface.unfocus();
+                        self.seat.keyboard.key_combination.clear();
+                        self.notifications.deselect();
+                        self.seat.keyboard.repeat.key = None;
+                    }
+                }
+                KeyAction::HintMode => self.seat.keyboard.mode = Mode::Hint,
+                KeyAction::ShowHistory => self.handle_app_event(crate::Event::ShowHistory)?,
+                KeyAction::HideHistory => self.handle_app_event(crate::Event::HideHistory)?,
+                KeyAction::ToggleHistory => {
+                    match self.history {
+                        History::Shown => self.handle_app_event(crate::Event::HideHistory),
+                        History::Hidden => self.handle_app_event(crate::Event::ShowHistory),
+                    }?;
+                }
+                KeyAction::Uninhibit => self.inhibited = false,
+                KeyAction::Ihibit => self.inhibited = true,
+                KeyAction::ToggleInhibit => self.inhibited = !self.inhibited,
+                KeyAction::Mute => {
+                    if let Some(audio) = self.audio.as_mut() {
+                        audio.mute();
+                    }
+                }
+                KeyAction::Unmute => {
+                    if let Some(audio) = self.audio.as_mut() {
+                        audio.unmute();
+                    }
+                }
+                KeyAction::ToggleMute => {
+                    if let Some(audio) = self.audio.as_mut() {
+                        match audio.muted() {
+                            true => audio.unmute(),
+                            false => audio.mute(),
                         }
                     }
+                }
+                KeyAction::NormalMode => self.seat.keyboard.mode = Mode::Normal,
+            }
+        } else {
+            let combination = self.seat.keyboard.key_combination.to_string();
+            if let Some(notification) = self.notifications.selected_notification_mut() {
+                let id = notification.id();
+
+                match notification.buttons.get_by_character(&combination) {
+                    Some(ButtonType::Dismiss) => {
+                        self.dismiss_by_id(id, Some(Reason::DismissedByUser))
+                    }
+                    Some(ButtonType::Action { action, .. }) => {
+                        if let Some(surface) = self.surface.as_ref() {
+                            let token = surface.token.as_ref().map(Arc::clone);
+                            _ = self.emit_sender.send(EmitEvent::ActionInvoked {
+                                id,
+                                action_key: action,
+                                token: token.unwrap_or_default(),
+                            });
+                        }
+
+                        if !notification.data.hints.resident {
+                            self.dismiss_by_id(id, Some(Reason::DismissedByUser));
+                        } else {
+                            self.seat.keyboard.mode = Mode::Normal;
+                        }
+                    }
+                    Some(ButtonType::Anchor { anchor }) => {
+                        if let Some(surface) = self.surface.as_ref() {
+                            let token = surface.token.as_ref().map(Arc::clone);
+                            if self
+                                .emit_sender
+                                .send(EmitEvent::Open {
+                                    uri: Arc::clone(&anchor.href),
+                                    token,
+                                })
+                                .is_ok()
+                            {
+                                self.notifications.deselect();
+                                self.seat.keyboard.mode = Mode::Normal;
+                            }
+                        }
+                    }
+                    None => {}
                 }
             }
         }
@@ -339,7 +333,7 @@ impl Moxnotify {
         self.update_surface_size();
         if let Some(surface) = self.surface.as_mut() {
             _ = surface.render(
-                self.seat.keyboard.key_combination.mode,
+                self.seat.keyboard.mode,
                 &self.wgpu_state.device,
                 &self.wgpu_state.queue,
                 &self.notifications,
