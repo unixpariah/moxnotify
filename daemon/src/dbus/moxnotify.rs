@@ -25,11 +25,14 @@ impl MoxnotifyInterface {
         if let Err(e) = self.event_sender.send(Event::List) {
             log::error!("{}", e);
         }
-        if let Ok(EmitEvent::List(list)) = self.emit_receiver.recv().await {
-            list
-        } else {
-            Vec::new()
+
+        while let Ok(event) = self.emit_receiver.recv().await {
+            if let EmitEvent::List(list) = event {
+                return list;
+            }
         }
+
+        Vec::new()
     }
 
     async fn mute(&self) {

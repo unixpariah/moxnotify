@@ -411,7 +411,7 @@ pub enum EmitEvent {
     },
     NotificationClosed {
         id: u32,
-        reason: u32,
+        reason: Reason,
     },
     Open {
         uri: Arc<str>,
@@ -558,7 +558,7 @@ async fn main() -> anyhow::Result<()> {
         };
     });
 
-    Builder::new().filter(Some("moxidle"), log_level).init();
+    Builder::new().filter(Some("daemon"), log_level).init();
 
     let conn = Connection::connect_to_env().expect("Failed to connect to Wayland");
     let (globals, event_queue) = registry_queue_init(&conn)?;

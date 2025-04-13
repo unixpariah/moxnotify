@@ -254,8 +254,12 @@ pub async fn serve(
                 Ok(EmitEvent::NotificationClosed { id, reason }) => {
                     log::info!("Notification with ID: {id} was closed. Reason: {reason}");
 
-                    _ = NotificationsImpl::notification_closed(iface.signal_emitter(), id, reason)
-                        .await;
+                    _ = NotificationsImpl::notification_closed(
+                        iface.signal_emitter(),
+                        id,
+                        reason as u32,
+                    )
+                    .await;
                 }
                 _ => {}
             };

@@ -16,7 +16,7 @@ use glyphon::{FontSystem, TextArea};
 use notification::{Notification, NotificationId};
 use notification_view::NotificationView;
 use rusqlite::params;
-use std::{ops::Deref, sync::Arc, time::Duration};
+use std::{fmt, ops::Deref, sync::Arc, time::Duration};
 
 pub struct NotificationManager {
     notifications: Vec<Notification>,
@@ -486,11 +486,24 @@ impl NotificationManager {
     }
 }
 
+#[derive(Clone)]
 pub enum Reason {
     Expired = 1,
     DismissedByUser = 2,
     CloseNotificationCall = 3,
     Unkown = 4,
+}
+
+impl fmt::Display for Reason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Reason::Expired => "Expired",
+            Reason::DismissedByUser => "DismissedByUser",
+            Reason::CloseNotificationCall => "CloseNotificationCall",
+            Reason::Unkown => "Unknown",
+        };
+        write!(f, "{}", s)
+    }
 }
 
 impl Moxnotify {
@@ -523,10 +536,9 @@ impl Moxnotify {
 
                     self.notifications.dismiss(id);
                     if let Some(reason) = reason {
-                        _ = self.emit_sender.send(EmitEvent::NotificationClosed {
-                            id,
-                            reason: reason as u32,
-                        });
+                        _ = self
+                            .emit_sender
+                            .send(EmitEvent::NotificationClosed { id, reason });
                     }
                     if self.notifications.selected_id() == Some(id) {
                         let new_index = if index >= self.notifications.len() {
