@@ -20,6 +20,7 @@ use std::{fmt, ops::Deref, sync::Arc, time::Duration};
 
 pub struct NotificationManager {
     notifications: Vec<Notification>,
+    pub waiting: u32,
     config: Arc<Config>,
     loop_handle: LoopHandle<'static, Moxnotify>,
     selected: Option<NotificationId>,
@@ -38,6 +39,7 @@ impl Deref for NotificationManager {
 impl NotificationManager {
     pub fn new(config: Arc<Config>, loop_handle: LoopHandle<'static, Moxnotify>) -> Self {
         Self {
+            waiting: 0,
             notification_view: NotificationView::new(config.max_visible, Arc::clone(&config)),
             font_system: FontSystem::new(),
             loop_handle,

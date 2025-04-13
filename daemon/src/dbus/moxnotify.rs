@@ -21,6 +21,20 @@ impl MoxnotifyInterface {
         }
     }
 
+    async fn count(&mut self) -> u32 {
+        if let Err(e) = self.event_sender.send(Event::Count) {
+            log::error!("{}", e);
+        }
+
+        while let Ok(event) = self.emit_receiver.recv().await {
+            if let EmitEvent::Count(count) = event {
+                return count;
+            }
+        }
+
+        0
+    }
+
     async fn list(&mut self) -> Vec<String> {
         if let Err(e) = self.event_sender.send(Event::List) {
             log::error!("{}", e);

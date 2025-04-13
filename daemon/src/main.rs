@@ -109,10 +109,12 @@ impl Moxnotify {
         db.execute(
             "CREATE TABLE IF NOT EXISTS notifications (
             rowid INTEGER PRIMARY KEY AUTOINCREMENT,
+            id INTEGER,
             app_name TEXT,
             app_icon TEXT,
             summary TEXT,
             body TEXT,
+            timeout INTEGER,
             actions TEXT,
             hints JSON
         );",
@@ -204,11 +206,13 @@ impl Moxnotify {
                 }
 
                 self.db.execute(
-                    "INSERT INTO notifications (app_name, app_icon, summary, body, actions, hints)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    "INSERT INTO notifications (id, app_name, app_icon, timeout, summary, body, actions, hints)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
                     params![
+                        data.id,
                         data.app_name,
                         data.app_icon,
+                        data.timeout,
                         data.summary,
                         data.body,
                         serde_json::to_string(&data.actions)?,
@@ -217,6 +221,7 @@ impl Moxnotify {
                 )?;
 
                 if self.inhibited && self.history == History::Hidden {
+                    self.notifications.waiting += 1;
                     return Ok(());
                 }
 
@@ -341,6 +346,37 @@ impl Moxnotify {
                     _ = self
                         .emit_sender
                         .send(EmitEvent::InhibitStateChanged(self.inhibited));
+
+                    let count = self.notifications.notifications().len() as u32
+                        + self.notifications.waiting;
+                    self.dismiss_range(..);
+
+                    let mut stmt = self.db.prepare("SELECT id, app_name, app_icon, summary, body, timeout, actions, hints FROM notifications ORDER BY rowid DESC LIMIT ?1")?;
+                    let rows = stmt.query_map([count], |row| {
+                        Ok(NotificationData {
+                            id: row.get(0)?,
+                            app_name: row.get::<_, Box<str>>(1)?,
+                            app_icon: row.get::<_, Option<Box<str>>>(2)?,
+                            summary: row.get::<_, Box<str>>(3)?,
+                            body: row.get::<_, Box<str>>(4)?,
+                            timeout: row.get(5)?,
+                            actions: {
+                                let json: Box<str> = row.get(6)?;
+                                serde_json::from_str(&json).unwrap()
+                            },
+                            hints: {
+                                let json: Box<str> = row.get(7)?;
+                                serde_json::from_str(&json).unwrap()
+                            },
+                        })
+                    })?;
+
+                    rows.into_iter()
+                        .try_for_each(|notification| self.notifications.add(notification?))?;
+                    drop(stmt);
+
+                    self.update_surface_size();
+                    self.notifications.waiting = 0;
                 }
             }
             Event::GetMuted => {
@@ -353,6 +389,11 @@ impl Moxnotify {
             }
             Event::GetHistory => {
                 _ = self.emit_sender.send(EmitEvent::HistoryState(self.history));
+            }
+            Event::Count => {
+                _ = self.emit_sender.send(EmitEvent::Count(
+                    self.notifications.waiting + self.notifications.notifications().len() as u32,
+                ));
             }
         };
 
@@ -404,6 +445,7 @@ pub enum Hint {
 
 #[derive(Clone)]
 pub enum EmitEvent {
+    Count(u32),
     ActionInvoked {
         id: u32,
         action_key: Arc<str>,
@@ -427,6 +469,7 @@ pub enum EmitEvent {
 }
 
 pub enum Event {
+    Count,
     Dismiss { all: bool, id: u32 },
     Notify(Box<NotificationData>),
     CloseNotification(u32),

@@ -3,6 +3,7 @@ use std::io::{self, Write};
 use zbus::zvariant::Type;
 
 pub enum Event {
+    Count,
     Focus,
     List,
     DismissAll,
@@ -57,6 +58,8 @@ trait Notify {
     async fn uninhibit(&self) -> zbus::Result<()>;
 
     async fn inhibited(&self) -> zbus::Result<bool>;
+
+    async fn count(&self) -> zbus::Result<u32>;
 }
 
 pub async fn emit(event: Event) -> zbus::Result<()> {
@@ -66,6 +69,9 @@ pub async fn emit(event: Event) -> zbus::Result<()> {
 
     match event {
         Event::Focus => notify.focus().await?,
+        Event::Count => {
+            writeln!(out, "{}", notify.count().await?)?;
+        }
         Event::List => {
             let list = notify.list().await?;
             for item in list {
