@@ -31,7 +31,7 @@ enum NotifyCommand {
     List,
 
     #[command(about = "List active notifications")]
-    Count,
+    Waiting,
 
     #[command(about = "Mute notifications")]
     Mute {
@@ -65,7 +65,7 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     let event = match cli.command {
-        NotifyCommand::Count => notify::Event::Count,
+        NotifyCommand::Waiting => notify::Event::Waiting,
         NotifyCommand::Focus => notify::Event::Focus,
         NotifyCommand::List => notify::Event::List,
         NotifyCommand::Dismiss { all, notification } => {

@@ -21,13 +21,13 @@ impl MoxnotifyInterface {
         }
     }
 
-    async fn count(&mut self) -> u32 {
-        if let Err(e) = self.event_sender.send(Event::Count) {
+    async fn waiting(&mut self) -> u32 {
+        if let Err(e) = self.event_sender.send(Event::Waiting) {
             log::error!("{}", e);
         }
 
         while let Ok(event) = self.emit_receiver.recv().await {
-            if let EmitEvent::Count(count) = event {
+            if let EmitEvent::Waiting(count) = event {
                 return count;
             }
         }

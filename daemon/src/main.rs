@@ -390,10 +390,10 @@ impl Moxnotify {
             Event::GetHistory => {
                 _ = self.emit_sender.send(EmitEvent::HistoryState(self.history));
             }
-            Event::Count => {
-                _ = self.emit_sender.send(EmitEvent::Count(
-                    self.notifications.waiting + self.notifications.notifications().len() as u32,
-                ));
+            Event::Waiting => {
+                _ = self
+                    .emit_sender
+                    .send(EmitEvent::Waiting(self.notifications.waiting));
             }
         };
 
@@ -445,7 +445,7 @@ pub enum Hint {
 
 #[derive(Clone)]
 pub enum EmitEvent {
-    Count(u32),
+    Waiting(u32),
     ActionInvoked {
         id: u32,
         action_key: Arc<str>,
@@ -469,7 +469,7 @@ pub enum EmitEvent {
 }
 
 pub enum Event {
-    Count,
+    Waiting,
     Dismiss { all: bool, id: u32 },
     Notify(Box<NotificationData>),
     CloseNotification(u32),

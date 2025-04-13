@@ -27,7 +27,7 @@ impl WgpuState {
             .expect("Failed to find suitable adapter");
 
         let (device, queue) = adapter
-            .request_device(&Default::default(), None)
+            .request_device(&Default::default())
             .await
             .expect("Failed to request device");
 

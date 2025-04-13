@@ -63,7 +63,7 @@ impl Text {
             .family(glyphon::Family::Name(&font.family))
             .weight(Weight::BOLD);
         let mut buffer = create_buffer(font, font_system, None);
-        buffer.set_text(font_system, body, attrs, Shaping::Advanced);
+        buffer.set_text(font_system, body, &attrs, Shaping::Advanced);
 
         Self {
             buffer,
@@ -86,17 +86,17 @@ impl Text {
         let mut anchor_stack: Vec<Anchor> = Vec::new();
 
         if !summary.is_empty() {
-            spans.push((summary, attrs.weight(Weight::BOLD)));
+            spans.push((summary, attrs.clone().weight(Weight::BOLD)));
         }
 
         if !summary.is_empty() && !body.is_empty() {
-            spans.push(("\n\n", attrs));
+            spans.push(("\n\n", attrs.clone()));
         }
 
         let mut start_pos = summary.len();
         if !body.is_empty() {
             let mut style_stack = Vec::new();
-            let mut current_attrs = attrs;
+            let mut current_attrs = attrs.clone();
             let mut last_pos = 0;
 
             body = SPLIT_REGEX
@@ -123,7 +123,7 @@ impl Text {
                 if full_match.start() > last_pos {
                     let text = &body[last_pos..full_match.start()];
                     start_pos += text.chars().filter(|char| *char != '\n').count();
-                    spans.push((text, current_attrs));
+                    spans.push((text, current_attrs.clone()));
                 }
 
                 if is_closing {
@@ -159,7 +159,7 @@ impl Text {
                                     if let Some(image) = get_icon(Path::new(&href), 64) {
                                         _ = image;
                                     } else if let Some(alt) = alt_cap.get(1) {
-                                        spans.push((alt.into(), current_attrs));
+                                        spans.push((alt.into(), current_attrs.clone()));
                                     }
                                 }
                             }
@@ -169,15 +169,15 @@ impl Text {
                     style_stack.push(tag);
                 }
 
-                current_attrs = attrs;
+                current_attrs = attrs.clone();
                 style_stack.iter().for_each(|tag| {
                     current_attrs = match &**tag {
-                        "b" => current_attrs.weight(Weight::BOLD),
-                        "i" => current_attrs.style(Style::Italic),
-                        "a" => current_attrs.color(Color::rgb(0, 0, 255)),
-                        "u" => current_attrs, // TODO: implement this once cosmic text implements
+                        "b" => current_attrs.clone().weight(Weight::BOLD),
+                        "i" => current_attrs.clone().style(Style::Italic),
+                        "a" => current_attrs.clone().color(Color::rgb(0, 0, 255)),
+                        "u" => current_attrs.clone(), // TODO: implement this once cosmic text implements
                         // underline
-                        _ => current_attrs,
+                        _ => current_attrs.clone(),
                     };
                 });
 
@@ -191,7 +191,7 @@ impl Text {
         }
 
         let mut buffer = create_buffer(font, font_system, Some(max_width));
-        buffer.set_rich_text(font_system, spans.iter().copied(), attrs, Shaping::Advanced);
+        buffer.set_rich_text(font_system, spans, &attrs, Shaping::Advanced, None);
 
         let mut total = 0;
         anchors.iter_mut().for_each(|anchor| {
