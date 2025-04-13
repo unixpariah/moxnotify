@@ -54,6 +54,7 @@ enum SwitchAction {
     On,
     Off,
     Toggle,
+    State,
 }
 
 #[tokio::main]
@@ -75,16 +76,19 @@ async fn main() -> anyhow::Result<()> {
             SwitchAction::On => notify::Event::Mute,
             SwitchAction::Off => notify::Event::Unmute,
             SwitchAction::Toggle => notify::Event::ToggleMute,
+            SwitchAction::State => notify::Event::MuteState,
         },
         NotifyCommand::History { action } => match action {
             SwitchAction::On => notify::Event::ShowHistory,
             SwitchAction::Off => notify::Event::HideHistory,
             SwitchAction::Toggle => notify::Event::ToggleHistory,
+            SwitchAction::State => notify::Event::HistoryState,
         },
         NotifyCommand::Inhibit { action } => match action {
             SwitchAction::On => notify::Event::Inhibit,
             SwitchAction::Off => notify::Event::Uninhibit,
             SwitchAction::Toggle => notify::Event::ToggleInhibit,
+            SwitchAction::State => notify::Event::InhibitState,
         },
     };
 

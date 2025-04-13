@@ -11,11 +11,14 @@ pub enum Event {
     Unmute,
     ShowHistory,
     HideHistory,
+    HistoryState,
     Inhibit,
     Uninhibit,
+    InhibitState,
     ToggleHistory,
     ToggleInhibit,
     ToggleMute,
+    MuteState,
 }
 
 #[derive(Default, PartialEq, Clone, Copy, Type, Deserialize)]
@@ -80,6 +83,10 @@ pub async fn emit(event: Event) -> zbus::Result<()> {
                 notify.mute().await?
             }
         }
+        Event::MuteState => match notify.muted().await? {
+            true => writeln!(out, "muted")?,
+            false => writeln!(out, "unmuted")?,
+        },
         Event::ShowHistory => notify.show_history().await?,
         Event::HideHistory => notify.hide_history().await?,
         Event::ToggleHistory => {
@@ -89,6 +96,10 @@ pub async fn emit(event: Event) -> zbus::Result<()> {
                 notify.show_history().await?
             }
         }
+        Event::HistoryState => match notify.history().await? {
+            History::Shown => writeln!(out, "shown")?,
+            History::Hidden => writeln!(out, "hidden")?,
+        },
         Event::Inhibit => notify.inhibit().await?,
         Event::Uninhibit => notify.uninhibit().await?,
         Event::ToggleInhibit => {
@@ -98,6 +109,10 @@ pub async fn emit(event: Event) -> zbus::Result<()> {
                 notify.inhibit().await?
             }
         }
+        Event::InhibitState => match notify.inhibited().await? {
+            true => writeln!(out, "inhibited")?,
+            false => writeln!(out, "uninhibited")?,
+        },
     }
 
     Ok(())
