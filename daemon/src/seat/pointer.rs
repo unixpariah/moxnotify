@@ -227,6 +227,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                                     if !state
                                         .notifications
+                                        .notifications()
                                         .iter()
                                         .find(|notification| notification.id() == notification_id)
                                         .map(|n| n.data.hints.resident)

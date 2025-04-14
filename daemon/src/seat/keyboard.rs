@@ -227,14 +227,14 @@ impl Moxnotify {
                 KeyAction::PreviousNotification => self.notifications.prev(),
                 KeyAction::FirstNotification => {
                     while self.notifications.selected_id()
-                        != self.notifications.first().map(|n| n.id())
+                        != self.notifications.notifications().first().map(|n| n.id())
                     {
                         self.notifications.prev();
                     }
                 }
                 KeyAction::LastNotification => {
                     while self.notifications.selected_id()
-                        != self.notifications.last().map(|n| n.id())
+                        != self.notifications.notifications().last().map(|n| n.id())
                     {
                         self.notifications.next();
                     }

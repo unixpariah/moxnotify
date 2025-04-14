@@ -16,7 +16,7 @@ use glyphon::{FontSystem, TextArea};
 use notification::{Notification, NotificationId};
 use notification_view::NotificationView;
 use rusqlite::params;
-use std::{fmt, ops::Deref, sync::Arc, time::Duration};
+use std::{fmt, sync::Arc, time::Duration};
 
 pub struct NotificationManager {
     notifications: Vec<Notification>,
@@ -27,14 +27,6 @@ pub struct NotificationManager {
     font_system: FontSystem,
     notification_view: NotificationView,
     inhibited: bool,
-}
-
-impl Deref for NotificationManager {
-    type Target = Vec<Notification>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.notifications
-    }
 }
 
 impl NotificationManager {
@@ -512,7 +504,7 @@ impl NotificationManager {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum Reason {
     Expired = 1,
     DismissedByUser = 2,
@@ -533,7 +525,7 @@ impl fmt::Display for Reason {
 }
 
 impl Moxnotify {
-    pub fn dismiss_range<T>(&mut self, range: T)
+    pub fn dismiss_range<T>(&mut self, range: T, reason: Option<Reason>)
     where
         T: std::slice::SliceIndex<[Notification], Output = [Notification]>,
     {
@@ -542,8 +534,15 @@ impl Moxnotify {
             .map(|notification| notification.id())
             .collect();
 
-        ids.iter()
-            .for_each(|id| self.dismiss_by_id(*id, Some(Reason::DismissedByUser)));
+        ids.iter().for_each(|id| {
+            if let Some(reason) = reason {
+                _ = self
+                    .emit_sender
+                    .send(EmitEvent::NotificationClosed { id: *id, reason });
+            }
+        });
+
+        ids.iter().for_each(|id| self.notifications.dismiss(*id));
     }
 
     pub fn dismiss_by_id(&mut self, id: u32, reason: Option<Reason>) {
@@ -555,7 +554,12 @@ impl Moxnotify {
                 self.notifications.dismiss(id);
             }
             History::Hidden => {
-                if let Some(index) = self.notifications.iter().position(|n| n.id() == id) {
+                if let Some(index) = self
+                    .notifications
+                    .notifications
+                    .iter()
+                    .position(|n| n.id() == id)
+                {
                     if self.notifications.selected_id() == Some(id) {
                         self.seat.keyboard.mode = Mode::Normal;
                     }
@@ -567,13 +571,14 @@ impl Moxnotify {
                             .send(EmitEvent::NotificationClosed { id, reason });
                     }
                     if self.notifications.selected_id() == Some(id) {
-                        let new_index = if index >= self.notifications.len() {
-                            self.notifications.len().saturating_sub(1)
+                        let new_index = if index >= self.notifications.notifications.len() {
+                            self.notifications.notifications.len().saturating_sub(1)
                         } else {
                             index
                         };
 
-                        if let Some(notification) = self.notifications.get(new_index) {
+                        if let Some(notification) = self.notifications.notifications.get(new_index)
+                        {
                             self.notifications.select(notification.id());
                         }
                     }

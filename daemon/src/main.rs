@@ -142,7 +142,7 @@ impl Moxnotify {
         match event {
             Event::Dismiss { all, id } => {
                 if all {
-                    self.dismiss_range(..);
+                    self.dismiss_range(.., Some(Reason::DismissedByUser));
                     return Ok(());
                 }
 
@@ -279,7 +279,7 @@ impl Moxnotify {
                         .emit_sender
                         .send(EmitEvent::HistoryStateChanged(self.history));
 
-                    self.dismiss_range(..);
+                    self.dismiss_range(.., Some(Reason::Expired));
 
                     let mut stmt = self.db.prepare("SELECT rowid, app_name, app_icon, summary, body, actions, hints FROM notifications ORDER BY rowid DESC")?;
                     let rows = stmt.query_map([], |row| {
@@ -334,9 +334,7 @@ impl Moxnotify {
             }
             Event::Uninhibit => {
                 if self.notifications.inhibited() {
-                    let count = self.notifications.notifications().len() as u32
-                        + self.notifications.waiting();
-                    self.dismiss_range(..);
+                    let count = self.notifications.waiting();
 
                     let mut stmt = self.db.prepare("SELECT id, app_name, app_icon, summary, body, timeout, actions, hints FROM notifications ORDER BY rowid DESC LIMIT ?1")?;
                     let rows = stmt.query_map([count], |row| {
