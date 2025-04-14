@@ -261,9 +261,12 @@ impl Moxnotify {
                         History::Hidden => self.handle_app_event(crate::Event::ShowHistory),
                     }?;
                 }
-                KeyAction::Uninhibit => self.inhibited = false,
-                KeyAction::Ihibit => self.inhibited = true,
-                KeyAction::ToggleInhibit => self.inhibited = !self.inhibited,
+                KeyAction::Uninhibit => self.notifications.uninhibit(),
+                KeyAction::Ihibit => self.notifications.inhibit(),
+                KeyAction::ToggleInhibit => match self.notifications.inhibited() {
+                    true => self.notifications.uninhibit(),
+                    false => self.notifications.inhibit(),
+                },
                 KeyAction::Mute => {
                     if let Some(audio) = self.audio.as_mut() {
                         audio.mute();

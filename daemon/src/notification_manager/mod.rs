@@ -20,12 +20,13 @@ use std::{fmt, ops::Deref, sync::Arc, time::Duration};
 
 pub struct NotificationManager {
     notifications: Vec<Notification>,
-    pub waiting: u32,
+    waiting: u32,
     config: Arc<Config>,
     loop_handle: LoopHandle<'static, Moxnotify>,
     selected: Option<NotificationId>,
     font_system: FontSystem,
     notification_view: NotificationView,
+    inhibited: bool,
 }
 
 impl Deref for NotificationManager {
@@ -39,6 +40,7 @@ impl Deref for NotificationManager {
 impl NotificationManager {
     pub fn new(config: Arc<Config>, loop_handle: LoopHandle<'static, Moxnotify>) -> Self {
         Self {
+            inhibited: false,
             waiting: 0,
             notification_view: NotificationView::new(config.max_visible, Arc::clone(&config)),
             font_system: FontSystem::new(),
@@ -47,6 +49,19 @@ impl NotificationManager {
             selected: None,
             config,
         }
+    }
+
+    pub fn inhibit(&mut self) {
+        self.inhibited = true;
+    }
+
+    pub fn uninhibit(&mut self) {
+        self.waiting = 0;
+        self.inhibited = false;
+    }
+
+    pub fn inhibited(&mut self) -> bool {
+        self.inhibited
     }
 
     pub fn notifications(&self) -> &[Notification] {
@@ -329,7 +344,16 @@ impl NotificationManager {
         }
     }
 
+    pub fn waiting(&self) -> u32 {
+        self.waiting
+    }
+
     pub fn add(&mut self, data: NotificationData) -> anyhow::Result<()> {
+        if self.inhibited {
+            self.waiting += 1;
+            return Ok(());
+        }
+
         let id = data.id;
         let (y, existing_index) =
             if let Some(index) = self.notifications.iter().position(|n| n.id() == id) {

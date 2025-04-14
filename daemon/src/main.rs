@@ -84,7 +84,6 @@ pub struct Moxnotify {
     compositor: wl_compositor::WlCompositor,
     audio: Option<Audio>,
     db: rusqlite::Connection,
-    inhibited: bool,
     history: History,
 }
 
@@ -122,7 +121,6 @@ impl Moxnotify {
         )?;
         Ok(Self {
             history: History::Hidden,
-            inhibited: false,
             db,
             audio: Audio::new().ok(),
             globals,
@@ -220,21 +218,15 @@ impl Moxnotify {
                     ],
                 )?;
 
-                if self.inhibited && self.history == History::Hidden {
-                    self.notifications.waiting += 1;
-                    return Ok(());
-                }
-
                 let id = match self.history {
                     History::Shown => self.db.last_insert_rowid() as u32,
                     History::Hidden => data.id,
                 };
 
                 self.notifications.add(NotificationData { id, ..*data })?;
-
                 self.update_surface_size();
 
-                if suppress_sound {
+                if self.notifications.inhibited() || suppress_sound {
                     return Ok(());
                 }
 
@@ -333,22 +325,17 @@ impl Moxnotify {
                 }
             }
             Event::Inhibit => {
-                if !self.inhibited {
-                    self.inhibited = true;
-                    _ = self
-                        .emit_sender
-                        .send(EmitEvent::InhibitStateChanged(self.inhibited));
+                if !self.notifications.inhibited() {
+                    self.notifications.inhibit();
+                    _ = self.emit_sender.send(EmitEvent::InhibitStateChanged(
+                        self.notifications.inhibited(),
+                    ));
                 }
             }
             Event::Uninhibit => {
-                if self.inhibited {
-                    self.inhibited = false;
-                    _ = self
-                        .emit_sender
-                        .send(EmitEvent::InhibitStateChanged(self.inhibited));
-
+                if self.notifications.inhibited() {
                     let count = self.notifications.notifications().len() as u32
-                        + self.notifications.waiting;
+                        + self.notifications.waiting();
                     self.dismiss_range(..);
 
                     let mut stmt = self.db.prepare("SELECT id, app_name, app_icon, summary, body, timeout, actions, hints FROM notifications ORDER BY rowid DESC LIMIT ?1")?;
@@ -371,12 +358,16 @@ impl Moxnotify {
                         })
                     })?;
 
+                    self.notifications.uninhibit();
+                    _ = self.emit_sender.send(EmitEvent::InhibitStateChanged(
+                        self.notifications.inhibited(),
+                    ));
+
                     rows.into_iter()
                         .try_for_each(|notification| self.notifications.add(notification?))?;
                     drop(stmt);
 
                     self.update_surface_size();
-                    self.notifications.waiting = 0;
                 }
             }
             Event::GetMuted => {
@@ -385,7 +376,9 @@ impl Moxnotify {
                 ))
             }
             Event::GetInhibited => {
-                _ = self.emit_sender.send(EmitEvent::Inhibited(self.inhibited));
+                _ = self
+                    .emit_sender
+                    .send(EmitEvent::Inhibited(self.notifications.inhibited()));
             }
             Event::GetHistory => {
                 _ = self.emit_sender.send(EmitEvent::HistoryState(self.history));
@@ -393,7 +386,7 @@ impl Moxnotify {
             Event::Waiting => {
                 _ = self
                     .emit_sender
-                    .send(EmitEvent::Waiting(self.notifications.waiting));
+                    .send(EmitEvent::Waiting(self.notifications.waiting()));
             }
         };
 
