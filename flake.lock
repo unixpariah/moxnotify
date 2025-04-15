@@ -15,42 +15,9 @@
         "type": "github"
       }
     },
-    "crane_2": {
-      "locked": {
-        "lastModified": 1727824512,
-        "narHash": "sha256-DvFQd58W20BEqh0BUt33eZhzPKBXGO/r9aiSFIVMaWU=",
-        "owner": "ipetkov",
-        "repo": "crane",
-        "rev": "a376dd1efac7bce448857c62961c6311be26cb09",
-        "type": "github"
-      },
-      "original": {
-        "owner": "ipetkov",
-        "repo": "crane",
-        "type": "github"
-      }
-    },
     "flake-utils": {
       "inputs": {
         "systems": "systems"
-      },
-      "locked": {
-        "lastModified": 1726560853,
-        "narHash": "sha256-X6rJYSESBVr3hBoH0WbKE5KvhPU5bloyZ2L4K60/fPQ=",
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "rev": "c1dfcf08411b08f6b8615f7d8971a2bfa81d5e8a",
-        "type": "github"
-      },
-      "original": {
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "type": "github"
-      }
-    },
-    "flake-utils_2": {
-      "inputs": {
-        "systems": "systems_2"
       },
       "locked": {
         "lastModified": 1726560853,
@@ -75,11 +42,11 @@
         "wgsl_analyzer": "wgsl_analyzer"
       },
       "locked": {
-        "lastModified": 1741703691,
-        "narHash": "sha256-FN7+kWlhxNR/yId/4LeE/e01QzfVR3JNMsnz+61IAwc=",
+        "lastModified": 1743845338,
+        "narHash": "sha256-dGjvAsOOtSrCzlR3+vFpAiHO+X/xGXG3Cd98zqVBB/8=",
         "owner": "unixpariah",
         "repo": "moxctl",
-        "rev": "bbe8dfec01fc0754591dc55abcc9aa6972577ce7",
+        "rev": "58c4bfe422c0891c8047852991ef33fc0d181466",
         "type": "github"
       },
       "original": {
@@ -90,11 +57,11 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1741851582,
-        "narHash": "sha256-cPfs8qMccim2RBgtKGF+x9IBCduRvd/N5F4nYpU0TVE=",
+        "lastModified": 1744463964,
+        "narHash": "sha256-LWqduOgLHCFxiTNYi3Uj5Lgz0SR+Xhw3kr/3Xd0GPTM=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "6607cf789e541e7873d40d3a8f7815ea92204f32",
+        "rev": "2631b0b7abcea6e640ce31cd78ea58910d31e650",
         "type": "github"
       },
       "original": {
@@ -108,8 +75,7 @@
       "inputs": {
         "moxctl": "moxctl",
         "nixpkgs": "nixpkgs",
-        "rust-overlay": "rust-overlay_2",
-        "wgsl_analyzer": "wgsl_analyzer_2"
+        "rust-overlay": "rust-overlay_2"
       }
     },
     "rust-overlay": {
@@ -140,11 +106,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1742005800,
-        "narHash": "sha256-6wuOGWkyW6R4A6Th9NMi6WK2jjddvZt7V2+rLPk6L3o=",
+        "lastModified": 1744684506,
+        "narHash": "sha256-pDPDMT1rdkTWi8MIoZ67gT3L817R7P0Jo+PP+BrnyJI=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "028cd247a6375f83b94adc33d83676480fc9c294",
+        "rev": "47beae969336c05e892e1e4a9dbaac9593de34ab",
         "type": "github"
       },
       "original": {
@@ -168,49 +134,12 @@
         "type": "github"
       }
     },
-    "systems_2": {
-      "locked": {
-        "lastModified": 1681028828,
-        "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
-        "owner": "nix-systems",
-        "repo": "default",
-        "rev": "da67096a3b9bf56a91d16901293e51ba5b49a27e",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nix-systems",
-        "repo": "default",
-        "type": "github"
-      }
-    },
     "wgsl_analyzer": {
       "inputs": {
         "crane": "crane",
         "flake-utils": "flake-utils",
         "nixpkgs": [
           "moxctl",
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1741626089,
-        "narHash": "sha256-gNbs9oEUj/rcTgwI7PRyw2lBdtv27Y8aaj1LOFWCuFA=",
-        "owner": "wgsl-analyzer",
-        "repo": "wgsl-analyzer",
-        "rev": "93ee8f83e3b7e84c54bf71061dab32445f5d55c5",
-        "type": "github"
-      },
-      "original": {
-        "owner": "wgsl-analyzer",
-        "repo": "wgsl-analyzer",
-        "type": "github"
-      }
-    },
-    "wgsl_analyzer_2": {
-      "inputs": {
-        "crane": "crane_2",
-        "flake-utils": "flake-utils_2",
-        "nixpkgs": [
           "nixpkgs"
         ]
       },

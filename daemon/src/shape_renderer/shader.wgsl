@@ -37,8 +37,7 @@ fn vs_main(
 ) -> VertexOutput {
     var out: VertexOutput;
 
-    let position = model.position * (instance.rect_size + vec2<f32>(instance.border_size[0], instance.border_size[2]) 
-        + vec2<f32>(instance.border_size[1], instance.border_size[3])) * instance.scale + instance.rect_pos * instance.scale;
+    let position = model.position * (instance.rect_size + vec2<f32>(instance.border_size[0], instance.border_size[2]) + vec2<f32>(instance.border_size[1], instance.border_size[3])) * instance.scale + instance.rect_pos * instance.scale;
     out.clip_position = projection.projection * vec4<f32>(position, 0.0, 1.0);
     out.uv = position;
     out.rect_pos = (instance.rect_pos + vec2<f32>(instance.border_size[0], instance.border_size[2])) * instance.scale;
@@ -78,21 +77,20 @@ fn sdf_rounded_rect(p: vec2<f32>, b: vec2<f32>, r: vec4<f32>) -> f32 {
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let inner_center = in.rect_pos + in.rect_size / 2.0;
     let inner_dist = sdf_rounded_rect(in.uv - inner_center, in.rect_size / 2.0, in.border_radius);
-    
-    let outer_size = in.rect_size + vec2<f32>(in.border_size[0], in.border_size[2]) 
-                                  + vec2<f32>(in.border_size[1], in.border_size[3]);
+
+    let outer_size = in.rect_size + vec2<f32>(in.border_size[0], in.border_size[2]) + vec2<f32>(in.border_size[1], in.border_size[3]);
     let outer_center = in.rect_pos - vec2<f32>(in.border_size[0], in.border_size[2]) + outer_size / 2.0;
     let outer_dist = sdf_rounded_rect(in.uv - outer_center, outer_size / 2.0, in.border_radius);
 
     let inner_aa = fwidth(inner_dist);
     let outer_aa = fwidth(outer_dist);
-    
+
     let inner_alpha = smoothstep(-inner_aa, inner_aa, -inner_dist);
     let outer_alpha = smoothstep(-outer_aa, outer_aa, -outer_dist);
     let border_alpha = outer_alpha - inner_alpha;
 
     let inner_color = in.rect_color * inner_alpha;
     let border_color = in.border_color * border_alpha;
-    
+
     return inner_color + border_color;
 }

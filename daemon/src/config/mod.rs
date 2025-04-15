@@ -1177,7 +1177,7 @@ impl Default for NotificationCounter {
 }
 
 impl Config {
-    pub fn load(path: Option<PathBuf>) -> anyhow::Result<Self> {
+    pub fn load(path: Option<Box<Path>>) -> anyhow::Result<Self> {
         let config_path = if let Some(path) = path {
             path
         } else {
@@ -1215,11 +1215,11 @@ impl Config {
             })
     }
 
-    pub fn path() -> anyhow::Result<PathBuf> {
+    pub fn path() -> anyhow::Result<Box<Path>> {
         let config_dir = std::env::var("XDG_CONFIG_HOME")
             .map(PathBuf::from)
             .or_else(|_| std::env::var("HOME").map(|home| PathBuf::from(home).join(".config")))?;
 
-        Ok(config_dir.join("moxnotify/config.lua"))
+        Ok(config_dir.join("moxnotify/config.lua").into())
     }
 }

@@ -378,7 +378,30 @@ impl NotificationManager {
         }
 
         match existing_index {
-            Some(index) => self.notifications[index] = notification,
+            Some(index) => {
+                let replaced_height_differs =
+                    self.notifications[index].extents().height != notification.extents().height;
+
+                self.notifications[index] = notification;
+
+                if replaced_height_differs {
+                    self.notification_view.visible.clone().fold(
+                        self.notification_view
+                            .prev
+                            .as_ref()
+                            .map(|p| p.extents().height)
+                            .unwrap_or(0.),
+                        |acc, i| {
+                            if let Some(notification) = self.notifications.get_mut(i) {
+                                notification.set_position(notification.x, acc);
+                                acc + notification.extents().height
+                            } else {
+                                acc
+                            }
+                        },
+                    );
+                }
+            }
             None => self.notifications.push(notification),
         }
 
@@ -534,13 +557,13 @@ impl Moxnotify {
             .map(|notification| notification.id())
             .collect();
 
-        ids.iter().for_each(|id| {
-            if let Some(reason) = reason {
+        if let Some(reason) = reason {
+            ids.iter().for_each(|id| {
                 _ = self
                     .emit_sender
                     .send(EmitEvent::NotificationClosed { id: *id, reason });
-            }
-        });
+            });
+        }
 
         ids.iter().for_each(|id| self.notifications.dismiss(*id));
     }

@@ -5,10 +5,6 @@
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
     };
-    wgsl_analyzer = {
-      url = "github:wgsl-analyzer/wgsl-analyzer";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
     moxctl = {
       url = "github:unixpariah/moxctl";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -19,10 +15,9 @@
     {
       nixpkgs,
       rust-overlay,
-      wgsl_analyzer,
       moxctl,
       ...
-    }@inputs:
+    }:
     let
       systems = [
         "x86_64-linux"
@@ -62,7 +57,7 @@
               vulkan-loader
               vulkan-headers
               vulkan-validation-layers
-              wgsl_analyzer.packages.${system}.default
+              wgsl-analyzer
               wayland
               libpulseaudio
             ];

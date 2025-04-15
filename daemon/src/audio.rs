@@ -125,12 +125,22 @@ impl Audio {
                     SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
                 sample_buf.copy_interleaved_ref(decoded);
 
-                _ = stream.borrow_mut().write(
-                    bytemuck::cast_slice(sample_buf.samples()),
-                    None,
-                    0,
-                    libpulse_binding::stream::SeekMode::Relative,
-                );
+                let writable = stream.borrow().writable_size();
+                let samples: &[u8] = bytemuck::cast_slice(sample_buf.samples());
+
+                stream
+                    .borrow_mut()
+                    .write(
+                        if samples.len() > writable.unwrap_or_default() {
+                            &samples[..writable.unwrap_or_default()]
+                        } else {
+                            samples
+                        },
+                        None,
+                        0,
+                        libpulse_binding::stream::SeekMode::Relative,
+                    )
+                    .unwrap();
             }
 
             stream.borrow_mut().drain(Some(Box::new({

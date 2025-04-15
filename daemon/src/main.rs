@@ -1,3 +1,4 @@
+mod animation;
 mod audio;
 pub mod buffers;
 pub mod button;
@@ -26,10 +27,7 @@ use notification_manager::{NotificationManager, Reason};
 use rusqlite::params;
 use seat::Seat;
 use serde::{Deserialize, Serialize};
-use std::{
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::{path::Path, sync::Arc};
 use surface::{FocusReason, Surface};
 use tokio::sync::broadcast;
 use wayland_client::{
@@ -94,7 +92,7 @@ impl Moxnotify {
         globals: GlobalList,
         loop_handle: calloop::LoopHandle<'static, Self>,
         emit_sender: broadcast::Sender<EmitEvent>,
-        config_path: Option<PathBuf>,
+        config_path: Option<Box<Path>>,
     ) -> anyhow::Result<Self> {
         let layer_shell = globals.bind(&qh, 1..=5, ())?;
         let compositor = globals.bind::<wl_compositor::WlCompositor, _, _>(&qh, 1..=6, ())?;
@@ -315,13 +313,7 @@ impl Moxnotify {
                         .emit_sender
                         .send(EmitEvent::HistoryStateChanged(self.history));
 
-                    let ids: Vec<_> = self
-                        .notifications
-                        .notifications()
-                        .iter()
-                        .map(|notification| notification.id())
-                        .collect();
-                    ids.iter().for_each(|id| self.dismiss_by_id(*id, None));
+                    self.dismiss_range(.., None);
                 }
             }
             Event::Inhibit => {
@@ -563,7 +555,7 @@ struct Cli {
     quiet: u8,
 
     #[arg(short, long, value_name = "FILE", help = "Path to the config file")]
-    config: Option<PathBuf>,
+    config: Option<Box<Path>>,
 }
 
 #[tokio::main]

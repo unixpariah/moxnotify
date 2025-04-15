@@ -35,14 +35,14 @@ fn vs_main(
     @builtin(instance_index) instance_idx: u32,
 ) -> VertexOutput {
     var out: VertexOutput;
-    
+
     let scaled_size = instance.size * instance.scale;
     let position = model.position * scaled_size + instance.pos;
-    
+
     out.clip_position = projection.view_proj * vec4<f32>(position, 0.0, 1.0);
     out.tex_coords = model.position;
     out.layer = instance_idx;
-    
+
     let scaled_radius = instance.radius * instance.scale;
     let max_radius = min(scaled_size.x, scaled_size.y) * 0.5;
     out.radius = vec4<f32>(
@@ -51,12 +51,12 @@ fn vs_main(
         min(scaled_radius.z, max_radius),
         min(scaled_radius.w, max_radius)
     );
-    
-    out.size = scaled_size; 
+
+    out.size = scaled_size;
     out.container_rect = instance.container_rect;
     out.surface_position = position;
     out.border_width = instance.border_width * instance.scale;
-    
+
     return out;
 }
 
@@ -91,9 +91,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let outer = smoothstep(-aa, aa, -d);
     let inner = smoothstep(-aa, aa, -(d + in.border_width.x));
     let border_alpha = clamp(outer - inner, 0.0, 1.0);
-    
+
     let color = mix(tex_color, vec4<f32>(0., 0., 0., 0.), border_alpha);
-    let alpha = outer; 
+    let alpha = outer;
 
     return vec4<f32>(color.rgb, color.a * alpha);
 }
