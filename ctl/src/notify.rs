@@ -30,6 +30,18 @@ pub enum History {
 }
 
 #[zbus::proxy(
+    interface = "org.freedesktop.Notifications",
+    default_service = "org.freedesktop.Notifications",
+    default_path = "/org/freedesktop/Notifications"
+)]
+trait Notifications {
+    #[allow(clippy::type_complexity)]
+    async fn get_server_information(
+        &self,
+    ) -> zbus::fdo::Result<(Box<str>, Box<str>, Box<str>, Box<str>)>;
+}
+
+#[zbus::proxy(
     interface = "pl.mox.Notify",
     default_service = "pl.mox.Notify",
     default_path = "/pl/mox/Notify"
@@ -64,6 +76,13 @@ trait Notify {
 
 pub async fn emit(event: Event) -> zbus::Result<()> {
     let conn = zbus::Connection::session().await?;
+
+    let notifications = NotificationsProxy::new(&conn).await?;
+    let server_information = notifications.get_server_information().await?;
+    if *server_information.0 != *"moxnotify" && *server_information.1 != *"mox" {
+        panic!("Unkown notification server");
+    }
+
     let notify = NotifyProxy::new(&conn).await?;
     let mut out = io::stdout().lock();
 

@@ -1145,6 +1145,7 @@ pub struct NotificationCounter {
     pub background: Color,
     pub margin: Insets,
     pub padding: Insets,
+    pub font: Font,
 }
 
 impl NotificationCounter {
@@ -1172,6 +1173,7 @@ impl Default for NotificationCounter {
             background: Color::rgba([26, 27, 38, 255]),
             margin: Insets::default(),
             padding: Insets::default(),
+            font: Font::default(),
         }
     }
 }

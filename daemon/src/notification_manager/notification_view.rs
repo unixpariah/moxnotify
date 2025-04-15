@@ -4,7 +4,7 @@ use crate::{
     config::{keymaps::Mode, Config},
     NotificationData,
 };
-use glyphon::{FontSystem, TextArea};
+use glyphon::{Attrs, FontSystem, TextArea, Weight};
 use std::{ops::Range, sync::Arc};
 
 pub struct NotificationView {
@@ -68,10 +68,15 @@ impl NotificationView {
                 .format
                 .replace("{}", &self.visible.start.to_string());
             if let Some(notification) = &mut self.prev {
-                notification.text.buffer.set_size(
+                let attrs = Attrs::new()
+                    .family(glyphon::Family::Name(&self.config.styles.next.font.family))
+                    .weight(Weight::BOLD);
+
+                notification.text.buffer.set_text(
                     &mut self.font_system,
-                    Some(notification.text_extents().width),
-                    None,
+                    &summary,
+                    &attrs,
+                    glyphon::Shaping::Advanced,
                 );
             } else {
                 self.prev = Some(Notification::new(
@@ -106,10 +111,15 @@ impl NotificationView {
                     .to_string(),
             );
             if let Some(notification) = &mut self.next {
-                notification.text.buffer.set_size(
+                let attrs = Attrs::new()
+                    .family(glyphon::Family::Name(&self.config.styles.prev.font.family))
+                    .weight(Weight::BOLD);
+
+                notification.text.buffer.set_text(
                     &mut self.font_system,
-                    Some(notification.text_extents().width),
-                    None,
+                    &summary,
+                    &attrs,
+                    glyphon::Shaping::Advanced,
                 );
                 notification
                     .set_position(notification.x, total_height - notification.extents().height);

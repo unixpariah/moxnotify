@@ -168,8 +168,6 @@ impl NotificationsImpl {
     }
 
     async fn close_notification(&self, id: u32) -> zbus::fdo::Result<()> {
-        log::info!("Closing notification {id}");
-
         if let Err(e) = self.event_sender.send(Event::CloseNotification(id)) {
             log::error!("Failed to send CloseNotification({id}) event: {e}");
         }
