@@ -23,10 +23,11 @@ impl ImageData {
             let mut data = self.data;
             let mut new_data = Vec::with_capacity(data.len() / self.channels as usize * 4);
 
-            for chunk in data.chunks_exact_mut(self.channels as usize) {
-                new_data.extend_from_slice(chunk);
-                new_data.push(0xFF);
-            }
+            data.chunks_exact_mut(self.channels as usize)
+                .for_each(|chunk| {
+                    new_data.extend_from_slice(chunk);
+                    new_data.push(0xFF);
+                });
 
             Self {
                 has_alpha: true,

@@ -299,8 +299,8 @@ impl Moxnotify {
                         })
                     })?;
 
-                    rows.into_iter()
-                        .try_for_each(|notification| self.notifications.add(notification?))?;
+                    self.notifications
+                        .add_many(rows.collect::<Result<Vec<_>, _>>()?)?;
                     drop(stmt);
 
                     self.update_surface_size();

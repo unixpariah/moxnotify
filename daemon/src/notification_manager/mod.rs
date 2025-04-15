@@ -340,6 +340,39 @@ impl NotificationManager {
         self.waiting
     }
 
+    pub fn add_many(&mut self, data: Vec<NotificationData>) -> anyhow::Result<()> {
+        let mut y = 0.0;
+
+        data.into_iter().for_each(|data| {
+            let mut notification =
+                Notification::new(Arc::clone(&self.config), &mut self.font_system, data);
+            notification.set_position(0.0, y);
+            let height = notification.extents().height;
+            y += height;
+
+            self.notifications.push(notification);
+        });
+
+        if self.notification_view.visible.end < self.notifications.len() {
+            self.notification_view
+                .update_notification_count(self.height(), self.notifications.len());
+        }
+
+        let x_offset = self
+            .notifications
+            .iter()
+            .map(|n| n.data.hints.x)
+            .min()
+            .unwrap_or_default()
+            .abs() as f32;
+
+        self.notifications
+            .iter_mut()
+            .for_each(|n| n.set_position(x_offset, n.y));
+
+        Ok(())
+    }
+
     pub fn add(&mut self, data: NotificationData) -> anyhow::Result<()> {
         if self.inhibited {
             self.waiting += 1;
@@ -563,6 +596,14 @@ impl Moxnotify {
                     .emit_sender
                     .send(EmitEvent::NotificationClosed { id: *id, reason });
             });
+        }
+
+        if ids.len() == self.notifications.notifications.len() {
+            self.notifications.notifications.clear();
+            self.notifications
+                .notification_view
+                .update_notification_count(0., 0);
+            return;
         }
 
         ids.iter().for_each(|id| self.notifications.dismiss(*id));

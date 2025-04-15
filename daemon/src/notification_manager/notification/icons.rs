@@ -1,3 +1,4 @@
+use super::{progress::Progress, Extents};
 use crate::{
     button::{ButtonManager, ButtonType},
     config::{Config, StyleState},
@@ -6,8 +7,6 @@ use crate::{
     Image,
 };
 use std::path::Path;
-
-use super::{progress::Progress, Extents};
 
 #[derive(Default)]
 pub struct Icons {

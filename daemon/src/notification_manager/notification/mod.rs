@@ -248,7 +248,7 @@ impl Notification {
         }
     }
 
-    fn text_extents(&self) -> Extents {
+    pub fn text_extents(&self) -> Extents {
         let style = self.style();
         let icon_extents = self.icons.extents(style);
 
@@ -273,19 +273,6 @@ impl Notification {
                     .unwrap_or_default(),
             height: 0.,
         }
-    }
-
-    pub fn set_text(&mut self, summary: &str, body: &str, font_system: &mut FontSystem) {
-        let style = self.style();
-        let text_extents = self.text_extents();
-
-        self.text = text::Text::new_notification(
-            &style.font,
-            font_system,
-            summary,
-            body.to_string(),
-            text_extents.width,
-        );
     }
 
     pub fn height(&self) -> f32 {

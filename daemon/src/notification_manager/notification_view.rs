@@ -68,7 +68,11 @@ impl NotificationView {
                 .format
                 .replace("{}", &self.visible.start.to_string());
             if let Some(notification) = &mut self.prev {
-                notification.set_text(&summary, "", &mut self.font_system);
+                notification.text.buffer.set_size(
+                    &mut self.font_system,
+                    Some(notification.text_extents().width),
+                    None,
+                );
             } else {
                 self.prev = Some(Notification::new(
                     Arc::clone(&self.config),
@@ -102,7 +106,11 @@ impl NotificationView {
                     .to_string(),
             );
             if let Some(notification) = &mut self.next {
-                notification.set_text(&summary, "", &mut self.font_system);
+                notification.text.buffer.set_size(
+                    &mut self.font_system,
+                    Some(notification.text_extents().width),
+                    None,
+                );
                 notification
                     .set_position(notification.x, total_height - notification.extents().height);
             } else {
