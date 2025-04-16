@@ -5,7 +5,7 @@ use crate::{
     notification_manager::NotificationManager,
     wgpu_state, Moxnotify, Output,
 };
-use std::sync::Arc;
+use std::{fmt, sync::Arc};
 use wayland_client::{delegate_noop, protocol::wl_surface, Connection, Dispatch, QueueHandle};
 use wayland_protocols::xdg::foreign::zv2::client::zxdg_exporter_v2;
 use wayland_protocols_wlr::layer_shell::v1::client::{
@@ -17,6 +17,16 @@ use wayland_protocols_wlr::layer_shell::v1::client::{
 pub enum FocusReason {
     Ctl,
     MouseEnter,
+}
+
+impl fmt::Display for FocusReason {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            FocusReason::Ctl => "Ctl",
+            FocusReason::MouseEnter => "MouseEnter",
+        };
+        write!(f, "{}", s)
+    }
 }
 
 pub struct Surface {
@@ -156,10 +166,13 @@ impl Surface {
                 .set_keyboard_interactivity(KeyboardInteractivity::OnDemand),
         }
 
+        log::info!("Surface focused, reason: {focus_reason}");
+
         self.focus_reason = Some(focus_reason);
     }
 
     pub fn unfocus(&mut self) {
+        log::info!("Surface unfocused");
         if let Some(FocusReason::Ctl) = self.focus_reason {
             self.layer_surface
                 .set_keyboard_interactivity(KeyboardInteractivity::OnDemand);

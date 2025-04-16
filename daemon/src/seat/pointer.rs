@@ -25,7 +25,6 @@ pub struct Pointer {
     state: PointerState,
     x: f64,
     y: f64,
-    _wl_pointer: wl_pointer::WlPointer,
     scroll_accumulator: f64,
     cursor_device: wp_cursor_shape_device_v1::WpCursorShapeDeviceV1,
     serial: u32,
@@ -51,7 +50,6 @@ impl Pointer {
             state: PointerState::Default,
             x: 0.,
             y: 0.,
-            _wl_pointer: wl_pointer,
             scroll_accumulator: 0.,
         })
     }
@@ -164,7 +162,11 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                         }
                     }
                     (None, Some(_)) => {
-                        state.notifications.deselect();
+                        if let Some(surface) = state.surface.as_ref() {
+                            if surface.focus_reason == Some(FocusReason::MouseEnter) {
+                                state.notifications.deselect();
+                            }
+                        }
                         state.update_surface_size();
                         state.seat.keyboard.mode = Mode::Normal;
 
@@ -246,6 +248,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                                                 token,
                                             })
                                             .is_ok()
+                                            && surface.focus_reason == Some(FocusReason::MouseEnter)
                                         {
                                             state.notifications.deselect();
                                         }
@@ -275,7 +278,9 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     if surface.focus_reason == Some(FocusReason::MouseEnter) {
                         surface.unfocus();
                         state.seat.pointer.change_state(PointerState::Default);
-                        state.notifications.deselect();
+                        if surface.focus_reason == Some(FocusReason::MouseEnter) {
+                            state.notifications.deselect();
+                        }
                     }
                 }
             }
