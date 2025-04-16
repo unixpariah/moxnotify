@@ -43,7 +43,7 @@ impl ButtonManager {
         config: Arc<Config>,
         font_system: &mut FontSystem,
     ) {
-        let hint_chars: Vec<char> = config.hint_characters.chars().collect();
+        let hint_chars: Vec<char> = config.general.hint_characters.chars().collect();
         let n = hint_chars.len();
 
         let mut m = self.buttons.len() as i32;

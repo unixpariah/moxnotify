@@ -133,11 +133,11 @@ impl Notification {
 
         let ignore_timeout = notification_style_entry
             .and_then(|entry| entry.ignore_timeout)
-            .unwrap_or(self.config.ignore_timeout);
+            .unwrap_or(self.config.general.ignore_timeout);
 
         let default_timeout = notification_style_entry
             .and_then(|entry| entry.default_timeout.as_ref())
-            .unwrap_or(&self.config.default_timeout);
+            .unwrap_or(&self.config.general.default_timeout);
 
         if ignore_timeout {
             (default_timeout.get(&self.data.hints.urgency) > 0)

@@ -310,7 +310,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     state.seat.pointer.scroll_accumulator += value;
 
                     if state.seat.pointer.scroll_accumulator.abs()
-                        >= state.config.scroll_sensitivity
+                        >= state.config.general.scroll_sensitivity
                     {
                         if state.seat.pointer.scroll_accumulator.is_sign_positive() {
                             state.notifications.next();

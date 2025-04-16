@@ -19,15 +19,17 @@ pub struct Icons {
 impl Icons {
     pub fn new(image: Option<&Image>, app_icon: Option<&str>, config: &Config) -> Self {
         let icon = match image {
-            Some(Image::Data(image_data)) => Some(image_data.clone().into_rgba(config.icon_size)),
-            Some(Image::File(file)) => get_icon(file, config.icon_size as u16),
-            Some(Image::Name(name)) => find_icon(name, config.icon_size as u16),
+            Some(Image::Data(image_data)) => {
+                Some(image_data.clone().into_rgba(config.general.icon_size))
+            }
+            Some(Image::File(file)) => get_icon(file, config.general.icon_size as u16),
+            Some(Image::Name(name)) => find_icon(name, config.general.icon_size as u16),
             _ => None,
         };
 
         let app_icon = app_icon
             .as_ref()
-            .and_then(|icon| find_icon(icon, config.icon_size as u16));
+            .and_then(|icon| find_icon(icon, config.general.icon_size as u16));
 
         let (final_app_icon, final_icon) = match icon.is_some() {
             true => (app_icon, icon),
@@ -104,13 +106,13 @@ impl Icons {
     ) -> Vec<TextureArea> {
         let mut texture_areas = Vec::new();
 
-        let width = config.icon_size as f32;
-        let height = config.icon_size as f32;
+        let width = config.general.icon_size as f32;
+        let height = config.general.icon_size as f32;
 
         let mut icon_extents = self.extents(style);
 
         if let Some(icon) = self.icon.as_ref() {
-            let icon_size = config.icon_size as f32;
+            let icon_size = config.general.icon_size as f32;
             let image_y = icon_extents.y + (height - icon_size) / 2.0;
 
             texture_areas.push(TextureArea {
@@ -130,12 +132,12 @@ impl Icons {
                 radius: style.icon.border.radius.into(),
             });
 
-            icon_extents.x += (icon.height - config.app_icon_size) as f32;
-            icon_extents.y += (icon.height as f32 / 2.) - config.app_icon_size as f32 / 2.;
+            icon_extents.x += (icon.height - config.general.app_icon_size) as f32;
+            icon_extents.y += (icon.height as f32 / 2.) - config.general.app_icon_size as f32 / 2.;
         }
 
         if let Some(app_icon) = self.app_icon.as_ref() {
-            let app_icon_size = config.app_icon_size as f32;
+            let app_icon_size = config.general.app_icon_size as f32;
             let image_y = icon_extents.y + (height - app_icon_size) / 2.0;
 
             texture_areas.push(TextureArea {

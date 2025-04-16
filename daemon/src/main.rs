@@ -102,7 +102,7 @@ impl Moxnotify {
 
         let wgpu_state = WgpuState::new(conn).await?;
 
-        let db = rusqlite::Connection::open(&config.history.path)?;
+        let db = rusqlite::Connection::open(&config.general.history.path)?;
         db.execute(
             "CREATE TABLE IF NOT EXISTS notifications (
             rowid INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -166,18 +166,21 @@ impl Moxnotify {
                     (None, None) => match data.hints.urgency {
                         Urgency::Low => self
                             .config
+                            .general
                             .default_sound_file
                             .urgency_low
                             .as_ref()
                             .map(Arc::clone),
                         Urgency::Normal => self
                             .config
+                            .general
                             .default_sound_file
                             .urgency_normal
                             .as_ref()
                             .map(Arc::clone),
                         Urgency::Critical => self
                             .config
+                            .general
                             .default_sound_file
                             .urgency_critical
                             .as_ref()
@@ -192,7 +195,7 @@ impl Moxnotify {
                     self.db
                         .query_row("SELECT COUNT(*) FROM notifications", [], |row| row.get(0))?;
 
-                if count >= self.config.history.size {
+                if count >= self.config.general.history.size {
                     self.db.execute(
                         "DELETE FROM notifications WHERE rowid = (
                         SELECT rowid FROM notifications ORDER BY rowid ASC LIMIT 1

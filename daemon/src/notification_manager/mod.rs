@@ -34,7 +34,10 @@ impl NotificationManager {
         Self {
             inhibited: false,
             waiting: 0,
-            notification_view: NotificationView::new(config.max_visible, Arc::clone(&config)),
+            notification_view: NotificationView::new(
+                config.general.max_visible,
+                Arc::clone(&config),
+            ),
             font_system: FontSystem::new(),
             loop_handle,
             notifications: Vec::new(),
@@ -393,7 +396,7 @@ impl NotificationManager {
         notification.set_position(0.0, y);
 
         if let Some(timeout) = notification.timeout() {
-            let should_set_timer = match self.config.queue {
+            let should_set_timer = match self.config.general.queue {
                 Queue::Ordered => self.notifications.is_empty(),
                 Queue::Unordered => true,
             };
@@ -467,7 +470,7 @@ impl NotificationManager {
         if let Some(index) = self.notifications.iter().position(|n| n.id() == id) {
             if let Some(notification) = self.notifications.get_mut(index) {
                 notification.unhover();
-                let timer = match self.config.queue {
+                let timer = match self.config.general.queue {
                     Queue::Ordered if index == 0 => notification.timeout(),
                     Queue::Unordered => notification.timeout(),
                     _ => None,
@@ -503,7 +506,8 @@ impl NotificationManager {
 
         if self.notification_view.visible.start >= self.notifications.len() {
             self.notification_view.visible = self.notifications.len().saturating_sub(1)
-                ..self.notifications.len().saturating_sub(1) + self.config.max_visible as usize;
+                ..self.notifications.len().saturating_sub(1)
+                    + self.config.general.max_visible as usize;
         }
 
         self.notification_view
@@ -513,7 +517,7 @@ impl NotificationManager {
             self.deselect();
         }
 
-        if self.config.queue == Queue::Ordered {
+        if self.config.general.queue == Queue::Ordered {
             if let Some(notification) = self.notifications.first_mut() {
                 if !notification.hovered() {
                     if let Some(timeout) = notification.timeout() {

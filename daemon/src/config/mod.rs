@@ -122,7 +122,7 @@ impl Default for History {
 
 #[derive(Deserialize)]
 #[serde(default)]
-pub struct Config {
+pub struct General {
     pub history: History,
     pub default_sound_file: SoundFile,
     pub ignore_sound_file: bool,
@@ -138,11 +138,9 @@ pub struct Config {
     pub output: Option<Box<str>>,
     pub default_timeout: Timeout,
     pub ignore_timeout: bool,
-    pub styles: Styles,
-    pub keymaps: Keymaps,
 }
 
-impl Default for Config {
+impl Default for General {
     fn default() -> Self {
         Self {
             margin: Insets::default(),
@@ -160,6 +158,22 @@ impl Default for Config {
             output: None,
             default_timeout: Timeout::default(),
             ignore_timeout: false,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(default)]
+pub struct Config {
+    pub general: General,
+    pub styles: Styles,
+    pub keymaps: Keymaps,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            general: General::default(),
             keymaps: Keymaps::default(),
             styles: Styles::default(),
         }

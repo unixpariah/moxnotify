@@ -215,8 +215,6 @@ impl Moxnotify {
             return Err(anyhow::anyhow!(""));
         }
 
-        println!("{:#?}", self.seat.keyboard.key_combination);
-
         if !self
             .config
             .keymaps

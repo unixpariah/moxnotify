@@ -189,12 +189,12 @@ impl Surface {
     ) -> (zwlr_layer_surface_v1::ZwlrLayerSurfaceV1, f32) {
         let output = outputs
             .iter()
-            .find(|output| output.name.as_ref() == config.output.as_ref());
+            .find(|output| output.name.as_ref() == config.general.output.as_ref());
 
         let layer_surface = layer_shell.get_layer_surface(
             wl_surface,
             output.map(|o| &o.wl_output),
-            match config.layer {
+            match config.general.layer {
                 config::Layer::Top => zwlr_layer_shell_v1::Layer::Top,
                 config::Layer::Background => zwlr_layer_shell_v1::Layer::Background,
                 config::Layer::Bottom => zwlr_layer_shell_v1::Layer::Bottom,
@@ -210,7 +210,7 @@ impl Surface {
         layer_surface.set_keyboard_interactivity(KeyboardInteractivity::None);
         layer_surface
             .set_anchor(zwlr_layer_surface_v1::Anchor::Right | zwlr_layer_surface_v1::Anchor::Top);
-        layer_surface.set_anchor(match config.anchor {
+        layer_surface.set_anchor(match config.general.anchor {
             Anchor::TopRight => {
                 zwlr_layer_surface_v1::Anchor::Top | zwlr_layer_surface_v1::Anchor::Right
             }
@@ -235,10 +235,10 @@ impl Surface {
             Anchor::CenterLeft => zwlr_layer_surface_v1::Anchor::Left,
         });
         layer_surface.set_margin(
-            config.margin.top.resolve(0.) as i32,
-            config.margin.right.resolve(0.) as i32,
-            config.margin.bottom.resolve(0.) as i32,
-            config.margin.left.resolve(0.) as i32,
+            config.general.margin.top.resolve(0.) as i32,
+            config.general.margin.right.resolve(0.) as i32,
+            config.general.margin.bottom.resolve(0.) as i32,
+            config.general.margin.left.resolve(0.) as i32,
         );
         layer_surface.set_exclusive_zone(-1);
         (layer_surface, scale)
