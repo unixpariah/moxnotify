@@ -108,6 +108,9 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
                         meta: xkb_state
                             .mod_name_is_active("Mod4", xkbcommon::xkb::STATE_MODS_EFFECTIVE),
                     };
+
+                    // Clear the xkb_state so that I can handle the key modifiers my way
+                    xkb_state.update_mask(0, 0, 0, 0, 0, 0);
                 }
             }
             wl_keyboard::Event::Key {
@@ -208,6 +211,12 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
 
 impl Moxnotify {
     fn handle_key(&mut self) -> anyhow::Result<()> {
+        if self.seat.keyboard.key_combination.is_empty() {
+            return Err(anyhow::anyhow!(""));
+        }
+
+        println!("{:#?}", self.seat.keyboard.key_combination);
+
         if !self
             .config
             .keymaps

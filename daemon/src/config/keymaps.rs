@@ -405,19 +405,19 @@ impl std::str::FromStr for KeyWithModifiers {
 
         let mut remaining = s;
 
-        while let Some(rest) = remaining.strip_prefix("C-") {
+        while let Some(rest) = remaining.strip_prefix("<C-") {
             modifiers.control = true;
-            remaining = rest;
+            remaining = rest.strip_suffix('>').unwrap_or(rest);
         }
 
-        while let Some(rest) = remaining.strip_prefix("M-") {
+        while let Some(rest) = remaining.strip_prefix("<M-") {
             modifiers.alt = true;
-            remaining = rest;
+            remaining = rest.strip_suffix('>').unwrap_or(rest);
         }
 
-        while let Some(rest) = remaining.strip_prefix("S-") {
+        while let Some(rest) = remaining.strip_prefix("<D-") {
             modifiers.meta = true;
-            remaining = rest;
+            remaining = rest.strip_suffix('>').unwrap_or(rest);
         }
 
         let key = if remaining.starts_with('<') && remaining.ends_with('>') {
@@ -494,6 +494,10 @@ impl Key {
         keycode: xkbcommon::xkb::Keycode,
     ) -> Option<Self> {
         let key_name = xkb_state.key_get_one_sym(keycode);
+
+        if key_name.is_modifier_key() {
+            return None;
+        }
 
         match key_name {
             Keysym::Return => Some(Key::SpecialKey(SpecialKeyCode::Enter)),
