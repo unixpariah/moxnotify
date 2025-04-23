@@ -48,13 +48,62 @@ impl Surface {
         outputs: &[Output],
         config: Arc<Config>,
     ) -> anyhow::Result<Self> {
-        let (layer_surface, scale) = Surface::create_layer_surface(
-            Arc::clone(&config),
-            outputs,
+        let output = outputs
+            .iter()
+            .find(|output| output.name.as_ref() == config.general.output.as_ref());
+
+        let layer_surface = layer_shell.get_layer_surface(
             &wl_surface,
+            output.map(|o| &o.wl_output),
+            match config.general.layer {
+                config::Layer::Top => zwlr_layer_shell_v1::Layer::Top,
+                config::Layer::Background => zwlr_layer_shell_v1::Layer::Background,
+                config::Layer::Bottom => zwlr_layer_shell_v1::Layer::Bottom,
+                config::Layer::Overlay => zwlr_layer_shell_v1::Layer::Overlay,
+            },
+            "moxnotify".into(),
             qh,
-            layer_shell,
+            (),
         );
+
+        let scale = output.map(|o| o.scale).unwrap_or(1.0);
+
+        layer_surface.set_keyboard_interactivity(KeyboardInteractivity::None);
+        layer_surface
+            .set_anchor(zwlr_layer_surface_v1::Anchor::Right | zwlr_layer_surface_v1::Anchor::Top);
+        layer_surface.set_anchor(match config.general.anchor {
+            Anchor::TopRight => {
+                zwlr_layer_surface_v1::Anchor::Top | zwlr_layer_surface_v1::Anchor::Right
+            }
+            Anchor::TopCenter => zwlr_layer_surface_v1::Anchor::Top,
+            Anchor::TopLeft => {
+                zwlr_layer_surface_v1::Anchor::Top | zwlr_layer_surface_v1::Anchor::Left
+            }
+            Anchor::BottomRight => {
+                zwlr_layer_surface_v1::Anchor::Bottom | zwlr_layer_surface_v1::Anchor::Right
+            }
+            Anchor::BottomCenter => zwlr_layer_surface_v1::Anchor::Bottom,
+            Anchor::BottomLeft => {
+                zwlr_layer_surface_v1::Anchor::Bottom | zwlr_layer_surface_v1::Anchor::Left
+            }
+            Anchor::CenterRight => zwlr_layer_surface_v1::Anchor::Right,
+            Anchor::Center => {
+                zwlr_layer_surface_v1::Anchor::Top
+                    | zwlr_layer_surface_v1::Anchor::Bottom
+                    | zwlr_layer_surface_v1::Anchor::Left
+                    | zwlr_layer_surface_v1::Anchor::Right
+            }
+            Anchor::CenterLeft => zwlr_layer_surface_v1::Anchor::Left,
+        });
+        layer_surface.set_margin(
+            config.general.margin.top.resolve(0.) as i32,
+            config.general.margin.right.resolve(0.) as i32,
+            config.general.margin.bottom.resolve(0.) as i32,
+            config.general.margin.left.resolve(0.) as i32,
+        );
+        layer_surface.set_exclusive_zone(-1);
+
+        log::debug!("New surface created");
 
         Ok(Self {
             focus_reason: None,
@@ -77,6 +126,8 @@ impl Surface {
         if !self.configured {
             return Ok(());
         }
+
+        log::debug!("Render called");
 
         let surface_texture = self
             .wgpu_surface
@@ -179,76 +230,13 @@ impl Surface {
         }
         self.focus_reason = None;
     }
-
-    fn create_layer_surface(
-        config: Arc<Config>,
-        outputs: &[Output],
-        wl_surface: &wl_surface::WlSurface,
-        qh: &QueueHandle<Moxnotify>,
-        layer_shell: &zwlr_layer_shell_v1::ZwlrLayerShellV1,
-    ) -> (zwlr_layer_surface_v1::ZwlrLayerSurfaceV1, f32) {
-        let output = outputs
-            .iter()
-            .find(|output| output.name.as_ref() == config.general.output.as_ref());
-
-        let layer_surface = layer_shell.get_layer_surface(
-            wl_surface,
-            output.map(|o| &o.wl_output),
-            match config.general.layer {
-                config::Layer::Top => zwlr_layer_shell_v1::Layer::Top,
-                config::Layer::Background => zwlr_layer_shell_v1::Layer::Background,
-                config::Layer::Bottom => zwlr_layer_shell_v1::Layer::Bottom,
-                config::Layer::Overlay => zwlr_layer_shell_v1::Layer::Overlay,
-            },
-            "moxnotify".into(),
-            qh,
-            (),
-        );
-
-        let scale = output.map(|o| o.scale).unwrap_or(1.0);
-
-        layer_surface.set_keyboard_interactivity(KeyboardInteractivity::None);
-        layer_surface
-            .set_anchor(zwlr_layer_surface_v1::Anchor::Right | zwlr_layer_surface_v1::Anchor::Top);
-        layer_surface.set_anchor(match config.general.anchor {
-            Anchor::TopRight => {
-                zwlr_layer_surface_v1::Anchor::Top | zwlr_layer_surface_v1::Anchor::Right
-            }
-            Anchor::TopCenter => zwlr_layer_surface_v1::Anchor::Top,
-            Anchor::TopLeft => {
-                zwlr_layer_surface_v1::Anchor::Top | zwlr_layer_surface_v1::Anchor::Left
-            }
-            Anchor::BottomRight => {
-                zwlr_layer_surface_v1::Anchor::Bottom | zwlr_layer_surface_v1::Anchor::Right
-            }
-            Anchor::BottomCenter => zwlr_layer_surface_v1::Anchor::Bottom,
-            Anchor::BottomLeft => {
-                zwlr_layer_surface_v1::Anchor::Bottom | zwlr_layer_surface_v1::Anchor::Left
-            }
-            Anchor::CenterRight => zwlr_layer_surface_v1::Anchor::Right,
-            Anchor::Center => {
-                zwlr_layer_surface_v1::Anchor::Top
-                    | zwlr_layer_surface_v1::Anchor::Bottom
-                    | zwlr_layer_surface_v1::Anchor::Left
-                    | zwlr_layer_surface_v1::Anchor::Right
-            }
-            Anchor::CenterLeft => zwlr_layer_surface_v1::Anchor::Left,
-        });
-        layer_surface.set_margin(
-            config.general.margin.top.resolve(0.) as i32,
-            config.general.margin.right.resolve(0.) as i32,
-            config.general.margin.bottom.resolve(0.) as i32,
-            config.general.margin.left.resolve(0.) as i32,
-        );
-        layer_surface.set_exclusive_zone(-1);
-        (layer_surface, scale)
-    }
 }
 
 impl Drop for Surface {
     fn drop(&mut self) {
         self.layer_surface.destroy();
         self.wl_surface.destroy();
+        log::debug!("Surface destroyed");
     }
 }
 
@@ -288,6 +276,12 @@ impl Dispatch<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1, ()> for Moxnotify {
                     &state.wgpu_state.device,
                     &state.wgpu_state.queue,
                     &state.notifications,
+                );
+                log::debug!(
+                    "Surface configured ({}x{}, serial={})",
+                    width,
+                    height,
+                    serial
                 );
             }
         }

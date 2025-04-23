@@ -162,22 +162,12 @@ impl Default for General {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 #[serde(default)]
 pub struct Config {
     pub general: General,
     pub styles: Styles,
     pub keymaps: Keymaps,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            general: General::default(),
-            keymaps: Keymaps::default(),
-            styles: Styles::default(),
-        }
-    }
 }
 
 #[derive(Deserialize)]
@@ -400,7 +390,7 @@ impl Default for Font {
 pub enum Queue {
     #[default]
     Unordered,
-    Ordered,
+    FIFO,
 }
 
 #[derive(Clone)]
@@ -1000,7 +990,7 @@ pub enum Layer {
 }
 
 #[derive(Deserialize, Default)]
-#[serde(rename_all = "kebab-case")]
+#[serde(rename_all = "snake_case")]
 pub enum Anchor {
     #[default]
     TopRight,

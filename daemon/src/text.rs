@@ -63,7 +63,7 @@ impl Text {
             .family(glyphon::Family::Name(&font.family))
             .weight(Weight::BOLD);
         let mut buffer = create_buffer(font, font_system, None);
-        buffer.set_text(font_system, body, &attrs, Shaping::Advanced);
+        buffer.set_text(font_system, body, &attrs, Shaping::Basic);
 
         Self {
             buffer,
@@ -191,7 +191,7 @@ impl Text {
         }
 
         let mut buffer = create_buffer(font, font_system, Some(max_width));
-        buffer.set_rich_text(font_system, spans, &attrs, Shaping::Advanced, None);
+        buffer.set_rich_text(font_system, spans, &attrs, Shaping::Basic, None);
 
         let mut total = 0;
         anchors.iter_mut().for_each(|anchor| {
@@ -278,6 +278,10 @@ impl TextContext {
         queue: &wgpu::Queue,
         text: Vec<TextArea>,
     ) -> anyhow::Result<()> {
+        if text.is_empty() {
+            return Ok(());
+        }
+
         self.renderer.prepare(
             device,
             queue,

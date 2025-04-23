@@ -140,20 +140,31 @@ impl Moxnotify {
         match event {
             Event::Dismiss { all, id } => {
                 if all {
+                    log::info!("Dismissing all notifications");
                     self.dismiss_range(.., Some(Reason::DismissedByUser));
                     return Ok(());
                 }
 
                 if id == 0 {
                     if let Some(notification) = self.notifications.notifications().first() {
+                        log::info!("Dismissing first notification (id={})", notification.id());
                         self.dismiss_by_id(notification.id(), Some(Reason::DismissedByUser));
+                    } else {
+                        log::debug!("No notifications to dismiss");
                     }
                     return Ok(());
                 }
 
+                log::info!("Dismissing notification with id={}", id);
                 self.dismiss_by_id(id, Some(Reason::DismissedByUser));
             }
             Event::Notify(data) => {
+                log::info!(
+                    "Receiving notification from {}: '{}'",
+                    data.app_name,
+                    data.summary
+                );
+
                 let path = match (
                     data.hints.sound_file.as_ref().map(Arc::clone),
                     data.hints.sound_name.as_ref().map(Arc::clone),
@@ -195,29 +206,35 @@ impl Moxnotify {
                     self.db
                         .query_row("SELECT COUNT(*) FROM notifications", [], |row| row.get(0))?;
 
-                if count >= self.config.general.history.size {
-                    self.db.execute(
-                        "DELETE FROM notifications WHERE rowid = (
-                        SELECT rowid FROM notifications ORDER BY rowid ASC LIMIT 1
-                         )",
-                        [],
+                let tx = self.db.transaction()?;
+
+                let to_delete = count + 1 - self.config.general.history.size;
+                if to_delete > 0 {
+                    log::debug!("Removing {} oldest notifications from history", to_delete);
+                    tx.execute(
+                        "DELETE FROM notifications WHERE rowid IN (
+                    SELECT rowid FROM notifications ORDER BY rowid ASC LIMIT ?
+                )",
+                        params![to_delete],
                     )?;
                 }
 
-                self.db.execute(
-                    "INSERT INTO notifications (id, app_name, app_icon, timeout, summary, body, actions, hints)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                    params![
-                        data.id,
-                        data.app_name,
-                        data.app_icon,
-                        data.timeout,
-                        data.summary,
-                        data.body,
-                        serde_json::to_string(&data.actions)?,
-                        serde_json::to_string(&data.hints)?
-                    ],
-                )?;
+                tx.execute(
+                "INSERT INTO notifications (id, app_name, app_icon, timeout, summary, body, actions, hints)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![
+                    data.id,
+                    data.app_name,
+                    data.app_icon,
+                    data.timeout,
+                    data.summary,
+                    data.body,
+                    serde_json::to_string(&data.actions)?,
+                    serde_json::to_string(&data.hints)?
+                ],
+            )?;
+
+                tx.commit()?;
 
                 let id = match self.history {
                     History::Shown => self.db.last_insert_rowid() as u32,
@@ -228,25 +245,30 @@ impl Moxnotify {
                 self.update_surface_size();
 
                 if self.notifications.inhibited() || suppress_sound {
+                    log::debug!("Sound suppressed for notification");
                     return Ok(());
                 }
 
                 if let (Some(audio), Some(path)) = (self.audio.as_mut(), path) {
+                    log::debug!("Playing notification sound");
                     audio.play(path)?;
                 }
             }
             Event::CloseNotification(id) => {
+                log::info!("Closing notification with id={}", id);
                 self.dismiss_by_id(id, Some(Reason::CloseNotificationCall))
             }
             Event::FocusSurface => {
                 if let Some(surface) = self.surface.as_mut() {
                     if surface.focus_reason.is_none() {
+                        log::info!("Focusing notification surface");
                         surface.focus(FocusReason::Ctl);
                         self.notifications.next();
                     }
                 }
             }
             Event::List => {
+                log::info!("Listing all active notifications");
                 let list = self
                     .notifications
                     .notifications()
@@ -258,30 +280,35 @@ impl Moxnotify {
             Event::Mute => {
                 if let Some(audio) = self.audio.as_mut() {
                     if !audio.muted() {
+                        log::info!("Muting notification sounds");
                         _ = self.emit_sender.send(EmitEvent::MuteStateChanged(true));
                         audio.mute();
+                    } else {
+                        log::debug!("Audio already muted");
                     }
                 }
             }
             Event::Unmute => {
                 if let Some(audio) = self.audio.as_mut() {
                     if audio.muted() {
+                        log::info!("Unmuting notification sounds");
                         audio.unmute();
                         _ = self
                             .emit_sender
                             .send(EmitEvent::MuteStateChanged(audio.muted()));
+                    } else {
+                        log::debug!("Audio already unmuted");
                     }
                 }
             }
             Event::ShowHistory => {
                 if self.history == History::Hidden {
+                    log::info!("Showing notification history");
                     self.history = History::Shown;
                     _ = self
                         .emit_sender
                         .send(EmitEvent::HistoryStateChanged(self.history));
-
                     self.dismiss_range(.., Some(Reason::Expired));
-
                     let mut stmt = self.db.prepare("SELECT rowid, app_name, app_icon, summary, body, actions, hints FROM notifications ORDER BY rowid DESC")?;
                     let rows = stmt.query_map([], |row| {
                         Ok(NotificationData {
@@ -301,35 +328,46 @@ impl Moxnotify {
                             },
                         })
                     })?;
-
-                    self.notifications
-                        .add_many(rows.collect::<Result<Vec<_>, _>>()?)?;
+                    let notifications = rows.collect::<Result<Vec<_>, _>>()?;
+                    log::info!("Loaded {} historical notifications", notifications.len());
+                    self.notifications.add_many(notifications)?;
                     drop(stmt);
-
                     self.update_surface_size();
+                    log::debug!("History view completed");
+                } else {
+                    log::debug!("History already shown");
                 }
             }
             Event::HideHistory => {
                 if self.history == History::Shown {
+                    log::info!("Hiding notification history");
                     self.history = History::Hidden;
                     _ = self
                         .emit_sender
                         .send(EmitEvent::HistoryStateChanged(self.history));
-
                     self.dismiss_range(.., None);
+                    log::debug!("History view dismissed");
+                } else {
+                    log::debug!("History already hidden");
                 }
             }
             Event::Inhibit => {
                 if !self.notifications.inhibited() {
+                    log::info!("Inhibiting notifications");
                     self.notifications.inhibit();
                     _ = self.emit_sender.send(EmitEvent::InhibitStateChanged(
                         self.notifications.inhibited(),
                     ));
+                } else {
+                    log::debug!("Notifications already inhibited");
                 }
             }
             Event::Uninhibit => {
                 if self.notifications.inhibited() {
+                    log::info!("Uninhibiting notifications");
+
                     let count = self.notifications.waiting();
+                    log::debug!("Processing {} waiting notifications", count);
 
                     let mut stmt = self.db.prepare("SELECT id, app_name, app_icon, summary, body, timeout, actions, hints FROM notifications ORDER BY rowid DESC LIMIT ?1")?;
                     let rows = stmt.query_map([count], |row| {
@@ -361,28 +399,35 @@ impl Moxnotify {
                     drop(stmt);
 
                     self.update_surface_size();
+                } else {
+                    log::debug!("Notifications already uninhibited");
                 }
             }
             Event::GetMuted => {
+                log::debug!("Getting audio mute state");
                 _ = self.emit_sender.send(EmitEvent::Muted(
                     self.audio.as_ref().map(|a| a.muted()).unwrap_or(true),
                 ))
             }
             Event::GetInhibited => {
+                log::debug!("Getting inhibit state");
                 _ = self
                     .emit_sender
                     .send(EmitEvent::Inhibited(self.notifications.inhibited()));
             }
             Event::GetHistory => {
+                log::debug!("Getting history state");
                 _ = self.emit_sender.send(EmitEvent::HistoryState(self.history));
             }
             Event::Waiting => {
+                log::debug!("Getting waiting notification count");
                 _ = self
                     .emit_sender
                     .send(EmitEvent::Waiting(self.notifications.waiting()));
             }
         };
 
+        self.update_surface_size();
         if let Some(surface) = self.surface.as_mut() {
             surface.render(
                 self.seat.keyboard.mode,

@@ -397,7 +397,7 @@ impl NotificationManager {
 
         if let Some(timeout) = notification.timeout() {
             let should_set_timer = match self.config.general.queue {
-                Queue::Ordered => self.notifications.is_empty(),
+                Queue::FIFO => self.notifications.is_empty(),
                 Queue::Unordered => true,
             };
 
@@ -471,7 +471,7 @@ impl NotificationManager {
             if let Some(notification) = self.notifications.get_mut(index) {
                 notification.unhover();
                 let timer = match self.config.general.queue {
-                    Queue::Ordered if index == 0 => notification.timeout(),
+                    Queue::FIFO if index == 0 => notification.timeout(),
                     Queue::Unordered => notification.timeout(),
                     _ => None,
                 }
@@ -517,7 +517,7 @@ impl NotificationManager {
             self.deselect();
         }
 
-        if self.config.general.queue == Queue::Ordered {
+        if self.config.general.queue == Queue::FIFO {
             if let Some(notification) = self.notifications.first_mut() {
                 if !notification.hovered() {
                     if let Some(timeout) = notification.timeout() {

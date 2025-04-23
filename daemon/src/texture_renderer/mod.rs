@@ -212,6 +212,10 @@ impl TextureRenderer {
         queue: &wgpu::Queue,
         textures: &[TextureArea],
     ) {
+        if textures.is_empty() {
+            return;
+        }
+
         let mut instances = Vec::new();
 
         textures.iter().enumerate().for_each(|(i, texture)| {

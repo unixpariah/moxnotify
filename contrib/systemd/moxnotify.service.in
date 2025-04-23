@@ -1,6 +1,6 @@
 [Unit]
 Description=Feature-rich hardware-accelerated keyboard driven Wayland notification daemon.
-Documentation=man:moxnotify(1)
+Documentation=https://rpi.tail570bfd.ts.net/ecosystem/moxnotify.html
 PartOf=graphical-session.target
 After=graphical-session.target
 

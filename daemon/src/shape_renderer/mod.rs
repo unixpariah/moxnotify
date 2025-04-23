@@ -108,6 +108,10 @@ impl ShapeRenderer {
         queue: &wgpu::Queue,
         instances: &[buffers::Instance],
     ) {
+        if instances.is_empty() {
+            return;
+        }
+
         let needed_buffer_size = std::mem::size_of_val(instances);
 
         if needed_buffer_size as u64 > self.instance_buffer.buffer.size() {
