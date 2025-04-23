@@ -100,13 +100,17 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
                 if let Some(xkb_state) = state.seat.keyboard.xkb.state.as_mut() {
                     xkb_state.update_mask(mods_depressed, mods_latched, mods_locked, 0, 0, group);
 
+                    let ctrl_active = xkb_state
+                        .mod_name_is_active("Control", xkbcommon::xkb::STATE_MODS_EFFECTIVE);
+                    let alt_active =
+                        xkb_state.mod_name_is_active("Mod1", xkbcommon::xkb::STATE_MODS_EFFECTIVE);
+                    let meta_active =
+                        xkb_state.mod_name_is_active("Mod4", xkbcommon::xkb::STATE_MODS_EFFECTIVE);
+
                     state.seat.keyboard.modifiers = Modifiers {
-                        control: xkb_state
-                            .mod_name_is_active("Control", xkbcommon::xkb::STATE_MODS_EFFECTIVE),
-                        alt: xkb_state
-                            .mod_name_is_active("Mod1", xkbcommon::xkb::STATE_MODS_EFFECTIVE),
-                        meta: xkb_state
-                            .mod_name_is_active("Mod4", xkbcommon::xkb::STATE_MODS_EFFECTIVE),
+                        control: ctrl_active,
+                        alt: alt_active,
+                        meta: meta_active,
                     };
 
                     // Clear the xkb_state so that I can handle the key modifiers my way
@@ -181,7 +185,10 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
                                                 .keyboard
                                                 .key_combination
                                                 .push(key_with_modifiers);
+                                        } else {
+                                            return TimeoutAction::Drop;
                                         }
+
                                         if moxnotify.handle_key().is_err() {
                                             return TimeoutAction::Drop;
                                         }
@@ -211,10 +218,6 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
 
 impl Moxnotify {
     fn handle_key(&mut self) -> anyhow::Result<()> {
-        if self.seat.keyboard.key_combination.is_empty() {
-            return Err(anyhow::anyhow!(""));
-        }
-
         if !self
             .config
             .keymaps
@@ -223,6 +226,8 @@ impl Moxnotify {
             let len = self.seat.keyboard.key_combination.len().saturating_sub(1);
             self.seat.keyboard.key_combination.drain(..len);
         }
+
+        log::debug!("key‑combo => {}", self.seat.keyboard.key_combination);
 
         if let Some(key_combination) = self.config.keymaps.iter().find(|keymap| {
             keymap.keys == self.seat.keyboard.key_combination
@@ -261,12 +266,20 @@ impl Moxnotify {
                 }
                 KeyAction::HintMode => self.seat.keyboard.mode = Mode::Hint,
                 KeyAction::ShowHistory => self.handle_app_event(crate::Event::ShowHistory)?,
-                KeyAction::HideHistory => self.handle_app_event(crate::Event::HideHistory)?,
+                KeyAction::HideHistory => {
+                    self.handle_app_event(crate::Event::HideHistory)?;
+                    self.seat.keyboard.key_combination.clear();
+                    self.seat.keyboard.repeat.key = None;
+                }
                 KeyAction::ToggleHistory => {
                     match self.history {
-                        History::Shown => self.handle_app_event(crate::Event::HideHistory),
-                        History::Hidden => self.handle_app_event(crate::Event::ShowHistory),
-                    }?;
+                        History::Shown => {
+                            self.handle_app_event(crate::Event::HideHistory)?;
+                            self.seat.keyboard.key_combination.clear();
+                            self.seat.keyboard.repeat.key = None;
+                        }
+                        History::Hidden => self.handle_app_event(crate::Event::ShowHistory)?,
+                    };
                 }
                 KeyAction::Uninhibit => self.notifications.uninhibit(),
                 KeyAction::Ihibit => self.notifications.inhibit(),

@@ -1,5 +1,3 @@
-ALTHOUGH IT IS USABLE IT'S STILL WIP
-
 # Moxnotify
 
 Feature-rich hardware-accelerated keyboard driven Wayland notification daemon.
