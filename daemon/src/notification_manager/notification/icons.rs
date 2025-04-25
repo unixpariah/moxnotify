@@ -171,7 +171,10 @@ fn find_icon(name: &str, icon_size: u16) -> Option<ImageData> {
     get_icon(&icon_path, icon_size)
 }
 
-pub fn get_icon(icon_path: &Path, icon_size: u16) -> Option<ImageData> {
+pub fn get_icon<T>(icon_path: T, icon_size: u16) -> Option<ImageData>
+where
+    T: AsRef<Path>,
+{
     let image = image::open(icon_path).ok()?;
     let image_data = ImageData::try_from(image);
     image_data.ok().map(|i| i.into_rgba(icon_size as u32))

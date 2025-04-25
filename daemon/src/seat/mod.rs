@@ -13,7 +13,7 @@ use wayland_client::{
 use wayland_protocols::xdg::activation::v1::client::xdg_activation_v1;
 
 pub struct Seat {
-    name: Option<Box<str>>,
+    name: Option<String>,
     pub wl_seat: wl_seat::WlSeat,
     pointer: Pointer,
     pub keyboard: Keyboard,
@@ -46,7 +46,7 @@ impl Dispatch<wl_seat::WlSeat, ()> for Moxnotify {
         _qh: &QueueHandle<Self>,
     ) {
         if let wl_seat::Event::Name { name } = event {
-            state.seat.name = Some(name.into())
+            state.seat.name = Some(name)
         }
     }
 }

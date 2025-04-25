@@ -10,7 +10,7 @@ use std::{
     fs,
     path::Path,
     rc::Rc,
-    sync::{mpsc, Arc},
+    sync::mpsc,
     thread::{self, JoinHandle},
 };
 use symphonia::core::{
@@ -30,7 +30,10 @@ struct Playback {
 }
 
 impl Playback {
-    fn new(path: &Path, context: &mut Context, mainloop: &mut Mainloop) -> anyhow::Result<Self> {
+    fn new<T>(path: T, context: &mut Context, mainloop: &mut Mainloop) -> anyhow::Result<Self>
+    where
+        T: AsRef<Path>,
+    {
         let src = fs::File::open(path)?;
         let mss = MediaSourceStream::new(Box::new(src), Default::default());
         let hint = Hint::new();
@@ -200,7 +203,10 @@ impl Audio {
         })
     }
 
-    pub fn play(&mut self, path: Arc<Path>) -> anyhow::Result<()> {
+    pub fn play<T>(&mut self, path: T) -> anyhow::Result<()>
+    where
+        T: AsRef<Path>,
+    {
         if self.muted {
             return Ok(());
         }
@@ -209,7 +215,7 @@ impl Audio {
             playback.stop();
         }
 
-        let mut playback = Playback::new(&path, &mut self.context, &mut self.mainloop)?;
+        let mut playback = Playback::new(path, &mut self.context, &mut self.mainloop)?;
         playback.play()?;
 
         self.playback = Some(playback);

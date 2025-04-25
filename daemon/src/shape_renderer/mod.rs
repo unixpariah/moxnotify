@@ -2,18 +2,19 @@ use super::{
     buffers::{self},
     math::{Mat4, Matrix},
 };
+use crate::buffers::{Buffer, DataDescription};
 
 pub struct ShapeRenderer {
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: buffers::VertexBuffer,
     index_buffer: buffers::IndexBuffer,
     instance_buffer: buffers::InstanceBuffer<buffers::Instance>,
-    projection_uniform: buffers::ProjectionUniform,
+    projection_uniform: buffers::Projection,
 }
 
 impl ShapeRenderer {
     pub fn new(device: &wgpu::Device, texture_format: wgpu::TextureFormat) -> Self {
-        let projection_uniform = buffers::ProjectionUniform::new(device, 0.0, 0.0, 0.0, 0.0);
+        let projection_uniform = buffers::Projection::new(device, 0.0, 0.0, 0.0, 0.0);
 
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -112,11 +113,10 @@ impl ShapeRenderer {
             return;
         }
 
-        let needed_buffer_size = std::mem::size_of_val(instances);
+        let needed_buffer_size = std::mem::size_of_val(instances) as u64;
 
-        if needed_buffer_size as u64 > self.instance_buffer.buffer.size() {
-            self.instance_buffer =
-                buffers::InstanceBuffer::new_with_size(device, needed_buffer_size);
+        if needed_buffer_size > self.instance_buffer.buffer.size() {
+            self.instance_buffer = buffers::InstanceBuffer::with_size(device, needed_buffer_size);
         }
 
         queue.write_buffer(

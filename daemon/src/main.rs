@@ -86,14 +86,17 @@ pub struct Moxnotify {
 }
 
 impl Moxnotify {
-    async fn new(
+    async fn new<T>(
         conn: &Connection,
         qh: QueueHandle<Moxnotify>,
         globals: GlobalList,
         loop_handle: calloop::LoopHandle<'static, Self>,
         emit_sender: broadcast::Sender<EmitEvent>,
-        config_path: Option<Box<Path>>,
-    ) -> anyhow::Result<Self> {
+        config_path: Option<T>,
+    ) -> anyhow::Result<Self>
+    where
+        T: AsRef<Path>,
+    {
         let layer_shell = globals.bind(&qh, 1..=5, ())?;
         let compositor = globals.bind::<wl_compositor::WlCompositor, _, _>(&qh, 1..=6, ())?;
         let seat = Seat::new(&qh, &globals)?;

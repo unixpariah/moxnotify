@@ -1,5 +1,6 @@
 use super::buffers::{self};
 use super::math::{Mat4, Matrix};
+use crate::buffers::{Buffer, DataDescription};
 
 pub struct TextureRenderer {
     render_pipeline: wgpu::RenderPipeline,
@@ -7,7 +8,7 @@ pub struct TextureRenderer {
     bind_group: wgpu::BindGroup,
     vertex_buffer: buffers::VertexBuffer,
     index_buffer: buffers::IndexBuffer,
-    projection_uniform: buffers::ProjectionUniform,
+    projection_uniform: buffers::Projection,
     instance_buffer: buffers::InstanceBuffer<buffers::TextureInstance>,
     height: f32,
     max_icon_size: u32,
@@ -40,7 +41,7 @@ impl TextureRenderer {
         texture_format: wgpu::TextureFormat,
         max_icon_size: u32,
     ) -> Self {
-        let projection_uniform = buffers::ProjectionUniform::new(device, 0.0, 0.0, 0.0, 0.0);
+        let projection_uniform = buffers::Projection::new(device, 0.0, 0.0, 0.0, 0.0);
 
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -262,8 +263,7 @@ impl TextureRenderer {
             (std::mem::size_of::<buffers::TextureInstance>() * instances.len()) as u64;
 
         if self.instance_buffer.buffer.size() < instance_buffer_size {
-            self.instance_buffer =
-                buffers::InstanceBuffer::new_with_size(device, instance_buffer_size as usize);
+            self.instance_buffer = buffers::InstanceBuffer::with_size(device, instance_buffer_size);
         }
 
         queue.write_buffer(

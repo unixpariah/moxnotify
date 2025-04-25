@@ -387,6 +387,7 @@ impl Default for Font {
 
 #[derive(Deserialize, PartialEq, Default)]
 #[serde(rename_all = "snake_case")]
+#[allow(clippy::upper_case_acronyms)]
 pub enum Queue {
     #[default]
     Unordered,
@@ -1183,18 +1184,24 @@ impl Default for NotificationCounter {
 }
 
 impl Config {
-    pub fn load(path: Option<Box<Path>>) -> anyhow::Result<Self> {
-        let config_path = if let Some(path) = path {
-            path
+    pub fn load<T>(path: Option<T>) -> anyhow::Result<Self>
+    where
+        T: AsRef<Path>,
+    {
+        let lua_code = if let Some(path) = path {
+            if !path.as_ref().exists() {
+                return Ok(Self::default());
+            }
+            fs::read_to_string(path).unwrap_or_default()
         } else {
-            Self::path()?
+            let path = Self::path()?;
+            if !path.exists() {
+                return Ok(Self::default());
+            }
+
+            fs::read_to_string(path).unwrap_or_default()
         };
 
-        if !config_path.exists() {
-            return Ok(Self::default());
-        }
-
-        let lua_code = fs::read_to_string(&config_path).unwrap_or_default();
         let lua = Lua::new();
 
         let lua_result = lua
