@@ -4,7 +4,7 @@ mod progress;
 use super::config::Config;
 use crate::{
     buffers,
-    button::{ButtonManager, ButtonType},
+    button::{ButtonManager, ButtonType, DismissButton},
     config::{keymaps::Mode, Size, StyleState},
     text, NotificationData, Urgency,
 };
@@ -71,14 +71,14 @@ impl Notification {
 
         let style = &config.styles.default;
         let mut buttons = ButtonManager::default();
-        buttons.add(ButtonType::Dismiss, Arc::clone(&config), font_system);
-        data.actions.iter().cloned().for_each(|(action, text)| {
-            buttons.add(
-                ButtonType::Action { text, action },
-                Arc::clone(&config),
-                font_system,
-            )
-        });
+        //buttons.add(ButtonType::Dismiss, Arc::clone(&config), font_system);
+        //data.actions.iter().cloned().for_each(|(action, text)| {
+        //buttons.add(
+        //ButtonType::Action { text, action },
+        //Arc::clone(&config),
+        //font_system,
+        //)
+        //});
 
         let icon_width = icons
             .icon
@@ -95,19 +95,9 @@ impl Notification {
                 - buttons
                     .buttons()
                     .first()
-                    .map(|b| b.rendered_extents(false).width)
+                    .map(|b| b.render_bounds().width)
                     .unwrap_or_default(),
         );
-
-        text.anchors.iter().for_each(|anchor| {
-            buttons.add(
-                ButtonType::Anchor {
-                    anchor: Arc::clone(anchor),
-                },
-                Arc::clone(&config),
-                font_system,
-            );
-        });
 
         Self {
             progress: data.hints.value.map(Progress::new),
@@ -163,7 +153,7 @@ impl Notification {
         let style = self.config.find_style(&self.data.app_name, hovered);
 
         self.icons
-            .set_position(&extents, style, &self.progress, &self.buttons, hovered);
+            .set_position(&extents, style, &self.progress, &self.buttons);
         if let Some(progress) = self.progress.as_mut() {
             progress.set_position(&extents, style);
         }
@@ -174,32 +164,24 @@ impl Notification {
             .buttons
             .buttons_mut()
             .iter_mut()
-            .find(|button| button.button_type == ButtonType::Dismiss)
+            .find(|button| button.button_type() == ButtonType::Dismiss)
             .map(|button| {
                 let x = extents.x + extents.width
                     - style.border.size.right
                     - style.padding.right
-                    - button.extents(hovered).width;
+                    - button.bounds().width;
                 let y = extents.y + style.margin.top + style.border.size.top + style.padding.top;
-                button.set_position(x, y);
-                let button_extents = button.extents(hovered);
+                //button.set_position(x, y);
+                let button_extents = button.bounds();
                 button_extents.y + button_extents.height
             })
             .unwrap_or(0.0);
-
-        self.buttons
-            .buttons_mut()
-            .iter_mut()
-            .filter(|button| matches!(button.button_type, ButtonType::Anchor { .. }))
-            .for_each(|button| {
-                button.set_position(extents.x + self.icons.extents(style).width, extents.y)
-            });
 
         let action_buttons = self
             .buttons
             .buttons()
             .iter()
-            .filter(|button| matches!(button.button_type, ButtonType::Action { .. }))
+            .filter(|button| button.button_type() == ButtonType::Action)
             .count();
 
         if action_buttons > 0 {
@@ -207,8 +189,8 @@ impl Notification {
                 .buttons
                 .buttons()
                 .iter()
-                .find(|b| matches!(b.button_type, ButtonType::Action { .. }))
-                .map(|b| b.style(hovered))
+                .find(|b| b.button_type() == ButtonType::Action)
+                .map(|b| b.style())
                 .unwrap_or_else(|| &style.buttons.action.default);
 
             let side_padding = style.border.size.left
@@ -233,17 +215,16 @@ impl Notification {
             self.buttons
                 .buttons_mut()
                 .iter_mut()
-                .filter(|b| matches!(b.button_type, ButtonType::Action { .. }))
+                .filter(|b| b.button_type() == ButtonType::Action)
                 .enumerate()
                 .for_each(|(i, button)| {
-                    button.width = button_width;
+                    //button.width = button_width;
                     let x_position = base_x + (button_width + button_margin) * i as f32;
-                    let y_position = (extents.y + extents.height
-                        - bottom_padding
-                        - button.extents(hovered).height)
-                        .max(dismiss_bottom_y);
+                    let y_position =
+                        (extents.y + extents.height - bottom_padding - button.bounds().height)
+                            .max(dismiss_bottom_y);
 
-                    button.set_position(x_position, y_position);
+                    //button.set_position(x_position, y_position);
                 });
         }
     }
@@ -256,7 +237,7 @@ impl Notification {
             .buttons
             .buttons()
             .iter()
-            .find(|button| button.button_type == ButtonType::Dismiss);
+            .find(|button| button.button_type() == ButtonType::Dismiss);
 
         let extents = self.rendered_extents();
 
@@ -268,9 +249,7 @@ impl Notification {
             y: extents.y + style.border.size.top.resolve(0.) + style.padding.top.resolve(0.),
             width: style.width.resolve(0.)
                 - icon_extents.width
-                - dismiss_button
-                    .map(|b| b.extents(self.hovered()).width)
-                    .unwrap_or_default(),
+                - dismiss_button.map(|b| b.bounds().width).unwrap_or_default(),
             height: 0.,
         }
     }
@@ -282,16 +261,16 @@ impl Notification {
             .buttons
             .buttons()
             .iter()
-            .find(|button| button.button_type == ButtonType::Dismiss)
-            .map(|b| b.extents(self.hovered()).height)
+            .find(|button| button.button_type() == ButtonType::Dismiss)
+            .map(|b| b.bounds().height)
             .unwrap_or(0.0);
 
         let action_button = self
             .buttons
             .buttons()
             .iter()
-            .filter_map(|button| match button.button_type {
-                ButtonType::Action { .. } => Some(button.extents(self.hovered())),
+            .filter_map(|button| match button.button_type() {
+                ButtonType::Action => Some(button.bounds()),
                 _ => None,
             })
             .max_by(|a, b| {
@@ -404,9 +383,7 @@ impl Notification {
             ));
         }
 
-        let button_instances = self
-            .buttons
-            .instances(mode, self.hovered(), self.urgency(), scale);
+        let button_instances = self.buttons.instances();
 
         instances.extend_from_slice(&button_instances);
 
@@ -502,11 +479,11 @@ impl Notification {
             custom_glyphs: &[],
         }];
 
-        let button_areas = self
-            .buttons
-            .text_areas(mode, self.hovered(), self.urgency(), scale);
+        //let button_areas = self
+        //.buttons
+        //.text_areas(mode, self.hovered(), self.urgency(), scale);
 
-        res.extend_from_slice(&button_areas);
+        //res.extend_from_slice(&button_areas);
         res
     }
 }

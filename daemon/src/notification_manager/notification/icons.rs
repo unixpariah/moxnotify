@@ -50,7 +50,6 @@ impl Icons {
         style: &StyleState,
         progress: &Option<Progress>,
         buttons: &ButtonManager,
-        container_hovered: bool,
     ) {
         let icon_size = 64.0;
 
@@ -67,8 +66,8 @@ impl Icons {
                 .buttons()
                 .iter()
                 .filter_map(|button| {
-                    if matches!(button.button_type, ButtonType::Action { .. }) {
-                        Some(button.extents(container_hovered).height)
+                    if button.button_type() == ButtonType::Action {
+                        Some(button.bounds().height)
                     } else {
                         None
                     }

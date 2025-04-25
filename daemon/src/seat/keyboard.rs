@@ -1,14 +1,13 @@
 use crate::{
-    button::ButtonType,
     config::keymaps::{Key, KeyAction, KeyWithModifiers, Keys, Mode, Modifiers},
     notification_manager::Reason,
-    EmitEvent, History, Moxnotify,
+    History, Moxnotify,
 };
 use calloop::{
     timer::{TimeoutAction, Timer},
     RegistrationToken,
 };
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 use wayland_client::{
     protocol::{wl_keyboard, wl_seat},
     Connection, Dispatch, QueueHandle, WEnum,
@@ -113,8 +112,17 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
                         meta: meta_active,
                     };
 
-                    // Clear the xkb_state so that I can handle the key modifiers my way
-                    xkb_state.update_mask(0, 0, 0, 0, 0, 0);
+                    // Let me handle ctrl, alt and meta my own way while still keeping the shift functionality
+
+                    let shift_active =
+                        xkb_state.mod_name_is_active("Shift", xkbcommon::xkb::STATE_MODS_EFFECTIVE);
+                    let shift_bit = if shift_active {
+                        1 << xkb_state.get_keymap().mod_get_index("Shift")
+                    } else {
+                        0
+                    };
+
+                    xkb_state.update_mask(shift_bit, shift_bit, shift_bit, 0, 0, group);
                 }
             }
             wl_keyboard::Event::Key {
@@ -308,49 +316,33 @@ impl Moxnotify {
                 KeyAction::NormalMode => self.seat.keyboard.mode = Mode::Normal,
             }
         } else {
-            let combination = self.seat.keyboard.key_combination.to_string();
-            if let Some(notification) = self.notifications.selected_notification_mut() {
-                let id = notification.id();
+            //let combination = self.seat.keyboard.key_combination.to_string();
+            //if let Some(notification) = self.notifications.selected_notification_mut() {
+            //let id = notification.id();
 
-                match notification.buttons.get_by_character(&combination) {
-                    Some(ButtonType::Dismiss) => {
-                        self.dismiss_by_id(id, Some(Reason::DismissedByUser))
-                    }
-                    Some(ButtonType::Action { action, .. }) => {
-                        if let Some(surface) = self.surface.as_ref() {
-                            let token = surface.token.as_ref().map(Arc::clone);
-                            _ = self.emit_sender.send(EmitEvent::ActionInvoked {
-                                id,
-                                action_key: action,
-                                token: token.unwrap_or_default(),
-                            });
-                        }
+            //match notification.buttons.get_by_character(&combination) {
+            //Some(ButtonType::Dismiss) => {
+            //self.dismiss_by_id(id, Some(Reason::DismissedByUser))
+            //}
+            //Some(ButtonType::Action { action, .. }) => {
+            //if let Some(surface) = self.surface.as_ref() {
+            //let token = surface.token.as_ref().map(Arc::clone);
+            //_ = self.emit_sender.send(EmitEvent::ActionInvoked {
+            //id,
+            //action_key: action,
+            //token: token.unwrap_or_default(),
+            //});
+            //}
 
-                        if !notification.data.hints.resident {
-                            self.dismiss_by_id(id, Some(Reason::DismissedByUser));
-                        } else {
-                            self.seat.keyboard.mode = Mode::Normal;
-                        }
-                    }
-                    Some(ButtonType::Anchor { anchor }) => {
-                        if let Some(surface) = self.surface.as_ref() {
-                            let token = surface.token.as_ref().map(Arc::clone);
-                            if self
-                                .emit_sender
-                                .send(EmitEvent::Open {
-                                    uri: Arc::clone(&anchor.href),
-                                    token,
-                                })
-                                .is_ok()
-                            {
-                                self.notifications.deselect();
-                                self.seat.keyboard.mode = Mode::Normal;
-                            }
-                        }
-                    }
-                    None => return Err(anyhow::anyhow!("")),
-                }
-            }
+            //if !notification.data.hints.resident {
+            //self.dismiss_by_id(id, Some(Reason::DismissedByUser));
+            //} else {
+            //self.seat.keyboard.mode = Mode::Normal;
+            //}
+            //}
+            //None => return Err(anyhow::anyhow!("")),
+            //}
+            //}
         }
 
         self.update_surface_size();

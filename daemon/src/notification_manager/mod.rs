@@ -137,14 +137,12 @@ impl NotificationManager {
             .next()
     }
 
-    pub fn get_button_by_coordinates(&mut self, x: f64, y: f64) -> Option<ButtonType> {
-        self.notification_view.visible.clone().find_map(|index| {
-            self.notifications.get_mut(index).and_then(|notification| {
-                notification
-                    .buttons
-                    .get_by_coordinates(notification.hovered(), x, y)
-            })
-        })
+    pub fn hover(&mut self, x: f64, y: f64) {
+        self.notification_view.visible.clone().for_each(|index| {
+            self.notifications
+                .get_mut(index)
+                .map(|notification| notification.buttons.hover(x, y));
+        });
     }
 
     pub fn height(&self) -> f32 {
@@ -216,8 +214,8 @@ impl NotificationManager {
                 .buttons
                 .buttons()
                 .iter()
-                .find(|button| button.button_type == ButtonType::Dismiss)
-                .map(|b| b.rendered_extents(new_notification.hovered()).width)
+                .find(|button| button.button_type() == ButtonType::Dismiss)
+                .map(|b| b.render_bounds().width)
                 .unwrap_or(0.0);
 
             new_notification.text.buffer.set_size(

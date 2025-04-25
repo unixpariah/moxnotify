@@ -1,21 +1,256 @@
 use crate::{
     buffers,
-    config::{button::ButtonState, keymaps::Mode, Config},
+    config::{button::ButtonState, Config},
     notification_manager::notification::Extents,
-    text::{Anchor, Text},
+    text::Text,
     Urgency,
 };
 use glyphon::{FontSystem, TextArea};
-use std::sync::Arc;
+use std::{mem::discriminant, sync::Arc};
+
+#[derive(Clone, Copy)]
+pub enum State {
+    Unhovered,
+    Hovered,
+    Clicked,
+}
+
+#[derive(Default)]
+pub struct Bounds {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+pub trait Component {
+    fn style(&self) -> &ButtonState;
+
+    fn instance(&self) -> buffers::Instance;
+
+    fn bounds(&self) -> Bounds;
+
+    fn render_bounds(&self) -> Bounds;
+}
+
+pub trait Button: Component {
+    fn button_type(&self) -> ButtonType;
+
+    fn state(&self) -> State;
+
+    fn hover(&mut self);
+
+    fn unhover(&mut self);
+
+    fn set_hint(&mut self, hint: Hint);
+}
+
+pub struct DismissButton {
+    x: f32,
+    y: f32,
+    hovered: bool,
+    hint: Hint,
+    config: Arc<Config>,
+    text: Text,
+    state: State,
+}
+
+impl Component for DismissButton {
+    fn style(&self) -> &ButtonState {
+        let style = &self.config.styles.hover.buttons.dismiss; // TODO: actually figure out the hover state of container
+        match self.state() {
+            State::Unhovered => &style.default,
+            State::Hovered => &style.hover,
+            State::Clicked => todo!(),
+        }
+    }
+
+    fn instance(&self) -> buffers::Instance {
+        let style = self.style();
+        let bounds = self.render_bounds();
+
+        // Properly implement color and scale
+        buffers::Instance {
+            rect_pos: [bounds.x, bounds.y],
+            rect_size: [
+                bounds.width - style.border.size.left - style.border.size.right,
+                bounds.height - style.border.size.top - style.border.size.bottom,
+            ],
+            rect_color: style.background.to_linear(&Urgency::Normal),
+            border_radius: style.border.radius.into(),
+            border_size: style.border.size.into(),
+            border_color: style.border.color.to_linear(&Urgency::Normal),
+            scale: 1.0,
+        }
+    }
+
+    fn bounds(&self) -> Bounds {
+        let style = self.style();
+        let text_extents = self.text.extents();
+
+        let width = style.width.resolve(text_extents.0)
+            + style.border.size.left
+            + style.border.size.right
+            + style.padding.left
+            + style.padding.right
+            + style.margin.left
+            + style.margin.right;
+
+        let height = style.height.resolve(text_extents.1)
+            + style.border.size.top
+            + style.border.size.bottom
+            + style.padding.top
+            + style.padding.bottom
+            + style.margin.top
+            + style.margin.bottom;
+
+        Bounds {
+            x: self.x,
+            y: self.y,
+            width,
+            height,
+        }
+    }
+
+    fn render_bounds(&self) -> Bounds {
+        let bounds = self.bounds();
+        Bounds {
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
+        }
+    }
+}
+
+impl Button for DismissButton {
+    fn button_type(&self) -> ButtonType {
+        ButtonType::Dismiss
+    }
+
+    fn state(&self) -> State {
+        self.state
+    }
+
+    fn hover(&mut self) {
+        self.hovered = true;
+    }
+
+    fn unhover(&mut self) {
+        self.hovered = false;
+    }
+
+    fn set_hint(&mut self, hint: Hint) {
+        self.hint = hint;
+    }
+}
+
+struct ActionButton {
+    x: f32,
+    y: f32,
+    hovered: bool,
+    hint: Hint,
+    config: Arc<Config>,
+    text: Text,
+    action: Arc<str>,
+    state: State,
+}
+
+impl Component for ActionButton {
+    fn instance(&self) -> buffers::Instance {
+        let style = self.style();
+        let bounds = self.render_bounds();
+
+        buffers::Instance {
+            rect_pos: [bounds.x, bounds.y],
+            rect_size: [
+                bounds.width - style.border.size.left - style.border.size.right,
+                bounds.height - style.border.size.top - style.border.size.bottom,
+            ],
+            rect_color: style.background.to_linear(&Urgency::Normal),
+            border_radius: style.border.radius.into(),
+            border_size: style.border.size.into(),
+            border_color: style.border.color.to_linear(&Urgency::Normal),
+            scale: 1.,
+        }
+    }
+
+    fn style(&self) -> &ButtonState {
+        let style = &self.config.styles.hover.buttons.action; // TODO: actually figure out the hover state of container
+        match self.state() {
+            State::Unhovered => &style.default,
+            State::Hovered => &style.hover,
+            State::Clicked => todo!(),
+        }
+    }
+
+    fn bounds(&self) -> Bounds {
+        let style = self.style();
+        let text_extents = self.text.extents();
+
+        let width = 0.;
+        let width = style.width.resolve(width)
+            + style.border.size.left
+            + style.border.size.right
+            + style.padding.left
+            + style.padding.right
+            + style.margin.left
+            + style.margin.right;
+
+        let height = style.height.resolve(text_extents.1)
+            + style.border.size.top
+            + style.border.size.bottom
+            + style.padding.top
+            + style.padding.bottom
+            + style.margin.top
+            + style.margin.bottom;
+
+        Bounds {
+            x: self.x,
+            y: self.y,
+            width,
+            height,
+        }
+    }
+
+    fn render_bounds(&self) -> Bounds {
+        let bounds = self.bounds();
+        Bounds {
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
+        }
+    }
+}
+
+impl Button for ActionButton {
+    fn button_type(&self) -> ButtonType {
+        ButtonType::Action
+    }
+
+    fn state(&self) -> State {
+        self.state
+    }
+
+    fn hover(&mut self) {
+        self.hovered = true;
+    }
+
+    fn unhover(&mut self) {
+        self.hovered = false;
+    }
+
+    fn set_hint(&mut self, hint: Hint) {
+        self.hint = hint;
+    }
+}
 
 #[derive(Clone)]
 pub enum ButtonType {
     Dismiss,
-    Action { text: Arc<str>, action: Arc<str> },
-    Anchor { anchor: Arc<Anchor> },
+    Action,
 }
-
-use std::mem::discriminant;
 
 impl PartialEq for ButtonType {
     fn eq(&self, other: &Self) -> bool {
@@ -25,24 +260,22 @@ impl PartialEq for ButtonType {
 
 #[derive(Default)]
 pub struct ButtonManager {
-    buttons: Vec<Button>,
+    buttons: Vec<Box<dyn Button>>,
 }
 
 impl ButtonManager {
-    pub fn buttons(&self) -> &[Button] {
+    pub fn buttons(&self) -> &[Box<dyn Button>] {
         &self.buttons
     }
 
-    pub fn buttons_mut(&mut self) -> &mut [Button] {
+    pub fn buttons_mut(&mut self) -> &mut [Box<dyn Button>] {
         &mut self.buttons
     }
 
-    pub fn add(
-        &mut self,
-        button_type: ButtonType,
-        config: Arc<Config>,
-        font_system: &mut FontSystem,
-    ) {
+    pub fn add<T>(&mut self, mut button: T, config: Arc<Config>, font_system: &mut FontSystem)
+    where
+        T: Button + 'static,
+    {
         let hint_chars: Vec<char> = config.general.hint_characters.chars().collect();
         let n = hint_chars.len();
 
@@ -61,102 +294,90 @@ impl ButtonManager {
         indices.reverse();
         let combination: String = indices.into_iter().map(|i| hint_chars[i]).collect();
 
-        let button = Button::new(&combination, button_type, config, font_system);
-        self.buttons.push(button);
+        button.set_hint(Hint::new(&combination, config, font_system));
+
+        self.buttons.push(Box::new(button));
     }
 
-    pub fn get_by_coordinates(
-        &mut self,
-        container_hovered: bool,
-        x: f64,
-        y: f64,
-    ) -> Option<ButtonType> {
-        self.buttons.iter_mut().find_map(|button| {
-            let extents = button.rendered_extents(container_hovered);
-            if x >= extents.x as f64
-                && y >= extents.y as f64
-                && x <= (extents.x + extents.width) as f64
-                && y <= (extents.y + extents.height) as f64
+    pub fn hover(&mut self, x: f64, y: f64) {
+        self.buttons.iter_mut().for_each(|button| {
+            let bounds = button.render_bounds();
+            if x >= bounds.x as f64
+                && y >= bounds.y as f64
+                && x <= (bounds.x + bounds.width) as f64
+                && y <= (bounds.y + bounds.height) as f64
             {
-                button.hovered = true;
-                Some(button.button_type.clone())
+                button.hover();
             } else {
-                button.hovered = false;
-                None
+                button.unhover();
             }
-        })
+        });
     }
 
-    pub fn get_by_character(&mut self, combination: &str) -> Option<ButtonType> {
-        let button = self
-            .buttons
-            .iter()
-            .find(|button| &*button.hint.combination == combination)?;
+    //pub fn get_by_character(&mut self, combination: &str) -> Option<ButtonType> {
+    //let button = self
+    //.buttons
+    //.iter()
+    //.find(|button| &*button.hint.combination == combination)?;
 
-        Some(button.button_type.clone())
-    }
+    //Some(button.button_type.clone())
+    //}
 
-    pub fn instances(
-        &self,
-        mode: Mode,
-        container_hovered: bool,
-        urgency: &Urgency,
-        scale: f32,
-    ) -> Vec<buffers::Instance> {
+    pub fn instances(&self) -> Vec<buffers::Instance> {
         let mut buttons = self
             .buttons
             .iter()
-            .map(|button| button.instance(container_hovered, scale, urgency))
+            .map(|button| button.instance())
             .collect::<Vec<_>>();
 
-        if mode == Mode::Hint && container_hovered {
-            let hints = self
-                .buttons
-                .iter()
-                .map(|button| {
-                    button.hint.instance(
-                        &button.rendered_extents(container_hovered),
-                        scale,
-                        urgency,
-                    )
-                })
-                .collect::<Vec<_>>();
-            buttons.extend_from_slice(&hints);
-        }
+        //if mode == Mode::Hint && container_hovered {
+        //let hints = self
+        //.buttons
+        //.iter()
+        //.map(|button| {
+        //button.hint.instance(
+        //&button.rendered_extents(container_hovered),
+        //scale,
+        //urgency,
+        //)
+        //})
+        //.collect::<Vec<_>>();
+        //buttons.extend_from_slice(&hints);
+        //}
 
         buttons
     }
 
-    pub fn text_areas(
-        &self,
-        mode: Mode,
-        container_hovered: bool,
-        urgency: &Urgency,
-        scale: f32,
-    ) -> Vec<TextArea> {
-        let mut text_areas = self
-            .buttons
-            .iter()
-            .map(|button| button.text_area(container_hovered, scale, urgency))
-            .collect::<Vec<_>>();
+    //pub fn text_areas(
+    //&self,
+    //mode: Mode,
+    //container_hovered: bool,
+    //urgency: &Urgency,
+    //scale: f32,
+    //) -> Vec<TextArea> {
+    //let mut text_areas = self
+    //.buttons
+    //.iter()
+    //.map(|button| button.text_area(container_hovered, scale, urgency))
+    //.collect::<Vec<_>>();
 
-        if mode == Mode::Hint && container_hovered {
-            let hints = self
-                .buttons
-                .iter()
-                .map(|button| {
-                    button.hint.text_area(
-                        &button.rendered_extents(container_hovered),
-                        scale,
-                        urgency,
-                    )
-                })
-                .collect::<Vec<_>>();
-            text_areas.extend_from_slice(&hints);
-        }
+    //if mode == Mode::Hint && container_hovered {
+    //let hints = self
+    //.buttons
+    //.iter()
+    //.map(|button| {
+    //button.hint.text_area(
+    //&button.rendered_extents(container_hovered),
+    //scale,
+    //urgency,
+    //)
+    //})
+    //.collect::<Vec<_>>();
+    //text_areas.extend_from_slice(&hints);
+    //}
 
-        text_areas
-    }
+    //text_areas
+    //}
 }
 
 pub struct Hint {
@@ -242,212 +463,6 @@ impl Hint {
             },
             default_color: style.font.color.into_glyphon(urgency),
             custom_glyphs: &[],
-        }
-    }
-}
-
-pub struct Button {
-    hint: Hint,
-    pub hovered: bool,
-    pub button_type: ButtonType,
-    x: f32,
-    y: f32,
-    pub width: f32,
-    config: Arc<Config>,
-    text: Text,
-}
-
-impl Button {
-    fn new(
-        combination: &str,
-        button_type: ButtonType,
-        config: Arc<Config>,
-        font_system: &mut FontSystem,
-    ) -> Self {
-        let font = match button_type {
-            ButtonType::Dismiss => &config.styles.default.buttons.dismiss.default.font,
-            ButtonType::Action { .. } => &config.styles.default.buttons.action.default.font,
-            // Adding Anchor as a button is just for hint rendering
-            ButtonType::Anchor { .. } => &config.styles.default.buttons.action.default.font,
-        };
-
-        let text = match &button_type {
-            ButtonType::Dismiss => Text::new(font, font_system, "X"),
-            ButtonType::Action { text, .. } => Text::new(font, font_system, text),
-            // Adding Anchor as a button is just for hint rendering
-            ButtonType::Anchor { .. } => Text::new(font, font_system, ""),
-        };
-
-        Self {
-            hint: Hint::new(combination, Arc::clone(&config), font_system),
-            text,
-            hovered: false,
-            x: 0.,
-            y: 0.,
-            width: 0.,
-            config,
-            button_type,
-        }
-    }
-
-    pub fn set_position(&mut self, x: f32, y: f32) {
-        self.x = x;
-        self.y = y;
-        self.text.set_buffer_position(x, y);
-    }
-
-    pub fn extents(&self, container_hovered: bool) -> Extents {
-        if let ButtonType::Anchor { anchor } = &self.button_type {
-            return Extents {
-                x: self.x + anchor.extents().x,
-                y: self.y + anchor.extents().y,
-                width: anchor.extents().width,
-                height: anchor.extents().height,
-            };
-        }
-
-        let style = self.style(container_hovered);
-        let text_extents = self.text.extents();
-
-        let width = match &self.button_type {
-            ButtonType::Dismiss => style.width.resolve(text_extents.0),
-            ButtonType::Action { .. } => style.width.resolve(self.width),
-            ButtonType::Anchor { .. } => unreachable!(),
-        } + style.border.size.left
-            + style.border.size.right
-            + style.padding.left
-            + style.padding.right
-            + style.margin.left
-            + style.margin.right;
-
-        let height = style.height.resolve(text_extents.1)
-            + style.border.size.top
-            + style.border.size.bottom
-            + style.padding.top
-            + style.padding.bottom
-            + style.margin.top
-            + style.margin.bottom;
-
-        Extents {
-            x: self.x,
-            y: self.y,
-            width,
-            height,
-        }
-    }
-
-    pub fn rendered_extents(&self, container_hovered: bool) -> Extents {
-        let extents = self.extents(container_hovered);
-        let style = self.style(container_hovered);
-
-        Extents {
-            x: extents.x + style.margin.left,
-            y: extents.y + style.margin.top,
-            width: extents.width - style.margin.left - style.margin.right,
-            height: extents.height - style.margin.top - style.margin.bottom,
-        }
-    }
-
-    pub fn style(&self, container_hovered: bool) -> &ButtonState {
-        let button = match (&self.button_type, container_hovered) {
-            (ButtonType::Dismiss, true) => &self.config.styles.hover.buttons.dismiss,
-            (ButtonType::Dismiss, false) => &self.config.styles.default.buttons.dismiss,
-            (ButtonType::Action { .. }, true) => &self.config.styles.hover.buttons.action,
-            (ButtonType::Action { .. }, false) => &self.config.styles.default.buttons.action,
-            _ => &self.config.styles.default.buttons.action,
-        };
-
-        if self.hovered {
-            &button.hover
-        } else {
-            &button.default
-        }
-    }
-
-    fn text_area(
-        &self,
-        container_hovered: bool,
-        scale: f32,
-        urgency: &Urgency,
-    ) -> glyphon::TextArea {
-        let extents = self.rendered_extents(container_hovered);
-        let style = self.style(container_hovered);
-        let text_extents = self.text.extents();
-
-        let remaining_padding = extents.width - text_extents.0;
-        let (pl, _) = match (style.padding.left.is_auto(), style.padding.right.is_auto()) {
-            (true, true) => (remaining_padding / 2., remaining_padding / 2.),
-            (true, false) => (remaining_padding, style.padding.right.resolve(0.)),
-            _ => (
-                style.padding.left.resolve(0.),
-                style.padding.right.resolve(0.),
-            ),
-        };
-
-        let remaining_padding = extents.height - text_extents.1;
-        let (pt, _) = match (style.padding.top.is_auto(), style.padding.bottom.is_auto()) {
-            (true, true) => (remaining_padding / 2., remaining_padding / 2.),
-            (true, false) => (remaining_padding, style.padding.bottom.resolve(0.)),
-            _ => (
-                style.padding.top.resolve(0.),
-                style.padding.bottom.resolve(0.),
-            ),
-        };
-
-        glyphon::TextArea {
-            buffer: &self.text.buffer,
-            left: extents.x + style.border.size.left + style.padding.left.resolve(pl),
-            top: extents.y + style.border.size.top + style.padding.top.resolve(pt),
-            scale,
-            bounds: glyphon::TextBounds {
-                left: (extents.x + style.border.size.left + style.padding.left.resolve(pl)) as i32,
-                top: (extents.y + style.border.size.top + style.padding.top.resolve(pt)) as i32,
-                right: (extents.x
-                    + style.border.size.left
-                    + style.padding.left.resolve(pl)
-                    + text_extents.0) as i32,
-                bottom: (extents.y
-                    + style.border.size.top
-                    + style.padding.top.resolve(pt)
-                    + text_extents.1) as i32,
-            },
-            custom_glyphs: &[],
-            default_color: style.font.color.into_glyphon(urgency),
-        }
-    }
-
-    fn instance(
-        &self,
-        container_hovered: bool,
-        scale: f32,
-        urgency: &Urgency,
-    ) -> buffers::Instance {
-        let style = self.style(container_hovered);
-        let extents = self.rendered_extents(container_hovered);
-
-        if let ButtonType::Anchor { .. } = self.button_type {
-            return buffers::Instance {
-                rect_pos: [0., 0.],
-                rect_size: [0., 0.],
-                rect_color: style.background.to_linear(urgency),
-                border_radius: style.border.radius.into(),
-                border_size: style.border.size.into(),
-                border_color: style.border.color.to_linear(urgency),
-                scale,
-            };
-        }
-
-        buffers::Instance {
-            rect_pos: [extents.x, extents.y],
-            rect_size: [
-                extents.width - style.border.size.left - style.border.size.right,
-                extents.height - style.border.size.top - style.border.size.bottom,
-            ],
-            rect_color: style.background.to_linear(urgency),
-            border_radius: style.border.radius.into(),
-            border_size: style.border.size.into(),
-            border_color: style.border.color.to_linear(urgency),
-            scale,
         }
     }
 }

@@ -1,8 +1,4 @@
-use crate::{
-    button::ButtonType, config::keymaps::Mode, notification_manager::Reason, surface::FocusReason,
-    EmitEvent, Moxnotify,
-};
-use std::sync::Arc;
+use crate::{config::keymaps::Mode, surface::FocusReason, Moxnotify};
 use wayland_client::{
     delegate_noop,
     globals::GlobalList,
@@ -100,39 +96,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 }
 
                 let pointer = &state.seat.pointer;
-                if state
-                    .notifications
-                    .get_button_by_coordinates(pointer.x, pointer.y)
-                    .is_some()
-                {
-                    if state.seat.pointer.state == PointerState::Default {
-                        state.update_surface_size();
-                        if let Some(surface) = state.surface.as_mut() {
-                            _ = surface.render(
-                                state.seat.keyboard.mode,
-                                &state.wgpu_state.device,
-                                &state.wgpu_state.queue,
-                                &state.notifications,
-                            );
-                        }
-                    }
-
-                    state.seat.pointer.change_state(PointerState::Hover);
-                } else {
-                    if state.seat.pointer.state == PointerState::Hover {
-                        state.update_surface_size();
-                        if let Some(surface) = state.surface.as_mut() {
-                            _ = surface.render(
-                                state.seat.keyboard.mode,
-                                &state.wgpu_state.device,
-                                &state.wgpu_state.queue,
-                                &state.notifications,
-                            );
-                        }
-                    }
-
-                    state.seat.pointer.change_state(PointerState::Default);
-                }
+                state.notifications.hover(pointer.x, pointer.y);
 
                 match (hovered_id, state.notifications.selected_id()) {
                     (Some(new_id), Some(old_id)) if new_id != old_id => {
@@ -200,75 +164,16 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                         let (x, y) = (state.seat.pointer.x, state.seat.pointer.y);
 
-                        let (notification_id, button) = {
-                            if let Some(under_pointer) =
-                                state.notifications.get_by_coordinates(x, y)
-                            {
-                                let notification_id = under_pointer.id();
-                                let button = state.notifications.get_button_by_coordinates(x, y);
-
-                                (Some(notification_id), button)
-                            } else {
-                                (None, None)
-                            }
+                        if let Some(under_pointer) = state.notifications.get_by_coordinates(x, y) {
+                            let notification_id = under_pointer.id();
+                            state.notifications.hover(x, y);
                         };
-
-                        if let Some(notification_id) = notification_id {
-                            match button {
-                                Some(ButtonType::Dismiss) => state
-                                    .dismiss_by_id(notification_id, Some(Reason::DismissedByUser)),
-                                Some(ButtonType::Action { action, .. }) => {
-                                    if let Some(surface) = state.surface.as_ref() {
-                                        let token = surface.token.as_ref().map(Arc::clone);
-                                        _ = state.emit_sender.send(EmitEvent::ActionInvoked {
-                                            id: notification_id,
-                                            action_key: action,
-                                            token: token.unwrap_or_default(),
-                                        });
-                                    }
-
-                                    if !state
-                                        .notifications
-                                        .notifications()
-                                        .iter()
-                                        .find(|notification| notification.id() == notification_id)
-                                        .map(|n| n.data.hints.resident)
-                                        .unwrap_or_default()
-                                    {
-                                        state.dismiss_by_id(notification_id, None);
-                                    }
-                                }
-                                Some(ButtonType::Anchor { anchor }) => {
-                                    if let Some(surface) = state.surface.as_ref() {
-                                        let token = surface.token.as_ref().map(Arc::clone);
-                                        if state
-                                            .emit_sender
-                                            .send(EmitEvent::Open {
-                                                uri: Arc::clone(&anchor.href),
-                                                token,
-                                            })
-                                            .is_ok()
-                                            && surface.focus_reason == Some(FocusReason::MouseEnter)
-                                        {
-                                            state.notifications.deselect();
-                                        }
-                                    }
-                                }
-                                _ => {}
-                            }
-                        }
 
                         if let Some(notification) = state.notifications.get_by_coordinates(x, y) {
                             state.notifications.select(notification.id());
                         }
 
-                        if state
-                            .notifications
-                            .get_button_by_coordinates(x, y)
-                            .is_some()
-                        {
-                            state.seat.pointer.change_state(PointerState::Hover);
-                        }
+                        state.notifications.hover(x, y);
                     }
                     _ => unreachable!(),
                 }
