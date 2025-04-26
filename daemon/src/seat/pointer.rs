@@ -146,6 +146,14 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     }
                     _ => {}
                 }
+
+                if let Some(surface) = state.surface.as_mut() {
+                    _ = surface.render(
+                        &state.wgpu_state.device,
+                        &state.wgpu_state.queue,
+                        &state.notifications,
+                    );
+                }
             }
             wl_pointer::Event::Button {
                 button,

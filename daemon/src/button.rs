@@ -9,7 +9,7 @@ use crate::{
 use glyphon::{FontSystem, TextArea};
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum State {
     Unhovered,
     Hovered,
@@ -34,7 +34,6 @@ pub struct DismissButton {
     id: u32,
     x: f32,
     y: f32,
-    hovered: bool,
     hint: Hint,
     config: Arc<Config>,
     text: Text,
@@ -177,11 +176,11 @@ impl Button for DismissButton {
     }
 
     fn hover(&mut self) {
-        self.hovered = true;
+        self.state = State::Hovered;
     }
 
     fn unhover(&mut self) {
-        self.hovered = false;
+        self.state = State::Unhovered
     }
 
     fn set_hint(&mut self, hint: Hint) {
@@ -194,7 +193,6 @@ struct ActionButton {
     ui_state: Rc<RefCell<UiState>>,
     x: f32,
     y: f32,
-    hovered: bool,
     hint: Hint,
     config: Arc<Config>,
     text: Text,
@@ -279,8 +277,8 @@ impl Component for ActionButton {
             .selected
             .is_some_and(|selected| selected == self.id)
         {
-            true => &self.config.styles.hover.buttons.dismiss,
-            false => &self.config.styles.default.buttons.dismiss,
+            true => &self.config.styles.hover.buttons.action,
+            false => &self.config.styles.default.buttons.action,
         };
         match self.state() {
             State::Unhovered => &style.default,
@@ -338,11 +336,11 @@ impl Button for ActionButton {
     }
 
     fn hover(&mut self) {
-        self.hovered = true;
+        self.state = State::Hovered;
     }
 
     fn unhover(&mut self) {
-        self.hovered = false;
+        self.state = State::Unhovered
     }
 
     fn set_hint(&mut self, hint: Hint) {
@@ -421,7 +419,6 @@ impl ButtonManager {
             ui_state: Rc::clone(&self.ui_state),
             hint: Hint::new(&combination, Arc::clone(&config), font_system),
             text,
-            hovered: false,
             x: 0.,
             y: 0.,
             config,
@@ -455,7 +452,6 @@ impl ButtonManager {
                     ui_state: Rc::clone(&self.ui_state),
                     hint: Hint::new("", Arc::clone(&config), font_system),
                     text,
-                    hovered: false,
                     x: 0.,
                     y: 0.,
                     config: Arc::clone(&config),
