@@ -58,12 +58,15 @@ pub struct Text {
 }
 
 impl Text {
-    pub fn new(font: &Font, font_system: &mut FontSystem, body: &str) -> Self {
+    pub fn new<T>(font: &Font, font_system: &mut FontSystem, body: T) -> Self
+    where
+        T: AsRef<str>,
+    {
         let attrs = Attrs::new()
             .family(glyphon::Family::Name(&font.family))
             .weight(Weight::BOLD);
         let mut buffer = create_buffer(font, font_system, None);
-        buffer.set_text(font_system, body, &attrs, Shaping::Basic);
+        buffer.set_text(font_system, body.as_ref(), &attrs, Shaping::Basic);
 
         Self {
             buffer,
@@ -73,27 +76,30 @@ impl Text {
         }
     }
 
-    pub fn new_notification(
+    pub fn new_notification<T>(
         font: &Font,
         font_system: &mut FontSystem,
-        summary: &str,
+        summary: T,
         mut body: String,
         max_width: f32,
-    ) -> Self {
+    ) -> Self
+    where
+        T: AsRef<str>,
+    {
         let attrs = Attrs::new().family(glyphon::Family::Name(&font.family));
         let mut spans = vec![];
         let mut anchors = Vec::new();
         let mut anchor_stack: Vec<Anchor> = Vec::new();
 
-        if !summary.is_empty() {
-            spans.push((summary, attrs.clone().weight(Weight::BOLD)));
+        if !summary.as_ref().is_empty() {
+            spans.push((summary.as_ref(), attrs.clone().weight(Weight::BOLD)));
         }
 
-        if !summary.is_empty() && !body.is_empty() {
+        if !summary.as_ref().is_empty() && !body.is_empty() {
             spans.push(("\n\n", attrs.clone()));
         }
 
-        let mut start_pos = summary.len();
+        let mut start_pos = summary.as_ref().len();
         if !body.is_empty() {
             let mut style_stack = Vec::new();
             let mut current_attrs = attrs.clone();

@@ -16,7 +16,7 @@ use glyphon::{FontSystem, TextArea};
 use notification::{Notification, NotificationId};
 use notification_view::NotificationView;
 use rusqlite::params;
-use std::{cell::RefCell, fmt, rc::Rc, sync::Arc, time::Duration};
+use std::{cell::RefCell, fmt, rc::Rc, time::Duration};
 
 #[derive(Clone)]
 pub struct UiState {
@@ -38,7 +38,7 @@ impl Default for UiState {
 pub struct NotificationManager {
     notifications: Vec<Notification>,
     waiting: u32,
-    config: Arc<Config>,
+    config: Rc<Config>,
     loop_handle: LoopHandle<'static, Moxnotify>,
     font_system: FontSystem,
     notification_view: NotificationView,
@@ -47,7 +47,7 @@ pub struct NotificationManager {
 }
 
 impl NotificationManager {
-    pub fn new(config: Arc<Config>, loop_handle: LoopHandle<'static, Moxnotify>) -> Self {
+    pub fn new(config: Rc<Config>, loop_handle: LoopHandle<'static, Moxnotify>) -> Self {
         let ui_state = Rc::new(RefCell::new(UiState::default()));
 
         Self {
@@ -58,7 +58,7 @@ impl NotificationManager {
             notifications: Vec::new(),
             notification_view: NotificationView::new(
                 config.general.max_visible,
-                Arc::clone(&config),
+                Rc::clone(&config),
                 Rc::clone(&ui_state),
             ),
             config,
@@ -375,7 +375,7 @@ impl NotificationManager {
 
         data.into_iter().for_each(|data| {
             let mut notification = Notification::new(
-                Arc::clone(&self.config),
+                Rc::clone(&self.config),
                 &mut self.font_system,
                 data,
                 Rc::clone(&self.ui_state),
@@ -424,7 +424,7 @@ impl NotificationManager {
             };
 
         let mut notification = Notification::new(
-            Arc::clone(&self.config),
+            Rc::clone(&self.config),
             &mut self.font_system,
             data,
             Rc::clone(&self.ui_state),

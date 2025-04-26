@@ -9,14 +9,14 @@ use crate::{
 };
 use calloop::channel::Event;
 use glyphon::FontSystem;
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc};
 
 pub struct DismissButton {
     id: u32,
     x: f32,
     y: f32,
     hint: Hint,
-    config: Arc<Config>,
+    config: Rc<Config>,
     text: Text,
     state: State,
     ui_state: Rc<RefCell<UiState>>,
@@ -213,14 +213,14 @@ impl ButtonManager {
             ui_state: Rc::clone(&self.ui_state),
             hint: Hint::new(
                 "",
-                Arc::clone(&self.config),
+                Rc::clone(&self.config),
                 font_system,
                 Rc::clone(&self.ui_state),
             ),
             text,
             x: 0.,
             y: 0.,
-            config: Arc::clone(&self.config),
+            config: Rc::clone(&self.config),
             state: State::Unhovered,
             tx,
         };

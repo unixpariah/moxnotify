@@ -12,7 +12,7 @@ use calloop::{LoopHandle, RegistrationToken};
 use glyphon::{FontSystem, TextArea, TextBounds};
 use icons::Icons;
 use progress::Progress;
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Debug, Default)]
 pub struct Extents {
@@ -29,7 +29,7 @@ pub struct Notification {
     pub x: f32,
     pub text: text::Text,
     hovered: bool,
-    config: Arc<Config>,
+    config: Rc<Config>,
     pub icons: Icons,
     progress: Option<Progress>,
     pub registration_token: Option<RegistrationToken>,
@@ -46,7 +46,7 @@ impl PartialEq for Notification {
 
 impl Notification {
     pub fn new(
-        config: Arc<Config>,
+        config: Rc<Config>,
         font_system: &mut FontSystem,
         data: NotificationData,
         ui_state: Rc<RefCell<UiState>>,
@@ -60,7 +60,7 @@ impl Notification {
                 x: 0.,
                 text: text::Text::new(&config.styles.default.font, font_system, ""),
                 hovered: false,
-                config: Arc::clone(&config),
+                config: Rc::clone(&config),
                 icons: Icons {
                     icon: None,
                     app_icon: None,
@@ -74,7 +74,7 @@ impl Notification {
                     data.hints.urgency,
                     Rc::clone(&ui_state),
                     loop_handle,
-                    Arc::clone(&config),
+                    Rc::clone(&config),
                 ),
                 data,
                 ui_state: Rc::clone(&ui_state),
@@ -89,7 +89,7 @@ impl Notification {
             data.hints.urgency,
             Rc::clone(&ui_state),
             loop_handle,
-            Arc::clone(&config),
+            Rc::clone(&config),
         )
         .add_dismiss(font_system)
         .add_actions(&data.actions, font_system)

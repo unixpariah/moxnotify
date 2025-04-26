@@ -1218,11 +1218,14 @@ impl Config {
             .map_err(|e| anyhow::anyhow!("Config deserialization error: {}", e))
     }
 
-    pub fn find_style(&self, app_name: &str, hovered: bool) -> &StyleState {
+    pub fn find_style<T>(&self, app_name: T, hovered: bool) -> &StyleState
+    where
+        T: AsRef<str>,
+    {
         self.styles
             .notification
             .iter()
-            .find(|n| &*n.app == app_name)
+            .find(|n| &*n.app == app_name.as_ref())
             .map(|c| if hovered { &c.hover } else { &c.default })
             .unwrap_or_else(|| {
                 if hovered {

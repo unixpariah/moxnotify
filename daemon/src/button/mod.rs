@@ -12,7 +12,7 @@ use crate::{
 use action::ActionButton;
 use calloop::LoopHandle;
 use glyphon::{FontSystem, TextArea};
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Clone, Copy, Debug)]
 pub enum State {
@@ -51,7 +51,7 @@ pub struct ButtonManager {
     urgency: Urgency,
     pub ui_state: Rc<RefCell<UiState>>,
     loop_handle: Option<LoopHandle<'static, Moxnotify>>,
-    config: Arc<Config>,
+    config: Rc<Config>,
 }
 
 impl ButtonManager {
@@ -60,7 +60,7 @@ impl ButtonManager {
         urgency: Urgency,
         ui_state: Rc<RefCell<UiState>>,
         loop_handle: Option<LoopHandle<'static, Moxnotify>>,
-        config: Arc<Config>,
+        config: Rc<Config>,
     ) -> Self {
         Self {
             id,
@@ -110,7 +110,7 @@ impl ButtonManager {
             let combination: String = indices.into_iter().map(|i| hint_chars[i]).collect();
             let hint = Hint::new(
                 &combination,
-                Arc::clone(&self.config),
+                Rc::clone(&self.config),
                 font_system,
                 Rc::clone(&self.ui_state),
             );
@@ -162,24 +162,18 @@ impl ButtonManager {
             .is_some()
     }
 
-    pub fn hint(&mut self, combination: &str) {
+    pub fn hint<T>(&mut self, combination: T)
+    where
+        T: AsRef<str>,
+    {
         if let Some(button) = self
             .buttons
             .iter()
-            .find(|button| &*button.hint().combination == combination)
+            .find(|button| &*button.hint().combination == combination.as_ref())
         {
             button.click();
         }
     }
-
-    //pub fn get_by_character(&mut self, combination: &str) -> Option<ButtonType> {
-    //let button = self
-    //.buttons
-    //.iter()
-    //.find(|button| &*button.hint.combination == combination)?;
-
-    //Some(button.button_type.clone())
-    //}
 
     pub fn instances(&self) -> Vec<buffers::Instance> {
         let mut buttons = self
@@ -225,7 +219,7 @@ impl ButtonManager {
 pub struct Hint {
     combination: Box<str>,
     text: Text,
-    config: Arc<Config>,
+    config: Rc<Config>,
     ui_state: Rc<RefCell<UiState>>,
 }
 
@@ -322,16 +316,23 @@ impl Component for Hint {
 }
 
 impl Hint {
-    pub fn new(
-        combination: &str,
-        config: Arc<Config>,
+    pub fn new<T>(
+        combination: T,
+        config: Rc<Config>,
         font_system: &mut FontSystem,
         ui_state: Rc<RefCell<UiState>>,
-    ) -> Self {
+    ) -> Self
+    where
+        T: AsRef<str>,
+    {
         Self {
-            combination: combination.into(),
+            combination: combination.as_ref().into(),
             ui_state,
-            text: Text::new(&config.styles.default.font, font_system, combination),
+            text: Text::new(
+                &config.styles.default.font,
+                font_system,
+                combination.as_ref(),
+            ),
             config,
         }
     }

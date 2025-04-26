@@ -5,7 +5,7 @@ use crate::{
     notification_manager::NotificationManager,
     wgpu_state, Moxnotify, Output,
 };
-use std::{fmt, sync::Arc};
+use std::{fmt, rc::Rc, sync::Arc};
 use wayland_client::{delegate_noop, protocol::wl_surface, Connection, Dispatch, QueueHandle};
 use wayland_protocols::xdg::foreign::zv2::client::zxdg_exporter_v2;
 use wayland_protocols_wlr::layer_shell::v1::client::{
@@ -46,7 +46,7 @@ impl Surface {
         layer_shell: &zwlr_layer_shell_v1::ZwlrLayerShellV1,
         qh: &QueueHandle<Moxnotify>,
         outputs: &[Output],
-        config: Arc<Config>,
+        config: Rc<Config>,
     ) -> anyhow::Result<Self> {
         let output = outputs
             .iter()
@@ -300,7 +300,7 @@ impl Moxnotify {
                 &self.layer_shell,
                 &self.qh,
                 &self.outputs,
-                Arc::clone(&self.config),
+                Rc::clone(&self.config),
             )
             .ok();
 

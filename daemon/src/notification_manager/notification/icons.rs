@@ -161,8 +161,11 @@ impl Icons {
     }
 }
 
-fn find_icon(name: &str, icon_size: u16) -> Option<ImageData> {
-    let icon_path = freedesktop_icons::lookup(name)
+fn find_icon<T>(name: T, icon_size: u16) -> Option<ImageData>
+where
+    T: AsRef<str>,
+{
+    let icon_path = freedesktop_icons::lookup(name.as_ref())
         .with_size(icon_size)
         .with_cache()
         .find()?;
