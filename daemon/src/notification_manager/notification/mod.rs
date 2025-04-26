@@ -74,6 +74,7 @@ impl Notification {
                     data.hints.urgency,
                     Rc::clone(&ui_state),
                     loop_handle,
+                    Arc::clone(&config),
                 ),
                 data,
                 ui_state: Rc::clone(&ui_state),
@@ -88,9 +89,11 @@ impl Notification {
             data.hints.urgency,
             Rc::clone(&ui_state),
             loop_handle,
+            Arc::clone(&config),
         )
-        .add_dismiss(Arc::clone(&config), font_system)
-        .add_actions(&data.actions, Arc::clone(&config), font_system);
+        .add_dismiss(font_system)
+        .add_actions(&data.actions, font_system)
+        .finish(font_system);
 
         let icon_width = icons
             .icon

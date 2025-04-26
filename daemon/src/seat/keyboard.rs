@@ -25,7 +25,6 @@ pub struct Keyboard {
     xkb: Xkb,
     pub key_combination: Keys,
     modifiers: Modifiers,
-    pub mode: Mode,
 }
 
 #[derive(Default)]
@@ -43,7 +42,6 @@ impl Keyboard {
         let xkb_context = Context::new(0);
 
         Self {
-            mode: Mode::Normal,
             key_combination: Keys(Vec::new()),
             xkb: Xkb {
                 context: xkb_context,
@@ -239,8 +237,9 @@ impl Moxnotify {
 
         if let Some(key_combination) = self.config.keymaps.iter().find(|keymap| {
             keymap.keys == self.seat.keyboard.key_combination
-                && keymap.mode == self.seat.keyboard.mode
+                && keymap.mode == self.notifications.ui_state.borrow().mode
         }) {
+            log::debug!("Action executed: {:?}", key_combination.action);
             match key_combination.action {
                 KeyAction::Noop => {}
                 KeyAction::NextNotification => self.notifications.next(),
@@ -272,7 +271,7 @@ impl Moxnotify {
                         self.seat.keyboard.repeat.key = None;
                     }
                 }
-                KeyAction::HintMode => self.seat.keyboard.mode = Mode::Hint,
+                KeyAction::HintMode => self.notifications.ui_state.borrow_mut().mode = Mode::Hint,
                 KeyAction::ShowHistory => self.handle_app_event(crate::Event::ShowHistory)?,
                 KeyAction::HideHistory => {
                     self.handle_app_event(crate::Event::HideHistory)?;
@@ -313,36 +312,12 @@ impl Moxnotify {
                         }
                     }
                 }
-                KeyAction::NormalMode => self.seat.keyboard.mode = Mode::Normal,
+                KeyAction::NormalMode => {
+                    self.notifications.ui_state.borrow_mut().mode = Mode::Normal
+                }
             }
         } else {
-            //let combination = self.seat.keyboard.key_combination.to_string();
-            //if let Some(notification) = self.notifications.selected_notification_mut() {
-            //let id = notification.id();
-
-            //match notification.buttons.get_by_character(&combination) {
-            //Some(ButtonType::Dismiss) => {
-            //self.dismiss_by_id(id, Some(Reason::DismissedByUser))
-            //}
-            //Some(ButtonType::Action { action, .. }) => {
-            //if let Some(surface) = self.surface.as_ref() {
-            //let token = surface.token.as_ref().map(Arc::clone);
-            //_ = self.emit_sender.send(EmitEvent::ActionInvoked {
-            //id,
-            //action_key: action,
-            //token: token.unwrap_or_default(),
-            //});
-            //}
-
-            //if !notification.data.hints.resident {
-            //self.dismiss_by_id(id, Some(Reason::DismissedByUser));
-            //} else {
-            //self.seat.keyboard.mode = Mode::Normal;
-            //}
-            //}
-            //None => return Err(anyhow::anyhow!("")),
-            //}
-            //}
+            let combination = self.seat.keyboard.key_combination.to_string();
         }
 
         self.update_surface_size();
@@ -353,8 +328,6 @@ impl Moxnotify {
                 &self.notifications,
             );
         }
-
-        self.seat.keyboard.key_combination.clear();
 
         Ok(())
     }

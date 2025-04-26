@@ -134,7 +134,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                             }
                         }
                         state.update_surface_size();
-                        state.seat.keyboard.mode = Mode::Normal;
+                        state.notifications.ui_state.borrow_mut().mode = Mode::Normal;
 
                         if let Some(surface) = state.surface.as_mut() {
                             _ = surface.render(

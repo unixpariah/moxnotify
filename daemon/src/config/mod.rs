@@ -561,6 +561,7 @@ pub struct Hint {
     pub font: Font,
     pub border: Border,
     pub padding: Insets,
+    pub margin: Insets,
 }
 
 impl Hint {
@@ -573,6 +574,9 @@ impl Hint {
         }
         if let Some(border) = partial.border.as_ref() {
             self.border.apply(border);
+        }
+        if let Some(margin) = partial.margin.as_ref() {
+            self.margin.apply(margin);
         }
     }
 }
@@ -595,6 +599,7 @@ impl Default for Hint {
                 top: Size::Auto,
                 bottom: Size::Auto,
             },
+            margin: Insets::default(),
         }
     }
 }

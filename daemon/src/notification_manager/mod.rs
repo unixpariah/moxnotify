@@ -4,7 +4,7 @@ mod notification_view;
 use crate::{
     buffers,
     button::ButtonType,
-    config::{self, keymaps::Mode, Config, Queue},
+    config::{self, keymaps, Config, Queue},
     texture_renderer::TextureArea,
     EmitEvent, History, Moxnotify, NotificationData,
 };
@@ -21,12 +21,14 @@ use std::{cell::RefCell, fmt, rc::Rc, sync::Arc, time::Duration};
 #[derive(Clone)]
 pub struct UiState {
     pub scale: f32,
+    pub mode: keymaps::Mode,
     pub selected: Option<NotificationId>,
 }
 
 impl Default for UiState {
     fn default() -> Self {
         Self {
+            mode: keymaps::Mode::Normal,
             scale: 1.0,
             selected: None,
         }
@@ -213,6 +215,13 @@ impl NotificationManager {
 
     pub fn selected_id(&self) -> Option<NotificationId> {
         self.ui_state.borrow().selected
+    }
+
+    pub fn selected_notification_mut(&mut self) -> Option<&mut Notification> {
+        let id = self.selected_id();
+        self.notifications
+            .iter_mut()
+            .find(|notification| Some(notification.id()) == id)
     }
 
     pub fn select(&mut self, id: NotificationId) {
@@ -657,7 +666,7 @@ impl Moxnotify {
                     .position(|n| n.id() == id)
                 {
                     if self.notifications.selected_id() == Some(id) {
-                        self.seat.keyboard.mode = Mode::Normal;
+                        self.notifications.ui_state.borrow_mut().mode = keymaps::Mode::Normal;
                     }
 
                     self.notifications.dismiss(id);

@@ -1,4 +1,4 @@
-use crate::{buffers, config::button::ButtonState, notification_manager::UiState, Urgency};
+use crate::{buffers, notification_manager::UiState, Urgency};
 use glyphon::TextArea;
 
 #[derive(Default)]
@@ -10,9 +10,11 @@ pub struct Bounds {
 }
 
 pub trait Component {
+    type Style;
+
     fn ui_state(&self) -> std::cell::Ref<'_, UiState>;
 
-    fn style(&self) -> &ButtonState;
+    fn style(&self) -> &Self::Style;
 
     fn instance(&self, urgency: &Urgency) -> buffers::Instance;
 
@@ -20,17 +22,7 @@ pub trait Component {
 
     fn bounds(&self) -> Bounds;
 
-    fn render_bounds(&self) -> Bounds {
-        let bounds = self.bounds();
-        let style = self.style();
-
-        Bounds {
-            x: bounds.x + style.margin.left,
-            y: bounds.y + style.margin.top,
-            width: bounds.width - style.margin.left - style.margin.right,
-            height: bounds.height - style.margin.top - style.margin.bottom,
-        }
-    }
+    fn render_bounds(&self) -> Bounds;
 
     fn set_position(&mut self, x: f32, y: f32);
 }
