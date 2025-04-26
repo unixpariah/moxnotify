@@ -1,7 +1,7 @@
 pub mod icons;
 mod progress;
 
-use super::config::Config;
+use super::{config::Config, UiState};
 use crate::{
     buffers,
     button::{ButtonManager, ButtonType},
@@ -12,7 +12,7 @@ use calloop::RegistrationToken;
 use glyphon::{FontSystem, TextArea, TextBounds};
 use icons::Icons;
 use progress::Progress;
-use std::sync::Arc;
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 #[derive(Debug, Default)]
 pub struct Extents {
@@ -44,14 +44,18 @@ impl PartialEq for Notification {
 }
 
 impl Notification {
-    pub fn new(config: Arc<Config>, font_system: &mut FontSystem, data: NotificationData) -> Self {
+    pub fn new(
+        config: Arc<Config>,
+        font_system: &mut FontSystem,
+        data: NotificationData,
+        ui_data: Rc<RefCell<UiState>>,
+    ) -> Self {
         if data.app_name == "next_notification_count".into()
             || data.app_name == "prev_notification_count".into()
         {
             return Self {
                 y: 0.,
                 x: 0.,
-                data,
                 text: text::Text::new(&config.styles.default.font, font_system, ""),
                 hovered: false,
                 config: Arc::clone(&config),
@@ -63,14 +67,15 @@ impl Notification {
                 },
                 progress: None,
                 registration_token: None,
-                buttons: ButtonManager::default(),
+                buttons: ButtonManager::new(data.hints.urgency, Rc::clone(&ui_data)),
+                data,
             };
         }
 
         let icons = Icons::new(data.hints.image.as_ref(), data.app_icon.as_deref(), &config);
 
         let style = &config.styles.default;
-        let buttons = ButtonManager::default()
+        let buttons = ButtonManager::new(data.hints.urgency, Rc::clone(&ui_data))
             .add_dismiss(Arc::clone(&config), font_system)
             .add_actions(&data.actions, Arc::clone(&config), font_system);
 
@@ -89,7 +94,7 @@ impl Notification {
                 - buttons
                     .buttons()
                     .first()
-                    .map(|b| b.render_bounds().width)
+                    .map(|buttons| buttons.render_bounds().width)
                     .unwrap_or_default(),
         );
 
@@ -154,6 +159,7 @@ impl Notification {
 
         let extents = self.rendered_extents();
 
+        let ui_state = self.buttons.ui_state.clone();
         let dismiss_bottom_y = self
             .buttons
             .buttons_mut()
@@ -183,8 +189,8 @@ impl Notification {
                 .buttons
                 .buttons()
                 .iter()
-                .find(|b| b.button_type() == ButtonType::Action)
-                .map(|b| b.style())
+                .find(|button| button.button_type() == ButtonType::Action)
+                .map(|button| button.style())
                 .unwrap_or_else(|| &style.buttons.action.default);
 
             let side_padding = style.border.size.left
@@ -206,13 +212,15 @@ impl Notification {
             let base_x = extents.x + style.border.size.left + style.padding.left;
             let bottom_padding = style.border.size.bottom + style.padding.bottom + progress_height;
 
+            self.buttons.set_action_widths(button_width);
+
+            let ui_state = self.buttons.ui_state.clone();
             self.buttons
                 .buttons_mut()
                 .iter_mut()
                 .filter(|b| b.button_type() == ButtonType::Action)
                 .enumerate()
                 .for_each(|(i, button)| {
-                    button.set_width(button_width);
                     let x_position = base_x + (button_width + button_margin) * i as f32;
                     let y_position =
                         (extents.y + extents.height - bottom_padding - button.bounds().height)

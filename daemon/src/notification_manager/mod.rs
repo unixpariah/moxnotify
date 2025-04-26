@@ -16,7 +16,22 @@ use glyphon::{FontSystem, TextArea};
 use notification::{Notification, NotificationId};
 use notification_view::NotificationView;
 use rusqlite::params;
-use std::{fmt, sync::Arc, time::Duration};
+use std::{cell::RefCell, fmt, rc::Rc, sync::Arc, time::Duration};
+
+#[derive(Clone)]
+pub struct UiState {
+    pub scale: f32,
+    pub container_hovered: bool,
+}
+
+impl Default for UiState {
+    fn default() -> Self {
+        Self {
+            scale: 1.0,
+            container_hovered: false,
+        }
+    }
+}
 
 pub struct NotificationManager {
     notifications: Vec<Notification>,
@@ -27,22 +42,27 @@ pub struct NotificationManager {
     font_system: FontSystem,
     notification_view: NotificationView,
     inhibited: bool,
+    pub ui_state: Rc<RefCell<UiState>>,
 }
 
 impl NotificationManager {
     pub fn new(config: Arc<Config>, loop_handle: LoopHandle<'static, Moxnotify>) -> Self {
+        let ui_state = Rc::new(RefCell::new(UiState::default()));
+
         Self {
             inhibited: false,
             waiting: 0,
-            notification_view: NotificationView::new(
-                config.general.max_visible,
-                Arc::clone(&config),
-            ),
             font_system: FontSystem::new(),
             loop_handle,
             notifications: Vec::new(),
             selected: None,
+            notification_view: NotificationView::new(
+                config.general.max_visible,
+                Arc::clone(&config),
+                Rc::clone(&ui_state),
+            ),
             config,
+            ui_state: Rc::clone(&ui_state),
         }
     }
 
@@ -63,11 +83,11 @@ impl NotificationManager {
         &self.notifications
     }
 
-    pub fn data(
-        &self,
-        mode: Mode,
-        scale: f32,
-    ) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
+    pub fn notifications_mut(&mut self) -> &mut [Notification] {
+        &mut self.notifications
+    }
+
+    pub fn data(&self, scale: f32) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
         let (mut instances, mut text_areas, textures) = self
             .notifications
             .iter()
@@ -192,13 +212,6 @@ impl NotificationManager {
         self.selected
     }
 
-    pub fn selected_notification_mut(&mut self) -> Option<&mut Notification> {
-        let id = self.selected_id()?;
-        self.notifications
-            .iter_mut()
-            .find(|notification| notification.id() == id)
-    }
-
     pub fn select(&mut self, id: NotificationId) {
         if let Some(old_id) = self.selected.take() {
             self.unhover_notification(old_id);
@@ -216,7 +229,7 @@ impl NotificationManager {
                 .buttons()
                 .iter()
                 .find(|button| button.button_type() == ButtonType::Dismiss)
-                .map(|b| b.render_bounds().width)
+                .map(|button| button.render_bounds().width)
                 .unwrap_or(0.0);
 
             new_notification.text.buffer.set_size(
@@ -346,8 +359,12 @@ impl NotificationManager {
         let mut y = 0.0;
 
         data.into_iter().for_each(|data| {
-            let mut notification =
-                Notification::new(Arc::clone(&self.config), &mut self.font_system, data);
+            let mut notification = Notification::new(
+                Arc::clone(&self.config),
+                &mut self.font_system,
+                data,
+                Rc::clone(&self.ui_state),
+            );
             notification.set_position(0.0, y);
             let height = notification.extents().height;
             y += height;
@@ -390,8 +407,12 @@ impl NotificationManager {
                 (self.height(), None)
             };
 
-        let mut notification =
-            Notification::new(Arc::clone(&self.config), &mut self.font_system, data);
+        let mut notification = Notification::new(
+            Arc::clone(&self.config),
+            &mut self.font_system,
+            data,
+            Rc::clone(&self.ui_state),
+        );
         notification.set_position(0.0, y);
 
         if let Some(timeout) = notification.timeout() {
@@ -656,7 +677,6 @@ impl Moxnotify {
         self.update_surface_size();
         if let Some(surface) = self.surface.as_mut() {
             if let Err(e) = surface.render(
-                self.seat.keyboard.mode,
                 &self.wgpu_state.device,
                 &self.wgpu_state.queue,
                 &self.notifications,

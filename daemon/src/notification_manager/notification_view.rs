@@ -1,7 +1,7 @@
-use super::notification::Notification;
+use super::{notification::Notification, UiState};
 use crate::{buffers, config::Config, NotificationData};
 use glyphon::{Attrs, FontSystem, TextArea, Weight};
-use std::{ops::Range, sync::Arc};
+use std::{cell::RefCell, ops::Range, rc::Rc, sync::Arc};
 
 pub struct NotificationView {
     pub visible: Range<usize>,
@@ -10,10 +10,11 @@ pub struct NotificationView {
     max_visible: usize,
     font_system: FontSystem,
     config: Arc<Config>,
+    ui_state: Rc<RefCell<UiState>>,
 }
 
 impl NotificationView {
-    pub fn new(max_visible: u32, config: Arc<Config>) -> Self {
+    pub fn new(max_visible: u32, config: Arc<Config>, ui_state: Rc<RefCell<UiState>>) -> Self {
         Self {
             config,
             font_system: FontSystem::new(),
@@ -21,6 +22,7 @@ impl NotificationView {
             visible: 0..max_visible as usize,
             prev: None,
             next: None,
+            ui_state,
         }
     }
 
@@ -82,6 +84,7 @@ impl NotificationView {
                         summary: summary.into(),
                         ..Default::default()
                     },
+                    Rc::clone(&self.ui_state),
                 ));
 
                 total_height += self
@@ -127,6 +130,7 @@ impl NotificationView {
                         summary: summary.into(),
                         ..Default::default()
                     },
+                    Rc::clone(&self.ui_state),
                 );
                 next.set_position(next.x, total_height);
                 self.next = Some(next);

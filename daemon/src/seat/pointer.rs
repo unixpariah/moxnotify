@@ -87,6 +87,11 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     .get_by_coordinates(surface_x, surface_y)
                     .map(|n| n.id());
 
+                {
+                    let mut ui_state = state.notifications.ui_state.borrow_mut();
+                    ui_state.container_hovered = hovered_id.is_some();
+                }
+
                 let pointer = &mut state.seat.pointer;
                 pointer.x = surface_x;
                 pointer.y = surface_y;
@@ -109,7 +114,6 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                         if let Some(surface) = state.surface.as_mut() {
                             _ = surface.render(
-                                state.seat.keyboard.mode,
                                 &state.wgpu_state.device,
                                 &state.wgpu_state.queue,
                                 &state.notifications,
@@ -122,7 +126,6 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                         if let Some(surface) = state.surface.as_mut() {
                             _ = surface.render(
-                                state.seat.keyboard.mode,
                                 &state.wgpu_state.device,
                                 &state.wgpu_state.queue,
                                 &state.notifications,
@@ -140,7 +143,6 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                         if let Some(surface) = state.surface.as_mut() {
                             _ = surface.render(
-                                state.seat.keyboard.mode,
                                 &state.wgpu_state.device,
                                 &state.wgpu_state.queue,
                                 &state.notifications,
@@ -219,7 +221,6 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                             state.update_surface_size();
                             if let Some(surface) = state.surface.as_mut() {
                                 _ = surface.render(
-                                    state.seat.keyboard.mode,
                                     &state.wgpu_state.device,
                                     &state.wgpu_state.queue,
                                     &state.notifications,
@@ -230,7 +231,6 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                             state.update_surface_size();
                             if let Some(surface) = state.surface.as_mut() {
                                 _ = surface.render(
-                                    state.seat.keyboard.mode,
                                     &state.wgpu_state.device,
                                     &state.wgpu_state.queue,
                                     &state.notifications,
