@@ -318,6 +318,9 @@ impl Moxnotify {
             }
         } else {
             let combination = self.seat.keyboard.key_combination.to_string();
+            if let Some(notification) = self.notifications.selected_notification_mut() {
+                notification.buttons.hint(&combination);
+            }
         }
 
         self.update_surface_size();
