@@ -207,6 +207,7 @@ struct ActionButton {
     action: Arc<str>,
     state: State,
     width: f32,
+    tx: calloop::channel::Sender<(u32, Arc<str>)>,
 }
 
 impl Component for ActionButton {
@@ -331,7 +332,9 @@ impl Component for ActionButton {
 }
 
 impl Button for ActionButton {
-    fn click(&self) {}
+    fn click(&self) {
+        _ = self.tx.send((self.id, Arc::clone(&self.action)));
+    }
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
@@ -465,6 +468,35 @@ impl ButtonManager {
             return self;
         }
 
+        let (tx, rx) = calloop::channel::channel();
+        if let Some(loop_handle) = self.loop_handle.as_ref() {
+            loop_handle
+                .insert_source(rx, move |event, _, moxnotify| {
+                    if let Event::Msg((id, action_key)) = event {
+                        if let Some(surface) = moxnotify.surface.as_ref() {
+                            let token = surface.token.as_ref().map(Arc::clone);
+                            _ = moxnotify.emit_sender.send(crate::EmitEvent::ActionInvoked {
+                                id,
+                                action_key,
+                                token: token.unwrap_or_default(),
+                            });
+                        }
+
+                        if !moxnotify
+                            .notifications
+                            .notifications()
+                            .iter()
+                            .find(|notification| notification.id() == id)
+                            .map(|n| n.data.hints.resident)
+                            .unwrap_or_default()
+                        {
+                            moxnotify.dismiss_by_id(id, None);
+                        }
+                    }
+                })
+                .ok();
+        }
+
         let mut buttons = actions
             .iter()
             .cloned()
@@ -480,9 +512,10 @@ impl ButtonManager {
                     x: 0.,
                     y: 0.,
                     config: Arc::clone(&config),
-                    action: action.1,
+                    action: action.0,
                     state: State::Unhovered,
                     width: 0.,
+                    tx: tx.clone(),
                 }) as Box<dyn Button>
             })
             .collect::<Vec<Box<dyn Button>>>();
