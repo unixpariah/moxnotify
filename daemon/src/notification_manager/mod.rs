@@ -76,8 +76,8 @@ impl NotificationManager {
             .fold(
                 (Vec::new(), Vec::new(), Vec::new()),
                 |(mut instances, mut text_areas, mut textures), (_, notification)| {
-                    let instance = notification.instances(mode, scale);
-                    let text = notification.text_areas(mode, scale);
+                    let instance = notification.instances();
+                    let text = notification.text_areas();
                     let texture = notification.icons.textures(
                         notification.style(),
                         &self.config,
@@ -137,12 +137,13 @@ impl NotificationManager {
             .next()
     }
 
-    pub fn hover(&mut self, x: f64, y: f64) {
-        self.notification_view.visible.clone().for_each(|index| {
+    pub fn hover(&mut self, x: f64, y: f64) -> bool {
+        self.notification_view.visible.clone().any(|index| {
             self.notifications
                 .get_mut(index)
-                .map(|notification| notification.buttons.hover(x, y));
-        });
+                .map(|notification| notification.buttons.hover(x, y))
+                .unwrap_or_default()
+        })
     }
 
     pub fn height(&self) -> f32 {

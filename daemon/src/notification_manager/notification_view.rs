@@ -1,9 +1,5 @@
 use super::notification::Notification;
-use crate::{
-    buffers,
-    config::{keymaps::Mode, Config},
-    NotificationData,
-};
+use crate::{buffers, config::Config, NotificationData};
 use glyphon::{Attrs, FontSystem, TextArea, Weight};
 use std::{ops::Range, sync::Arc};
 
@@ -157,10 +153,7 @@ impl NotificationView {
                 scale,
             };
 
-            return Some((
-                instance,
-                prev.text_areas(Mode::Normal, scale).swap_remove(0),
-            ));
+            return Some((instance, prev.text_areas().swap_remove(0)));
         }
 
         None
@@ -183,10 +176,7 @@ impl NotificationView {
                 scale,
             };
 
-            return Some((
-                instance,
-                next.text_areas(Mode::Normal, scale).swap_remove(0),
-            ));
+            return Some((instance, next.text_areas().swap_remove(0)));
         }
 
         None

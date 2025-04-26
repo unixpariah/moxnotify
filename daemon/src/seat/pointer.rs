@@ -96,7 +96,11 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 }
 
                 let pointer = &state.seat.pointer;
-                state.notifications.hover(pointer.x, pointer.y);
+                if state.notifications.hover(pointer.x, pointer.y) {
+                    state.seat.pointer.change_state(PointerState::Hover);
+                } else {
+                    state.seat.pointer.change_state(PointerState::Default);
+                }
 
                 match (hovered_id, state.notifications.selected_id()) {
                     (Some(new_id), Some(old_id)) if new_id != old_id => {
@@ -162,18 +166,11 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     wl_pointer::ButtonState::Released => {
                         state.seat.pointer.change_state(PointerState::Default);
 
-                        let (x, y) = (state.seat.pointer.x, state.seat.pointer.y);
+                        //let (x, y) = (state.seat.pointer.x, state.seat.pointer.y);
 
-                        if let Some(under_pointer) = state.notifications.get_by_coordinates(x, y) {
-                            let notification_id = under_pointer.id();
-                            state.notifications.hover(x, y);
-                        };
-
-                        if let Some(notification) = state.notifications.get_by_coordinates(x, y) {
-                            state.notifications.select(notification.id());
-                        }
-
-                        state.notifications.hover(x, y);
+                        //if let Some(notification) = state.notifications.get_by_coordinates(x, y) {
+                        //state.notifications.select(notification.id());
+                        //};
                     }
                     _ => unreachable!(),
                 }

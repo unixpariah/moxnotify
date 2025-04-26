@@ -114,7 +114,6 @@ impl Progress {
         urgency: &Urgency,
         notification_extents: &Extents,
         style: &StyleState,
-        scale: f32,
     ) -> Vec<buffers::Instance> {
         let extents = self.rendered_extents(notification_extents, style);
 
@@ -150,7 +149,7 @@ impl Progress {
                 border_radius: border_radius.into(),
                 border_size: border_size.into(),
                 border_color: style.progress.border.color.to_linear(urgency),
-                scale,
+                scale: 1.0,
             });
         }
 
@@ -184,7 +183,7 @@ impl Progress {
                     border_radius: border_radius.into(),
                     border_size: border_size.into(),
                     border_color: style.progress.border.color.to_linear(urgency),
-                    scale,
+                    scale: 1.0,
                 });
             }
         }

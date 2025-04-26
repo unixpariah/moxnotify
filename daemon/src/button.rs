@@ -6,7 +6,7 @@ use crate::{
     Urgency,
 };
 use glyphon::{FontSystem, TextArea};
-use std::{mem::discriminant, sync::Arc};
+use std::sync::Arc;
 
 #[derive(Clone, Copy)]
 pub enum State {
@@ -28,12 +28,28 @@ pub trait Component {
 
     fn instance(&self) -> buffers::Instance;
 
+    fn text_area(&self) -> TextArea;
+
     fn bounds(&self) -> Bounds;
 
-    fn render_bounds(&self) -> Bounds;
+    fn render_bounds(&self) -> Bounds {
+        let bounds = self.bounds();
+        let style = self.style();
+
+        Bounds {
+            x: bounds.x + style.margin.left,
+            y: bounds.y + style.margin.top,
+            width: bounds.width - style.margin.left - style.margin.right,
+            height: bounds.height - style.margin.top - style.margin.bottom,
+        }
+    }
+
+    fn set_position(&mut self, x: f32, y: f32);
 }
 
 pub trait Button: Component {
+    fn set_width(&mut self, width: f32);
+
     fn button_type(&self) -> ButtonType;
 
     fn state(&self) -> State;
@@ -84,6 +100,53 @@ impl Component for DismissButton {
         }
     }
 
+    fn text_area(&self) -> glyphon::TextArea {
+        let extents = self.render_bounds();
+        let style = self.style();
+        let text_extents = self.text.extents();
+
+        let remaining_padding = extents.width - text_extents.0;
+        let (pl, _) = match (style.padding.left.is_auto(), style.padding.right.is_auto()) {
+            (true, true) => (remaining_padding / 2., remaining_padding / 2.),
+            (true, false) => (remaining_padding, style.padding.right.resolve(0.)),
+            _ => (
+                style.padding.left.resolve(0.),
+                style.padding.right.resolve(0.),
+            ),
+        };
+
+        let remaining_padding = extents.height - text_extents.1;
+        let (pt, _) = match (style.padding.top.is_auto(), style.padding.bottom.is_auto()) {
+            (true, true) => (remaining_padding / 2., remaining_padding / 2.),
+            (true, false) => (remaining_padding, style.padding.bottom.resolve(0.)),
+            _ => (
+                style.padding.top.resolve(0.),
+                style.padding.bottom.resolve(0.),
+            ),
+        };
+
+        glyphon::TextArea {
+            buffer: &self.text.buffer,
+            left: extents.x + style.border.size.left + style.padding.left.resolve(pl),
+            top: extents.y + style.border.size.top + style.padding.top.resolve(pt),
+            scale: 1.0,
+            bounds: glyphon::TextBounds {
+                left: (extents.x + style.border.size.left + style.padding.left.resolve(pl)) as i32,
+                top: (extents.y + style.border.size.top + style.padding.top.resolve(pt)) as i32,
+                right: (extents.x
+                    + style.border.size.left
+                    + style.padding.left.resolve(pl)
+                    + text_extents.0) as i32,
+                bottom: (extents.y
+                    + style.border.size.top
+                    + style.padding.top.resolve(pt)
+                    + text_extents.1) as i32,
+            },
+            custom_glyphs: &[],
+            default_color: style.font.color.into_glyphon(&Urgency::Normal),
+        }
+    }
+
     fn bounds(&self) -> Bounds {
         let style = self.style();
         let text_extents = self.text.extents();
@@ -112,18 +175,16 @@ impl Component for DismissButton {
         }
     }
 
-    fn render_bounds(&self) -> Bounds {
-        let bounds = self.bounds();
-        Bounds {
-            x: bounds.x,
-            y: bounds.y,
-            width: bounds.width,
-            height: bounds.height,
-        }
+    fn set_position(&mut self, x: f32, y: f32) {
+        self.x = x;
+        self.y = y;
+        self.text.set_buffer_position(x, y);
     }
 }
 
 impl Button for DismissButton {
+    fn set_width(&mut self, width: f32) {}
+
     fn button_type(&self) -> ButtonType {
         ButtonType::Dismiss
     }
@@ -154,6 +215,8 @@ struct ActionButton {
     text: Text,
     action: Arc<str>,
     state: State,
+    button_count: usize,
+    width: f32,
 }
 
 impl Component for ActionButton {
@@ -175,6 +238,53 @@ impl Component for ActionButton {
         }
     }
 
+    fn text_area(&self) -> glyphon::TextArea {
+        let extents = self.render_bounds();
+        let style = self.style();
+        let text_extents = self.text.extents();
+
+        let remaining_padding = extents.width - text_extents.0;
+        let (pl, _) = match (style.padding.left.is_auto(), style.padding.right.is_auto()) {
+            (true, true) => (remaining_padding / 2., remaining_padding / 2.),
+            (true, false) => (remaining_padding, style.padding.right.resolve(0.)),
+            _ => (
+                style.padding.left.resolve(0.),
+                style.padding.right.resolve(0.),
+            ),
+        };
+
+        let remaining_padding = extents.height - text_extents.1;
+        let (pt, _) = match (style.padding.top.is_auto(), style.padding.bottom.is_auto()) {
+            (true, true) => (remaining_padding / 2., remaining_padding / 2.),
+            (true, false) => (remaining_padding, style.padding.bottom.resolve(0.)),
+            _ => (
+                style.padding.top.resolve(0.),
+                style.padding.bottom.resolve(0.),
+            ),
+        };
+
+        glyphon::TextArea {
+            buffer: &self.text.buffer,
+            left: extents.x + style.border.size.left + style.padding.left.resolve(pl),
+            top: extents.y + style.border.size.top + style.padding.top.resolve(pt),
+            scale: 1.,
+            bounds: glyphon::TextBounds {
+                left: (extents.x + style.border.size.left + style.padding.left.resolve(pl)) as i32,
+                top: (extents.y + style.border.size.top + style.padding.top.resolve(pt)) as i32,
+                right: (extents.x
+                    + style.border.size.left
+                    + style.padding.left.resolve(pl)
+                    + text_extents.0) as i32,
+                bottom: (extents.y
+                    + style.border.size.top
+                    + style.padding.top.resolve(pt)
+                    + text_extents.1) as i32,
+            },
+            custom_glyphs: &[],
+            default_color: style.font.color.into_glyphon(&Urgency::Normal),
+        }
+    }
+
     fn style(&self) -> &ButtonState {
         let style = &self.config.styles.hover.buttons.action; // TODO: actually figure out the hover state of container
         match self.state() {
@@ -188,8 +298,7 @@ impl Component for ActionButton {
         let style = self.style();
         let text_extents = self.text.extents();
 
-        let width = 0.;
-        let width = style.width.resolve(width)
+        let width = style.width.resolve(self.width)
             + style.border.size.left
             + style.border.size.right
             + style.padding.left
@@ -213,18 +322,18 @@ impl Component for ActionButton {
         }
     }
 
-    fn render_bounds(&self) -> Bounds {
-        let bounds = self.bounds();
-        Bounds {
-            x: bounds.x,
-            y: bounds.y,
-            width: bounds.width,
-            height: bounds.height,
-        }
+    fn set_position(&mut self, x: f32, y: f32) {
+        self.x = x;
+        self.y = y;
+        self.text.set_buffer_position(x, y);
     }
 }
 
 impl Button for ActionButton {
+    fn set_width(&mut self, width: f32) {
+        self.width = width;
+    }
+
     fn button_type(&self) -> ButtonType {
         ButtonType::Action
     }
@@ -246,16 +355,10 @@ impl Button for ActionButton {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum ButtonType {
     Dismiss,
     Action,
-}
-
-impl PartialEq for ButtonType {
-    fn eq(&self, other: &Self) -> bool {
-        discriminant(self) == discriminant(other)
-    }
 }
 
 #[derive(Default)]
@@ -264,6 +367,10 @@ pub struct ButtonManager {
 }
 
 impl ButtonManager {
+    pub fn click(&self) {
+        self.buttons.iter().for_each(|button| {});
+    }
+
     pub fn buttons(&self) -> &[Box<dyn Button>] {
         &self.buttons
     }
@@ -272,10 +379,7 @@ impl ButtonManager {
         &mut self.buttons
     }
 
-    pub fn add<T>(&mut self, mut button: T, config: Arc<Config>, font_system: &mut FontSystem)
-    where
-        T: Button + 'static,
-    {
+    pub fn add_dismiss(mut self, config: Arc<Config>, font_system: &mut FontSystem) -> Self {
         let hint_chars: Vec<char> = config.general.hint_characters.chars().collect();
         let n = hint_chars.len();
 
@@ -294,24 +398,80 @@ impl ButtonManager {
         indices.reverse();
         let combination: String = indices.into_iter().map(|i| hint_chars[i]).collect();
 
-        button.set_hint(Hint::new(&combination, config, font_system));
+        let font = &config.styles.default.buttons.dismiss.default.font;
+        let text = Text::new(font, font_system, "X");
+
+        let button = DismissButton {
+            hint: Hint::new(&combination, Arc::clone(&config), font_system),
+            text,
+            hovered: false,
+            x: 0.,
+            y: 0.,
+            config,
+            state: State::Unhovered,
+        };
 
         self.buttons.push(Box::new(button));
+
+        self
     }
 
-    pub fn hover(&mut self, x: f64, y: f64) {
-        self.buttons.iter_mut().for_each(|button| {
-            let bounds = button.render_bounds();
-            if x >= bounds.x as f64
-                && y >= bounds.y as f64
-                && x <= (bounds.x + bounds.width) as f64
-                && y <= (bounds.y + bounds.height) as f64
-            {
-                button.hover();
-            } else {
-                button.unhover();
-            }
-        });
+    pub fn add_actions(
+        mut self,
+        actions: &[(Arc<str>, Arc<str>)],
+        config: Arc<Config>,
+        font_system: &mut FontSystem,
+    ) -> Self {
+        if actions.is_empty() {
+            return self;
+        }
+
+        let mut buttons = actions
+            .iter()
+            .cloned()
+            .map(|action| {
+                let font = &config.styles.default.buttons.action.default.font;
+                let text = Text::new(font, font_system, &action.0);
+
+                Box::new(ActionButton {
+                    hint: Hint::new("", Arc::clone(&config), font_system),
+                    text,
+                    hovered: false,
+                    x: 0.,
+                    y: 0.,
+                    config: Arc::clone(&config),
+                    action: action.1,
+                    state: State::Unhovered,
+                    button_count: actions.len(),
+                    width: 0.,
+                }) as Box<dyn Button>
+            })
+            .collect::<Vec<Box<dyn Button>>>();
+
+        self.buttons.append(&mut buttons);
+
+        self
+    }
+
+    pub fn hover(&mut self, x: f64, y: f64) -> bool {
+        self.buttons
+            .iter_mut()
+            .filter_map(|button| {
+                let bounds = button.render_bounds();
+                if x >= bounds.x as f64
+                    && y >= bounds.y as f64
+                    && x <= (bounds.x + bounds.width) as f64
+                    && y <= (bounds.y + bounds.height) as f64
+                {
+                    button.hover();
+                    Some(true)
+                } else {
+                    button.unhover();
+                    None
+                }
+            })
+            .next()
+            .is_some()
     }
 
     //pub fn get_by_character(&mut self, combination: &str) -> Option<ButtonType> {
@@ -348,36 +508,30 @@ impl ButtonManager {
         buttons
     }
 
-    //pub fn text_areas(
-    //&self,
-    //mode: Mode,
-    //container_hovered: bool,
-    //urgency: &Urgency,
-    //scale: f32,
-    //) -> Vec<TextArea> {
-    //let mut text_areas = self
-    //.buttons
-    //.iter()
-    //.map(|button| button.text_area(container_hovered, scale, urgency))
-    //.collect::<Vec<_>>();
+    pub fn text_areas(&self) -> Vec<TextArea> {
+        let mut text_areas = self
+            .buttons
+            .iter()
+            .map(|button| button.text_area())
+            .collect::<Vec<_>>();
 
-    //if mode == Mode::Hint && container_hovered {
-    //let hints = self
-    //.buttons
-    //.iter()
-    //.map(|button| {
-    //button.hint.text_area(
-    //&button.rendered_extents(container_hovered),
-    //scale,
-    //urgency,
-    //)
-    //})
-    //.collect::<Vec<_>>();
-    //text_areas.extend_from_slice(&hints);
-    //}
+        //if mode == Mode::Hint && container_hovered {
+        //let hints = self
+        //.buttons
+        //.iter()
+        //.map(|button| {
+        //button.hint.text_area(
+        //&button.rendered_extents(container_hovered),
+        //scale,
+        //urgency,
+        //)
+        //})
+        //.collect::<Vec<_>>();
+        //text_areas.extend_from_slice(&hints);
+        //}
 
-    //text_areas
-    //}
+        text_areas
+    }
 }
 
 pub struct Hint {

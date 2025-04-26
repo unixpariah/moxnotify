@@ -4,8 +4,8 @@ mod progress;
 use super::config::Config;
 use crate::{
     buffers,
-    button::{ButtonManager, ButtonType, DismissButton},
-    config::{keymaps::Mode, Size, StyleState},
+    button::{ButtonManager, ButtonType},
+    config::{Size, StyleState},
     text, NotificationData, Urgency,
 };
 use calloop::RegistrationToken;
@@ -70,15 +70,9 @@ impl Notification {
         let icons = Icons::new(data.hints.image.as_ref(), data.app_icon.as_deref(), &config);
 
         let style = &config.styles.default;
-        let mut buttons = ButtonManager::default();
-        //buttons.add(ButtonType::Dismiss, Arc::clone(&config), font_system);
-        //data.actions.iter().cloned().for_each(|(action, text)| {
-        //buttons.add(
-        //ButtonType::Action { text, action },
-        //Arc::clone(&config),
-        //font_system,
-        //)
-        //});
+        let buttons = ButtonManager::default()
+            .add_dismiss(Arc::clone(&config), font_system)
+            .add_actions(&data.actions, Arc::clone(&config), font_system);
 
         let icon_width = icons
             .icon
@@ -171,7 +165,7 @@ impl Notification {
                     - style.padding.right
                     - button.bounds().width;
                 let y = extents.y + style.margin.top + style.border.size.top + style.padding.top;
-                //button.set_position(x, y);
+                button.set_position(x, y);
                 let button_extents = button.bounds();
                 button_extents.y + button_extents.height
             })
@@ -218,13 +212,13 @@ impl Notification {
                 .filter(|b| b.button_type() == ButtonType::Action)
                 .enumerate()
                 .for_each(|(i, button)| {
-                    //button.width = button_width;
+                    button.set_width(button_width);
                     let x_position = base_x + (button_width + button_margin) * i as f32;
                     let y_position =
                         (extents.y + extents.height - bottom_padding - button.bounds().height)
                             .max(dismiss_bottom_y);
 
-                    //button.set_position(x_position, y_position);
+                    button.set_position(x_position, y_position);
                 });
         }
     }
@@ -354,7 +348,7 @@ impl Notification {
         self.data.id
     }
 
-    fn background_instance(&self, scale: f32) -> buffers::Instance {
+    fn background_instance(&self) -> buffers::Instance {
         let extents = self.rendered_extents();
         let style = self.style();
 
@@ -368,18 +362,17 @@ impl Notification {
             border_radius: style.border.radius.into(),
             border_size: style.border.size.into(),
             border_color: style.border.color.to_linear(self.urgency()),
-            scale,
+            scale: 1.0,
         }
     }
 
-    pub fn instances(&self, mode: Mode, scale: f32) -> Vec<buffers::Instance> {
-        let mut instances = vec![self.background_instance(scale)];
+    pub fn instances(&self) -> Vec<buffers::Instance> {
+        let mut instances = vec![self.background_instance()];
         if let Some(progress) = self.progress.as_ref() {
             instances.extend_from_slice(&progress.instances(
                 self.urgency(),
                 &self.rendered_extents(),
                 self.style(),
-                scale,
             ));
         }
 
@@ -441,7 +434,7 @@ impl Notification {
         }
     }
 
-    pub fn text_areas(&self, mode: Mode, scale: f32) -> Vec<TextArea> {
+    pub fn text_areas(&self) -> Vec<TextArea> {
         let extents = self.rendered_extents();
         let (width, height) = self.text.extents();
 
@@ -458,7 +451,7 @@ impl Notification {
             buffer: &self.text.buffer,
             left: extents.x + style.border.size.left + style.padding.left + icon_width_positioning,
             top: extents.y + style.border.size.top + style.padding.top,
-            scale,
+            scale: 1.,
             bounds: TextBounds {
                 left: (extents.x
                     + style.border.size.left
@@ -479,11 +472,9 @@ impl Notification {
             custom_glyphs: &[],
         }];
 
-        //let button_areas = self
-        //.buttons
-        //.text_areas(mode, self.hovered(), self.urgency(), scale);
+        let button_areas = self.buttons.text_areas();
 
-        //res.extend_from_slice(&button_areas);
+        res.extend_from_slice(&button_areas);
         res
     }
 }
