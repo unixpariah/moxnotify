@@ -171,11 +171,8 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     wl_pointer::ButtonState::Released => {
                         state.seat.pointer.change_state(PointerState::Default);
 
-                        //let (x, y) = (state.seat.pointer.x, state.seat.pointer.y);
-
-                        //if let Some(notification) = state.notifications.get_by_coordinates(x, y) {
-                        //state.notifications.select(notification.id());
-                        //};
+                        let (x, y) = (state.seat.pointer.x, state.seat.pointer.y);
+                        state.notifications.click(x, y);
                     }
                     _ => unreachable!(),
                 }

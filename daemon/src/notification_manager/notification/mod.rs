@@ -6,9 +6,9 @@ use crate::{
     buffers,
     button::{ButtonManager, ButtonType},
     config::{Size, StyleState},
-    text, NotificationData, Urgency,
+    text, Moxnotify, NotificationData, Urgency,
 };
-use calloop::RegistrationToken;
+use calloop::{LoopHandle, RegistrationToken};
 use glyphon::{FontSystem, TextArea, TextBounds};
 use icons::Icons;
 use progress::Progress;
@@ -50,6 +50,7 @@ impl Notification {
         font_system: &mut FontSystem,
         data: NotificationData,
         ui_state: Rc<RefCell<UiState>>,
+        loop_handle: Option<LoopHandle<'static, Moxnotify>>,
     ) -> Self {
         if data.app_name == "next_notification_count".into()
             || data.app_name == "prev_notification_count".into()
@@ -68,7 +69,12 @@ impl Notification {
                 },
                 progress: None,
                 registration_token: None,
-                buttons: ButtonManager::new(data.id, data.hints.urgency, Rc::clone(&ui_state)),
+                buttons: ButtonManager::new(
+                    data.id,
+                    data.hints.urgency,
+                    Rc::clone(&ui_state),
+                    loop_handle,
+                ),
                 data,
                 ui_state: Rc::clone(&ui_state),
             };
@@ -77,9 +83,14 @@ impl Notification {
         let icons = Icons::new(data.hints.image.as_ref(), data.app_icon.as_deref(), &config);
 
         let style = &config.styles.default;
-        let buttons = ButtonManager::new(data.id, data.hints.urgency, Rc::clone(&ui_state))
-            .add_dismiss(Arc::clone(&config), font_system)
-            .add_actions(&data.actions, Arc::clone(&config), font_system);
+        let buttons = ButtonManager::new(
+            data.id,
+            data.hints.urgency,
+            Rc::clone(&ui_state),
+            loop_handle,
+        )
+        .add_dismiss(Arc::clone(&config), font_system)
+        .add_actions(&data.actions, Arc::clone(&config), font_system);
 
         let icon_width = icons
             .icon

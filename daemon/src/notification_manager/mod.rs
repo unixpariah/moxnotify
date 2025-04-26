@@ -151,6 +151,15 @@ impl NotificationManager {
             .next()
     }
 
+    pub fn click(&mut self, x: f64, y: f64) -> bool {
+        self.notification_view.visible.clone().any(|index| {
+            self.notifications
+                .get_mut(index)
+                .map(|notification| notification.buttons.click(x, y))
+                .unwrap_or_default()
+        })
+    }
+
     pub fn hover(&mut self, x: f64, y: f64) -> bool {
         self.notification_view.visible.clone().any(|index| {
             self.notifications
@@ -361,6 +370,7 @@ impl NotificationManager {
                 &mut self.font_system,
                 data,
                 Rc::clone(&self.ui_state),
+                Some(self.loop_handle.clone()),
             );
             notification.set_position(0.0, y);
             let height = notification.extents().height;
@@ -409,6 +419,7 @@ impl NotificationManager {
             &mut self.font_system,
             data,
             Rc::clone(&self.ui_state),
+            Some(self.loop_handle.clone()),
         );
         notification.set_position(0.0, y);
 

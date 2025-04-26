@@ -2,10 +2,11 @@ use crate::{
     buffers,
     component::{Bounds, Component},
     config::{button::ButtonState, Config},
-    notification_manager::{notification::Extents, UiState},
+    notification_manager::{notification::Extents, Reason, UiState},
     text::Text,
-    Urgency,
+    Moxnotify, Urgency,
 };
+use calloop::{channel::Event, LoopHandle};
 use glyphon::{FontSystem, TextArea};
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
@@ -17,6 +18,8 @@ pub enum State {
 }
 
 pub trait Button: Component {
+    fn click(&self);
+
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
 
     fn button_type(&self) -> ButtonType;
@@ -39,6 +42,7 @@ pub struct DismissButton {
     text: Text,
     state: State,
     ui_state: Rc<RefCell<UiState>>,
+    tx: calloop::channel::Sender<u32>,
 }
 
 impl Component for DismissButton {
@@ -163,6 +167,10 @@ impl Component for DismissButton {
 }
 
 impl Button for DismissButton {
+    fn click(&self) {
+        _ = self.tx.send(self.id);
+    }
+
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
@@ -323,6 +331,8 @@ impl Component for ActionButton {
 }
 
 impl Button for ActionButton {
+    fn click(&self) {}
+
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
@@ -359,15 +369,22 @@ pub struct ButtonManager {
     buttons: Vec<Box<dyn Button>>,
     urgency: Urgency,
     pub ui_state: Rc<RefCell<UiState>>,
+    loop_handle: Option<LoopHandle<'static, Moxnotify>>,
 }
 
 impl ButtonManager {
-    pub fn new(id: u32, urgency: Urgency, ui_state: Rc<RefCell<UiState>>) -> Self {
+    pub fn new(
+        id: u32,
+        urgency: Urgency,
+        ui_state: Rc<RefCell<UiState>>,
+        loop_handle: Option<LoopHandle<'static, Moxnotify>>,
+    ) -> Self {
         Self {
             id,
             buttons: Vec::new(),
             urgency,
             ui_state,
+            loop_handle,
         }
     }
 
@@ -378,10 +395,6 @@ impl ButtonManager {
             .for_each(|action| {
                 action.width = width;
             });
-    }
-
-    pub fn click(&self) {
-        self.buttons.iter().for_each(|button| {});
     }
 
     pub fn buttons(&self) -> &[Box<dyn Button>] {
@@ -414,6 +427,17 @@ impl ButtonManager {
         let font = &config.styles.default.buttons.dismiss.default.font;
         let text = Text::new(font, font_system, "X");
 
+        let (tx, rx) = calloop::channel::channel();
+        if let Some(loop_handle) = self.loop_handle.as_ref() {
+            loop_handle
+                .insert_source(rx, move |event, _, moxnotify| {
+                    if let Event::Msg(id) = event {
+                        moxnotify.dismiss_by_id(id, Some(Reason::DismissedByUser));
+                    }
+                })
+                .ok();
+        }
+
         let button = DismissButton {
             id: self.id,
             ui_state: Rc::clone(&self.ui_state),
@@ -423,6 +447,7 @@ impl ButtonManager {
             y: 0.,
             config,
             state: State::Unhovered,
+            tx,
         };
 
         self.buttons.push(Box::new(button));
@@ -465,6 +490,26 @@ impl ButtonManager {
         self.buttons.append(&mut buttons);
 
         self
+    }
+
+    pub fn click(&self, x: f64, y: f64) -> bool {
+        self.buttons
+            .iter()
+            .filter_map(|button| {
+                let bounds = button.render_bounds();
+                if x >= bounds.x as f64
+                    && y >= bounds.y as f64
+                    && x <= (bounds.x + bounds.width) as f64
+                    && y <= (bounds.y + bounds.height) as f64
+                {
+                    button.click();
+                    Some(true)
+                } else {
+                    None
+                }
+            })
+            .next()
+            .is_some()
     }
 
     pub fn hover(&mut self, x: f64, y: f64) -> bool {

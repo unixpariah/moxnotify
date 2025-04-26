@@ -85,6 +85,7 @@ impl NotificationView {
                         ..Default::default()
                     },
                     Rc::clone(&self.ui_state),
+                    None,
                 ));
 
                 total_height += self
@@ -131,6 +132,7 @@ impl NotificationView {
                         ..Default::default()
                     },
                     Rc::clone(&self.ui_state),
+                    None,
                 );
                 next.set_position(next.x, total_height);
                 self.next = Some(next);
