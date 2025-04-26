@@ -35,6 +35,7 @@ pub struct Notification {
     pub registration_token: Option<RegistrationToken>,
     pub buttons: ButtonManager,
     pub data: NotificationData,
+    ui_state: Rc<RefCell<UiState>>,
 }
 
 impl PartialEq for Notification {
@@ -48,7 +49,7 @@ impl Notification {
         config: Arc<Config>,
         font_system: &mut FontSystem,
         data: NotificationData,
-        ui_data: Rc<RefCell<UiState>>,
+        ui_state: Rc<RefCell<UiState>>,
     ) -> Self {
         if data.app_name == "next_notification_count".into()
             || data.app_name == "prev_notification_count".into()
@@ -67,15 +68,16 @@ impl Notification {
                 },
                 progress: None,
                 registration_token: None,
-                buttons: ButtonManager::new(data.hints.urgency, Rc::clone(&ui_data)),
+                buttons: ButtonManager::new(data.id, data.hints.urgency, Rc::clone(&ui_state)),
                 data,
+                ui_state: Rc::clone(&ui_state),
             };
         }
 
         let icons = Icons::new(data.hints.image.as_ref(), data.app_icon.as_deref(), &config);
 
         let style = &config.styles.default;
-        let buttons = ButtonManager::new(data.hints.urgency, Rc::clone(&ui_data))
+        let buttons = ButtonManager::new(data.id, data.hints.urgency, Rc::clone(&ui_state))
             .add_dismiss(Arc::clone(&config), font_system)
             .add_actions(&data.actions, Arc::clone(&config), font_system);
 
@@ -109,6 +111,7 @@ impl Notification {
             config,
             hovered: false,
             registration_token: None,
+            ui_state: Rc::clone(&ui_state),
         }
     }
 
@@ -159,7 +162,6 @@ impl Notification {
 
         let extents = self.rendered_extents();
 
-        let ui_state = self.buttons.ui_state.clone();
         let dismiss_bottom_y = self
             .buttons
             .buttons_mut()
@@ -214,7 +216,6 @@ impl Notification {
 
             self.buttons.set_action_widths(button_width);
 
-            let ui_state = self.buttons.ui_state.clone();
             self.buttons
                 .buttons_mut()
                 .iter_mut()
@@ -370,7 +371,7 @@ impl Notification {
             border_radius: style.border.radius.into(),
             border_size: style.border.size.into(),
             border_color: style.border.color.to_linear(self.urgency()),
-            scale: 1.0,
+            scale: self.ui_state.borrow().scale,
         }
     }
 
@@ -459,7 +460,7 @@ impl Notification {
             buffer: &self.text.buffer,
             left: extents.x + style.border.size.left + style.padding.left + icon_width_positioning,
             top: extents.y + style.border.size.top + style.padding.top,
-            scale: 1.,
+            scale: self.ui_state.borrow().scale,
             bounds: TextBounds {
                 left: (extents.x
                     + style.border.size.left

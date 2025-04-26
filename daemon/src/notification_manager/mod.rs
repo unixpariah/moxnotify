@@ -21,14 +21,14 @@ use std::{cell::RefCell, fmt, rc::Rc, sync::Arc, time::Duration};
 #[derive(Clone)]
 pub struct UiState {
     pub scale: f32,
-    pub container_hovered: bool,
+    pub selected: Option<NotificationId>,
 }
 
 impl Default for UiState {
     fn default() -> Self {
         Self {
             scale: 1.0,
-            container_hovered: false,
+            selected: None,
         }
     }
 }
@@ -38,9 +38,9 @@ pub struct NotificationManager {
     waiting: u32,
     config: Arc<Config>,
     loop_handle: LoopHandle<'static, Moxnotify>,
-    selected: Option<NotificationId>,
     font_system: FontSystem,
     notification_view: NotificationView,
+    selected: Option<NotificationId>,
     inhibited: bool,
     pub ui_state: Rc<RefCell<UiState>>,
 }
@@ -81,10 +81,6 @@ impl NotificationManager {
 
     pub fn notifications(&self) -> &[Notification] {
         &self.notifications
-    }
-
-    pub fn notifications_mut(&mut self) -> &mut [Notification] {
-        &mut self.notifications
     }
 
     pub fn data(&self, scale: f32) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
@@ -239,6 +235,7 @@ impl NotificationManager {
             );
 
             self.selected = Some(id);
+            self.ui_state.borrow_mut().selected = Some(id);
             if let Some(token) = new_notification.registration_token.take() {
                 self.loop_handle.remove(token);
             }

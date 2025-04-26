@@ -89,7 +89,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                 {
                     let mut ui_state = state.notifications.ui_state.borrow_mut();
-                    ui_state.container_hovered = hovered_id.is_some();
+                    ui_state.selected = hovered_id;
                 }
 
                 let pointer = &mut state.seat.pointer;

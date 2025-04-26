@@ -1,5 +1,6 @@
 use crate::{
     buffers,
+    component::{Bounds, Component},
     config::{button::ButtonState, Config},
     notification_manager::{notification::Extents, UiState},
     text::Text,
@@ -13,40 +14,6 @@ pub enum State {
     Unhovered,
     Hovered,
     Clicked,
-}
-
-#[derive(Default)]
-pub struct Bounds {
-    pub x: f32,
-    pub y: f32,
-    pub width: f32,
-    pub height: f32,
-}
-
-pub trait Component {
-    fn ui_state(&self) -> std::cell::Ref<'_, UiState>;
-
-    fn style(&self) -> &ButtonState;
-
-    fn instance(&self, urgency: &Urgency) -> buffers::Instance;
-
-    fn text_area(&self, urgency: &Urgency) -> TextArea;
-
-    fn bounds(&self) -> Bounds;
-
-    fn render_bounds(&self) -> Bounds {
-        let bounds = self.bounds();
-        let style = self.style();
-
-        Bounds {
-            x: bounds.x + style.margin.left,
-            y: bounds.y + style.margin.top,
-            width: bounds.width - style.margin.left - style.margin.right,
-            height: bounds.height - style.margin.top - style.margin.bottom,
-        }
-    }
-
-    fn set_position(&mut self, x: f32, y: f32);
 }
 
 pub trait Button: Component {
@@ -64,6 +31,7 @@ pub trait Button: Component {
 }
 
 pub struct DismissButton {
+    id: u32,
     x: f32,
     y: f32,
     hovered: bool,
@@ -80,7 +48,11 @@ impl Component for DismissButton {
     }
 
     fn style(&self) -> &ButtonState {
-        let style = match self.ui_state().container_hovered {
+        let style = match self
+            .ui_state()
+            .selected
+            .is_some_and(|selected| selected == self.id)
+        {
             true => &self.config.styles.hover.buttons.dismiss,
             false => &self.config.styles.default.buttons.dismiss,
         };
@@ -218,6 +190,7 @@ impl Button for DismissButton {
 }
 
 struct ActionButton {
+    id: u32,
     ui_state: Rc<RefCell<UiState>>,
     x: f32,
     y: f32,
@@ -301,7 +274,11 @@ impl Component for ActionButton {
     }
 
     fn style(&self) -> &ButtonState {
-        let style = match self.ui_state().container_hovered {
+        let style = match self
+            .ui_state()
+            .selected
+            .is_some_and(|selected| selected == self.id)
+        {
             true => &self.config.styles.hover.buttons.dismiss,
             false => &self.config.styles.default.buttons.dismiss,
         };
@@ -380,14 +357,16 @@ pub enum ButtonType {
 }
 
 pub struct ButtonManager {
+    id: u32,
     buttons: Vec<Box<dyn Button>>,
     urgency: Urgency,
     pub ui_state: Rc<RefCell<UiState>>,
 }
 
 impl ButtonManager {
-    pub fn new(urgency: Urgency, ui_state: Rc<RefCell<UiState>>) -> Self {
+    pub fn new(id: u32, urgency: Urgency, ui_state: Rc<RefCell<UiState>>) -> Self {
         Self {
+            id,
             buttons: Vec::new(),
             urgency,
             ui_state,
@@ -438,6 +417,7 @@ impl ButtonManager {
         let text = Text::new(font, font_system, "X");
 
         let button = DismissButton {
+            id: self.id,
             ui_state: Rc::clone(&self.ui_state),
             hint: Hint::new(&combination, Arc::clone(&config), font_system),
             text,
@@ -471,6 +451,7 @@ impl ButtonManager {
                 let text = Text::new(font, font_system, &action.0);
 
                 Box::new(ActionButton {
+                    id: self.id,
                     ui_state: Rc::clone(&self.ui_state),
                     hint: Hint::new("", Arc::clone(&config), font_system),
                     text,

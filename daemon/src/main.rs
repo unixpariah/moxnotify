@@ -2,6 +2,7 @@ mod animation;
 mod audio;
 pub mod buffers;
 pub mod button;
+pub mod component;
 mod config;
 mod dbus;
 mod image_data;
