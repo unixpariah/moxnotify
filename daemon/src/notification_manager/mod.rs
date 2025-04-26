@@ -40,7 +40,6 @@ pub struct NotificationManager {
     loop_handle: LoopHandle<'static, Moxnotify>,
     font_system: FontSystem,
     notification_view: NotificationView,
-    selected: Option<NotificationId>,
     inhibited: bool,
     pub ui_state: Rc<RefCell<UiState>>,
 }
@@ -55,7 +54,6 @@ impl NotificationManager {
             font_system: FontSystem::new(),
             loop_handle,
             notifications: Vec::new(),
-            selected: None,
             notification_view: NotificationView::new(
                 config.general.max_visible,
                 Arc::clone(&config),
@@ -205,11 +203,12 @@ impl NotificationManager {
     }
 
     pub fn selected_id(&self) -> Option<NotificationId> {
-        self.selected
+        self.ui_state.borrow().selected
     }
 
     pub fn select(&mut self, id: NotificationId) {
-        if let Some(old_id) = self.selected.take() {
+        let old_id = self.ui_state.borrow_mut().selected.take();
+        if let Some(old_id) = old_id {
             self.unhover_notification(old_id);
         }
 
@@ -234,7 +233,6 @@ impl NotificationManager {
                 None,
             );
 
-            self.selected = Some(id);
             self.ui_state.borrow_mut().selected = Some(id);
             if let Some(token) = new_notification.registration_token.take() {
                 self.loop_handle.remove(token);
@@ -243,7 +241,7 @@ impl NotificationManager {
     }
 
     pub fn next(&mut self) {
-        let next_notification_index = if let Some(id) = self.selected {
+        let next_notification_index = if let Some(id) = self.ui_state.borrow().selected {
             self.notifications
                 .iter()
                 .position(|n| n.id() == id)
@@ -293,7 +291,7 @@ impl NotificationManager {
     }
 
     pub fn prev(&mut self) {
-        let notification_index = if let Some(id) = self.selected {
+        let notification_index = if let Some(id) = self.ui_state.borrow().selected {
             self.notifications.iter().position(|n| n.id() == id).map_or(
                 self.notifications.len().saturating_sub(1),
                 |index| {
@@ -343,7 +341,9 @@ impl NotificationManager {
     }
 
     pub fn deselect(&mut self) {
-        if let Some(old_id) = self.selected.take() {
+        let mut ui_state = self.ui_state.borrow_mut();
+        if let Some(old_id) = ui_state.selected.take() {
+            drop(ui_state);
             self.unhover_notification(old_id);
         }
     }

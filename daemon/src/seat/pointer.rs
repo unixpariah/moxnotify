@@ -87,11 +87,6 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                     .get_by_coordinates(surface_x, surface_y)
                     .map(|n| n.id());
 
-                {
-                    let mut ui_state = state.notifications.ui_state.borrow_mut();
-                    ui_state.selected = hovered_id;
-                }
-
                 let pointer = &mut state.seat.pointer;
                 pointer.x = surface_x;
                 pointer.y = surface_y;
@@ -180,11 +175,14 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
             wl_pointer::Event::Leave { .. } => {
                 if let Some(surface) = state.surface.as_mut() {
                     if surface.focus_reason == Some(FocusReason::MouseEnter) {
-                        surface.unfocus();
                         state.seat.pointer.change_state(PointerState::Default);
-                        if surface.focus_reason == Some(FocusReason::MouseEnter) {
-                            state.notifications.deselect();
-                        }
+                        state.notifications.deselect();
+                        surface.unfocus();
+                        _ = surface.render(
+                            &state.wgpu_state.device,
+                            &state.wgpu_state.queue,
+                            &state.notifications,
+                        );
                     }
                 }
             }
