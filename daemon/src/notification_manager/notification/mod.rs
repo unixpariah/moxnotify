@@ -4,7 +4,7 @@ mod progress;
 use super::{config::Config, UiState};
 use crate::{
     buffers,
-    button::{ButtonManager, ButtonType},
+    button::{ButtonManager, ButtonType, Finished},
     config::{Size, StyleState},
     text, Moxnotify, NotificationData, Urgency,
 };
@@ -33,7 +33,7 @@ pub struct Notification {
     pub icons: Icons,
     progress: Option<Progress>,
     pub registration_token: Option<RegistrationToken>,
-    pub buttons: ButtonManager,
+    pub buttons: ButtonManager<Finished>,
     pub data: NotificationData,
     ui_state: Rc<RefCell<UiState>>,
 }
@@ -75,7 +75,9 @@ impl Notification {
                     Rc::clone(&ui_state),
                     loop_handle,
                     Rc::clone(&config),
-                ),
+                )
+                .add_dismiss(font_system)
+                .finish(font_system),
                 data,
                 ui_state: Rc::clone(&ui_state),
             };

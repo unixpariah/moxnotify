@@ -9,6 +9,7 @@ use glyphon::{
 use regex::Regex;
 use std::{
     path::Path,
+    rc::Rc,
     sync::{Arc, LazyLock},
 };
 use wgpu::{MultisampleState, TextureFormat};
@@ -24,7 +25,7 @@ static URL_REGEX: LazyLock<Regex> =
 static SPLIT_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(<[^>]+>)|([^<]+)").unwrap());
 
 pub struct Anchor {
-    text: Arc<str>,
+    text: Rc<str>,
     pub href: Arc<str>,
     pub line: usize,
     pub start: usize,
@@ -52,7 +53,7 @@ fn create_buffer(font: &Font, font_system: &mut FontSystem, max_width: Option<f3
 
 pub struct Text {
     pub buffer: Buffer,
-    pub anchors: Vec<Arc<Anchor>>,
+    pub anchors: Vec<Rc<Anchor>>,
     x: f32,
     y: f32,
 }
@@ -211,18 +212,21 @@ impl Text {
                             anchor.end = start + anchor.text.len();
                             anchor.line = i;
                             anchor.extents = match buffer.layout_runs().nth(anchor.line) {
-                                Some(line) => Extents {
-                                    x: line.glyphs.get(anchor.start).unwrap().x
-                                        + line.glyphs.get(anchor.start).unwrap().w,
-                                    y: line.line_top + line.line_height,
-                                    width: (line.glyphs.get(anchor.end - 1).unwrap().x
-                                        + line.glyphs.get(anchor.end - 1).unwrap().w)
-                                        - line.glyphs.get(anchor.start).unwrap().x,
-                                    height: line.line_height,
-                                },
-
+                                Some(line) => {
+                                    let first = line.glyphs.get(anchor.start);
+                                    let last = line.glyphs.get(anchor.end.saturating_sub(1));
+                                    match (first, last) {
+                                        (Some(first), Some(last)) => Extents {
+                                            x: first.x + first.w,
+                                            y: line.line_top + line.line_height,
+                                            width: (last.x + last.w) - first.x,
+                                            height: line.line_height,
+                                        },
+                                        _ => Extents::default(),
+                                    }
+                                }
                                 None => Extents::default(),
-                            }
+                            };
                         }
                     });
                 total += line.text().len();
@@ -231,7 +235,7 @@ impl Text {
 
         Self {
             buffer,
-            anchors: anchors.into_iter().map(Arc::new).collect(),
+            anchors: anchors.into_iter().map(Rc::new).collect(),
             x: 0.,
             y: 0.,
         }

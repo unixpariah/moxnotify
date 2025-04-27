@@ -1,4 +1,4 @@
-use super::{Button, ButtonManager, ButtonType, Hint, State};
+use super::{Button, ButtonType, Hint, State};
 use crate::{
     buffers,
     component::{Bounds, Component},
@@ -7,22 +7,20 @@ use crate::{
     text::Text,
     Urgency,
 };
-use calloop::channel::Event;
-use glyphon::FontSystem;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 pub struct ActionButton {
-    id: u32,
-    ui_state: Rc<RefCell<UiState>>,
-    x: f32,
-    y: f32,
-    hint: Hint,
-    config: Rc<Config>,
-    text: Text,
-    action: Arc<str>,
-    state: State,
+    pub id: u32,
+    pub ui_state: Rc<RefCell<UiState>>,
+    pub x: f32,
+    pub y: f32,
+    pub hint: Hint,
+    pub config: Rc<Config>,
+    pub text: Text,
+    pub action: Arc<str>,
+    pub state: State,
     pub width: f32,
-    tx: calloop::channel::Sender<(u32, Arc<str>)>,
+    pub tx: calloop::channel::Sender<(u32, Arc<str>)>,
 }
 
 impl Component for ActionButton {
@@ -157,6 +155,9 @@ impl Component for ActionButton {
         self.x = x;
         self.y = y;
         self.text.set_buffer_position(x, y);
+
+        let bounds = self.render_bounds();
+        self.hint.set_position(bounds.x, bounds.y);
     }
 }
 
@@ -191,78 +192,5 @@ impl Button for ActionButton {
 
     fn set_hint(&mut self, hint: Hint) {
         self.hint = hint;
-    }
-}
-
-impl ButtonManager {
-    pub fn add_actions(
-        mut self,
-        actions: &[(Arc<str>, Arc<str>)],
-        font_system: &mut FontSystem,
-    ) -> Self {
-        if actions.is_empty() {
-            return self;
-        }
-
-        let (tx, rx) = calloop::channel::channel();
-        if let Some(loop_handle) = self.loop_handle.as_ref() {
-            loop_handle
-                .insert_source(rx, move |event, _, moxnotify| {
-                    if let Event::Msg((id, action_key)) = event {
-                        if let Some(surface) = moxnotify.surface.as_ref() {
-                            let token = surface.token.as_ref().map(Arc::clone);
-                            _ = moxnotify.emit_sender.send(crate::EmitEvent::ActionInvoked {
-                                id,
-                                action_key,
-                                token: token.unwrap_or_default(),
-                            });
-                        }
-
-                        if !moxnotify
-                            .notifications
-                            .notifications()
-                            .iter()
-                            .find(|notification| notification.id() == id)
-                            .map(|n| n.data.hints.resident)
-                            .unwrap_or_default()
-                        {
-                            moxnotify.dismiss_by_id(id, None);
-                        }
-                    }
-                })
-                .ok();
-        }
-
-        let mut buttons = actions
-            .iter()
-            .cloned()
-            .map(|action| {
-                let font = &self.config.styles.default.buttons.action.default.font;
-                let text = Text::new(font, font_system, &action.0);
-
-                Box::new(ActionButton {
-                    id: self.id,
-                    ui_state: Rc::clone(&self.ui_state),
-                    hint: Hint::new(
-                        "",
-                        Rc::clone(&self.config),
-                        font_system,
-                        Rc::clone(&self.ui_state),
-                    ),
-                    text,
-                    x: 0.,
-                    y: 0.,
-                    config: Rc::clone(&self.config),
-                    action: action.0,
-                    state: State::Unhovered,
-                    width: 0.,
-                    tx: tx.clone(),
-                }) as Box<dyn Button<Style = ButtonState>>
-            })
-            .collect::<Vec<Box<dyn Button<Style = ButtonState>>>>();
-
-        self.buttons.append(&mut buttons);
-
-        self
     }
 }

@@ -1,6 +1,6 @@
 use super::{progress::Progress, Extents};
 use crate::{
-    button::{ButtonManager, ButtonType},
+    button::{ButtonManager, ButtonType, Finished},
     config::{Config, StyleState},
     image_data::ImageData,
     texture_renderer::{TextureArea, TextureBounds},
@@ -49,7 +49,7 @@ impl Icons {
         container_extents: &Extents,
         style: &StyleState,
         progress: &Option<Progress>,
-        buttons: &ButtonManager,
+        buttons: &ButtonManager<Finished>,
     ) {
         let icon_size = 64.0;
 

@@ -97,15 +97,35 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                 let pointer = &state.seat.pointer;
                 if state.notifications.hover(pointer.x, pointer.y) {
+                    if state.seat.pointer.state != PointerState::Hover {
+                        if let Some(surface) = state.surface.as_mut() {
+                            _ = surface.render(
+                                &state.wgpu_state.device,
+                                &state.wgpu_state.queue,
+                                &state.notifications,
+                            );
+                        }
+                    }
+
                     state.seat.pointer.change_state(PointerState::Hover);
                 } else {
+                    if state.seat.pointer.state != PointerState::Default {
+                        if let Some(surface) = state.surface.as_mut() {
+                            _ = surface.render(
+                                &state.wgpu_state.device,
+                                &state.wgpu_state.queue,
+                                &state.notifications,
+                            );
+                        }
+                    }
+
                     state.seat.pointer.change_state(PointerState::Default);
                 }
 
                 match (hovered_id, state.notifications.selected_id()) {
                     (Some(new_id), Some(old_id)) if new_id != old_id => {
-                        state.notifications.select(new_id);
                         state.update_surface_size();
+                        state.notifications.select(new_id);
 
                         if let Some(surface) = state.surface.as_mut() {
                             _ = surface.render(
@@ -116,8 +136,8 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                         }
                     }
                     (Some(new_id), None) => {
-                        state.notifications.select(new_id);
                         state.update_surface_size();
+                        state.notifications.select(new_id);
 
                         if let Some(surface) = state.surface.as_mut() {
                             _ = surface.render(
@@ -145,14 +165,6 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                         }
                     }
                     _ => {}
-                }
-
-                if let Some(surface) = state.surface.as_mut() {
-                    _ = surface.render(
-                        &state.wgpu_state.device,
-                        &state.wgpu_state.queue,
-                        &state.notifications,
-                    );
                 }
             }
             wl_pointer::Event::Button {

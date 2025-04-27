@@ -1,26 +1,24 @@
-use super::{Button, ButtonManager, ButtonType, Hint, State};
+use super::{Button, ButtonType, Hint, State};
 use crate::{
     buffers,
     component::{Bounds, Component},
     config::{button::ButtonState, Config},
-    notification_manager::{Reason, UiState},
+    notification_manager::UiState,
     text::Text,
     Urgency,
 };
-use calloop::channel::Event;
-use glyphon::FontSystem;
 use std::{cell::RefCell, rc::Rc};
 
 pub struct DismissButton {
-    id: u32,
-    x: f32,
-    y: f32,
-    hint: Hint,
-    config: Rc<Config>,
-    text: Text,
-    state: State,
-    ui_state: Rc<RefCell<UiState>>,
-    tx: calloop::channel::Sender<u32>,
+    pub id: u32,
+    pub x: f32,
+    pub y: f32,
+    pub hint: Hint,
+    pub config: Rc<Config>,
+    pub text: Text,
+    pub state: State,
+    pub ui_state: Rc<RefCell<UiState>>,
+    pub tx: calloop::channel::Sender<u32>,
 }
 
 impl Component for DismissButton {
@@ -155,6 +153,7 @@ impl Component for DismissButton {
         self.x = x;
         self.y = y;
         self.text.set_buffer_position(x, y);
+        self.hint.set_position(x, y);
     }
 }
 
@@ -189,44 +188,5 @@ impl Button for DismissButton {
 
     fn set_hint(&mut self, hint: Hint) {
         self.hint = hint;
-    }
-}
-
-impl ButtonManager {
-    pub fn add_dismiss(mut self, font_system: &mut FontSystem) -> Self {
-        let font = &self.config.styles.default.buttons.dismiss.default.font;
-        let text = Text::new(font, font_system, "X");
-
-        let (tx, rx) = calloop::channel::channel();
-        if let Some(loop_handle) = self.loop_handle.as_ref() {
-            loop_handle
-                .insert_source(rx, move |event, _, moxnotify| {
-                    if let Event::Msg(id) = event {
-                        moxnotify.dismiss_by_id(id, Some(Reason::DismissedByUser));
-                    }
-                })
-                .ok();
-        }
-
-        let button = DismissButton {
-            id: self.id,
-            ui_state: Rc::clone(&self.ui_state),
-            hint: Hint::new(
-                "",
-                Rc::clone(&self.config),
-                font_system,
-                Rc::clone(&self.ui_state),
-            ),
-            text,
-            x: 0.,
-            y: 0.,
-            config: Rc::clone(&self.config),
-            state: State::Unhovered,
-            tx,
-        };
-
-        self.buttons.push(Box::new(button));
-
-        self
     }
 }

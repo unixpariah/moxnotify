@@ -15,6 +15,7 @@ use std::{
     fmt, fs,
     ops::{Add, Sub},
     path::{Path, PathBuf},
+    rc::Rc,
     sync::Arc,
 };
 
@@ -127,7 +128,7 @@ pub struct General {
     pub default_sound_file: SoundFile,
     pub ignore_sound_file: bool,
     pub scroll_sensitivity: f64,
-    pub hint_characters: Arc<str>,
+    pub hint_characters: Box<str>,
     pub max_visible: u32,
     pub icon_size: u32,
     pub app_icon_size: u32,
@@ -230,7 +231,7 @@ pub enum State {
     Default,
     Hover,
     ContainerHover,
-    NamedContainerHover(Arc<str>),
+    NamedContainerHover(Rc<str>),
 }
 
 impl<'de> Deserialize<'de> for State {
@@ -357,7 +358,7 @@ impl From<Insets> for [f32; 4] {
 #[derive(Clone)]
 pub struct Font {
     pub size: f32,
-    pub family: Box<str>,
+    pub family: Rc<str>,
     pub color: Color,
 }
 
@@ -366,7 +367,7 @@ impl Font {
         if let Some(size) = partial.size {
             self.size = size;
         }
-        if let Some(family) = partial.family.clone() {
+        if let Some(family) = partial.family.as_ref().map(Rc::clone) {
             self.family = family;
         }
         if let Some(color) = partial.color.as_ref() {
