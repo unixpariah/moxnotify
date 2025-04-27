@@ -40,7 +40,6 @@ impl Component for DismissButton {
         match self.state() {
             State::Unhovered => &style.default,
             State::Hovered => &style.hover,
-            State::Clicked => todo!(),
         }
     }
 
@@ -188,5 +187,53 @@ impl Button for DismissButton {
 
     fn set_hint(&mut self, hint: Hint) {
         self.hint = hint;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DismissButton;
+    use crate::{
+        button::{Button, Hint},
+        config::Config,
+        notification_manager::UiState,
+        text::Text,
+    };
+    use glyphon::FontSystem;
+    use std::{cell::RefCell, rc::Rc};
+
+    #[test]
+    fn test_dismiss_button() {
+        let config = Rc::new(Config::default());
+        let ui_state = Rc::new(RefCell::new(UiState::default()));
+        let hint = Hint {
+            combination: "".into(),
+            text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
+            config: Rc::clone(&config),
+            ui_state: Rc::clone(&ui_state),
+            x: 0.,
+            y: 0.,
+        };
+
+        let (tx, rx) = calloop::channel::channel();
+        let test_id = 10;
+        let button = DismissButton {
+            id: test_id,
+            x: 0.,
+            y: 0.,
+            hint,
+            text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
+            state: crate::button::State::Hovered,
+            config: Rc::clone(&config),
+            ui_state: Rc::clone(&ui_state),
+            tx,
+        };
+
+        button.click();
+
+        match rx.try_recv() {
+            Ok(id) => assert_eq!(id, test_id, "Button click should send button ID"),
+            Err(_) => panic!("Button click did not send ID through channel"),
+        }
     }
 }

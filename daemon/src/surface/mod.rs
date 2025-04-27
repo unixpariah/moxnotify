@@ -126,6 +126,8 @@ impl Surface {
             return Ok(());
         }
 
+        log::debug!("render()");
+
         let surface_texture = self
             .wgpu_surface
             .surface

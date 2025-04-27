@@ -107,7 +107,6 @@ impl Component for ActionButton {
         match self.state() {
             State::Unhovered => &style.default,
             State::Hovered => &style.hover,
-            State::Clicked => todo!(),
         }
     }
 
@@ -192,5 +191,140 @@ impl Button for ActionButton {
 
     fn set_hint(&mut self, hint: Hint) {
         self.hint = hint;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        button::{Button, Hint},
+        config::Config,
+        notification_manager::UiState,
+        text::Text,
+    };
+    use glyphon::FontSystem;
+    use std::{cell::RefCell, rc::Rc, sync::Arc};
+
+    use super::ActionButton;
+
+    #[test]
+    fn test_action_button() {
+        let config = Rc::new(Config::default());
+        let ui_state = Rc::new(RefCell::new(UiState::default()));
+        let hint = Hint {
+            combination: "".into(),
+            text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
+            config: Rc::clone(&config),
+            ui_state: Rc::clone(&ui_state),
+            x: 0.,
+            y: 0.,
+        };
+
+        let (tx, rx) = calloop::channel::channel();
+        let test_id = 10;
+        let test_action: Arc<str> = "test".into();
+        let button = ActionButton {
+            id: test_id,
+            x: 0.,
+            y: 0.,
+            hint,
+            text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
+            state: crate::button::State::Hovered,
+            config: Rc::clone(&config),
+            ui_state: Rc::clone(&ui_state),
+            tx,
+            width: 100.,
+            action: Arc::clone(&test_action),
+        };
+
+        button.click();
+
+        match rx.try_recv() {
+            Ok((id, action)) => {
+                assert_eq!(id, test_id, "Button click should send button ID");
+                assert_eq!(action, test_action, "Button click should send button ID");
+            }
+            Err(_) => panic!("Button click did not send ID through channel"),
+        }
+    }
+
+    #[test]
+    fn test_multiple_action_buttons() {
+        let config = Rc::new(Config::default());
+        let ui_state = Rc::new(RefCell::new(UiState::default()));
+
+        let (tx, text_rx1) = calloop::channel::channel();
+
+        let test_id1 = 1;
+        let test_action1: Arc<str> = "test1".into();
+        let hint1 = Hint {
+            combination: "".into(),
+            text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
+            config: Rc::clone(&config),
+            ui_state: Rc::clone(&ui_state),
+            x: 0.,
+            y: 0.,
+        };
+        let button1 = ActionButton {
+            id: test_id1,
+            x: 0.,
+            y: 0.,
+            hint: hint1,
+            text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
+            state: crate::button::State::Hovered,
+            config: Rc::clone(&config),
+            ui_state: Rc::clone(&ui_state),
+            tx: tx.clone(),
+            width: 100.,
+            action: Arc::clone(&test_action1),
+        };
+
+        let (tx, text_rx2) = calloop::channel::channel();
+
+        let test_id2 = 2;
+        let test_action2: Arc<str> = "test2".into();
+        let hint2 = Hint {
+            combination: "".into(),
+            text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
+            config: Rc::clone(&config),
+            ui_state: Rc::clone(&ui_state),
+            x: 0.,
+            y: 0.,
+        };
+        let button2 = ActionButton {
+            id: test_id2,
+            x: 0.,
+            y: 0.,
+            hint: hint2,
+            text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
+            state: crate::button::State::Hovered,
+            config: Rc::clone(&config),
+            ui_state: Rc::clone(&ui_state),
+            tx: tx.clone(),
+            width: 100.,
+            action: Arc::clone(&test_action2),
+        };
+
+        button1.click();
+        match text_rx1.try_recv() {
+            Ok((id, action)) => {
+                assert_eq!(id, test_id1, "First button ID should be sent");
+                assert_eq!(action, test_action1, "First button action should be sent");
+            }
+            Err(_) => panic!("First button click did not send message"),
+        }
+
+        assert!(text_rx2.try_recv().is_err());
+
+        button2.click();
+        match text_rx2.try_recv() {
+            Ok((id, action)) => {
+                assert_eq!(id, test_id2, "Second button ID should be sent");
+                assert_eq!(action, test_action2, "Second button action should be sent");
+            }
+            Err(_) => panic!("Second button click did not send message"),
+        }
+
+        assert!(text_rx1.try_recv().is_err());
     }
 }

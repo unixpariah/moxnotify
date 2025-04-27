@@ -19,7 +19,6 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 pub enum State {
     Unhovered,
     Hovered,
-    Clicked,
 }
 
 pub trait Button: Component {
@@ -512,5 +511,142 @@ impl Component for Hint {
             default_color: style.font.color.into_glyphon(urgency),
             custom_glyphs: &[],
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{button::ButtonManager, notification_manager::UiState, Urgency};
+    use glyphon::FontSystem;
+    use std::{cell::RefCell, rc::Rc};
+
+    #[test]
+    fn test_button_click_detection() {
+        let config = Rc::new(crate::config::Config::default());
+        let ui_state = Rc::new(RefCell::new(UiState::default()));
+        let mut font_system = FontSystem::new();
+
+        let mut button_manager = ButtonManager::new(
+            1,
+            Urgency::Normal,
+            Rc::clone(&ui_state),
+            None,
+            Rc::clone(&config),
+        )
+        .add_dismiss(&mut font_system)
+        .finish(&mut font_system);
+
+        let button = &mut button_manager.buttons_mut()[0];
+        button.set_position(10.0, 10.0);
+
+        let style = button.style();
+        let width = style.width
+            + style.border.size.left
+            + style.border.size.right
+            + style.padding.left
+            + style.padding.right;
+
+        let height = style.height
+            + style.border.size.left
+            + style.border.size.right
+            + style.padding.left
+            + style.padding.right;
+
+        // Define test points: (x, y, should_click)
+        let test_points = [
+            // Internal point (should click)
+            (10.0 + width as f64 / 2.0, 10.0 + height as f64 / 2.0, true),
+            // Exact corners (should click)
+            (10.0, 10.0, true),                                // Top left
+            (10.0 + width as f64, 10.0, true),                 // Top right
+            (10.0, 10.0 + height as f64, true),                // Bottom left
+            (10.0 + width as f64, 10.0 + height as f64, true), // Bottom right
+            // Just outside corners (should not click)
+            (10.0 - 0.1, 10.0, false), // Top left
+            (10.0, 10.0 - 0.1, false),
+            (10.0 + width as f64 + 0.1, 10.0, false), // Top right
+            (10.0 + width as f64, 10.0 - 0.1, false),
+            (10.0 - 0.1, 10.0 + height as f64, false), // Bottom left
+            (10.0, 10.0 + height as f64 + 0.1, false),
+            (10.0 + width as f64 + 0.1, 10.0 + height as f64, false), // Bottom right
+            (10.0 + width as f64, 10.0 + height as f64 + 0.1, false),
+        ];
+
+        test_points
+            .iter()
+            .enumerate()
+            .for_each(|(i, (x, y, expected))| {
+                let clicked = button_manager.click(*x, *y);
+                assert_eq!(
+                    clicked, *expected,
+                    "Test point {} at ({}, {}) failed",
+                    i, x, y
+                );
+            });
+    }
+
+    #[test]
+    fn test_button_hover_detection() {
+        let config = Rc::new(crate::config::Config::default());
+        let ui_state = Rc::new(RefCell::new(UiState::default()));
+        let mut font_system = FontSystem::new();
+
+        let mut button_manager = ButtonManager::new(
+            1,
+            Urgency::Normal,
+            Rc::clone(&ui_state),
+            None,
+            Rc::clone(&config),
+        )
+        .add_dismiss(&mut font_system)
+        .finish(&mut font_system);
+
+        let button = &mut button_manager.buttons_mut()[0];
+        button.set_position(10.0, 10.0);
+
+        let style = button.style();
+        let width = style.width
+            + style.border.size.left
+            + style.border.size.right
+            + style.padding.left
+            + style.padding.right;
+
+        let height = style.height
+            + style.border.size.left
+            + style.border.size.right
+            + style.padding.left
+            + style.padding.right;
+
+        // Define test points: (x, y, should_hover)
+        let test_points = [
+            // Internal point (should hover)
+            (10.0 + width as f64 / 2.0, 10.0 + height as f64 / 2.0, true),
+            // Exact corners (should hover)
+            (10.0, 10.0, true),                                // Top left
+            (10.0 + width as f64, 10.0, true),                 // Top right
+            (10.0, 10.0 + height as f64, true),                // Bottom left
+            (10.0 + width as f64, 10.0 + height as f64, true), // Bottom right
+            // Just outside corners (should not hover)
+            (10.0 - 0.1, 10.0, false), // Top left
+            (10.0, 10.0 - 0.1, false),
+            (10.0 + width as f64 + 0.1, 10.0, false), // Top right
+            (10.0 + width as f64, 10.0 - 0.1, false),
+            (10.0 - 0.1, 10.0 + height as f64, false), // Bottom left
+            (10.0, 10.0 + height as f64 + 0.1, false),
+            (10.0 + width as f64 + 0.1, 10.0 + height as f64, false), // Bottom right
+            (10.0 + width as f64, 10.0 + height as f64 + 0.1, false),
+        ];
+
+        test_points
+            .iter()
+            .enumerate()
+            .for_each(|(i, (x, y, expected))| {
+                let hovered = button_manager.hover(*x, *y);
+                assert_eq!(
+                    hovered, *expected,
+                    "Test point {} at ({}, {}) failed",
+                    i, x, y
+                );
+            });
     }
 }
