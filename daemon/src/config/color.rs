@@ -172,8 +172,7 @@ where
 
     if ![3, 4, 6, 8].contains(&len) {
         return Err(format!(
-            "Invalid hex length: {} (expected 3, 4, 6, or 8 characters)",
-            len
+            "Invalid hex length: {len} (expected 3, 4, 6, or 8 characters)"
         ));
     }
 
@@ -189,14 +188,14 @@ where
             }
             expanded
         }
-        6 => format!("{}ff", hex_part),
+        6 => format!("{hex_part}ff"),
         8 => hex_part.to_string(),
         _ => unreachable!(),
     };
 
     let parse_component = |start: usize| -> Result<u8, String> {
         u8::from_str_radix(&expanded[start..start + 2], 16)
-            .map_err(|e| format!("Invalid hex component: {}", e))
+            .map_err(|e| format!("Invalid hex component: {e}"))
     };
 
     Ok([

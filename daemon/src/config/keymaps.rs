@@ -176,7 +176,7 @@ impl FromStr for Mode {
         match s.to_lowercase().as_str() {
             "normal" => Ok(Mode::Normal),
             "hint" => Ok(Mode::Hint),
-            _ => Err(format!("Invalid mode: {}", s)),
+            _ => Err(format!("Invalid mode: {s}")),
         }
     }
 }
@@ -263,8 +263,7 @@ impl<'de> Deserialize<'de> for Keys {
                     }
                     if !parsed {
                         return Err(de::Error::custom(format!(
-                            "Failed to parse key sequence '{}' at '{}'",
-                            s, remaining
+                            "Failed to parse key sequence '{s}' at '{remaining}'"
                         )));
                     }
                 }
@@ -353,7 +352,7 @@ impl fmt::Display for KeyWithModifiers {
             }
         }
 
-        write!(f, "{}", result)
+        write!(f, "{result}")
     }
 }
 
@@ -365,7 +364,7 @@ impl<T> FromStrVisitor<T> {
     }
 }
 
-impl<'de, T> de::Visitor<'de> for FromStrVisitor<T>
+impl<T> de::Visitor<'_> for FromStrVisitor<T>
 where
     T: FromStr,
     T::Err: fmt::Display,
@@ -450,12 +449,12 @@ impl std::str::FromStr for KeyWithModifiers {
                 "F10" => Key::SpecialKey(SpecialKeyCode::F10),
                 "F11" => Key::SpecialKey(SpecialKeyCode::F11),
                 "F12" => Key::SpecialKey(SpecialKeyCode::F12),
-                _ => return Err(format!("Unknown special key: {}", special_key)),
+                _ => return Err(format!("Unknown special key: {special_key}")),
             }
         } else if remaining.len() == 1 {
             Key::Character(remaining.chars().next().unwrap())
         } else {
-            return Err(format!("Invalid key format: {}", remaining));
+            return Err(format!("Invalid key format: {remaining}"));
         };
 
         Ok(KeyWithModifiers { key, modifiers })

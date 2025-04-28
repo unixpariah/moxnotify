@@ -105,7 +105,7 @@ impl Button for AnchorButton {
     }
 
     fn click(&self) {
-        self.tx.send(Arc::clone(&self.anchor.href));
+        _ = self.tx.send(Arc::clone(&self.anchor.href));
     }
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {

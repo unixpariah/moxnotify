@@ -160,7 +160,7 @@ impl Moxnotify {
                     return Ok(());
                 }
 
-                log::info!("Dismissing notification with id={}", id);
+                log::info!("Dismissing notification with id={id}");
                 self.dismiss_by_id(id, Some(Reason::DismissedByUser));
             }
             Event::Notify(data) => {
@@ -215,7 +215,7 @@ impl Moxnotify {
 
                 let to_delete = count + 1 - self.config.general.history.size;
                 if to_delete > 0 {
-                    log::debug!("Removing {} oldest notifications from history", to_delete);
+                    log::debug!("Removing {to_delete} oldest notifications from history");
                     tx.execute(
                         "DELETE FROM notifications WHERE rowid IN (
                     SELECT rowid FROM notifications ORDER BY rowid ASC LIMIT ?
@@ -260,7 +260,7 @@ impl Moxnotify {
                 }
             }
             Event::CloseNotification(id) => {
-                log::info!("Closing notification with id={}", id);
+                log::info!("Closing notification with id={id}");
                 self.dismiss_by_id(id, Some(Reason::CloseNotificationCall))
             }
             Event::FocusSurface => {
@@ -372,7 +372,7 @@ impl Moxnotify {
                     log::info!("Uninhibiting notifications");
 
                     let count = self.notifications.waiting();
-                    log::debug!("Processing {} waiting notifications", count);
+                    log::debug!("Processing {count} waiting notifications");
 
                     let mut stmt = self.db.prepare("SELECT id, app_name, app_icon, summary, body, timeout, actions, hints FROM notifications ORDER BY rowid DESC LIMIT ?1")?;
                     let rows = stmt.query_map([count], |row| {

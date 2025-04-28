@@ -11,19 +11,19 @@ struct MoxnotifyInterface {
 impl MoxnotifyInterface {
     async fn focus(&self) {
         if let Err(e) = self.event_sender.send(Event::FocusSurface) {
-            log::error!("{}", e);
+            log::error!("{e}");
         }
     }
 
     async fn dismiss(&self, all: bool, id: u32) {
         if let Err(e) = self.event_sender.send(Event::Dismiss { all, id }) {
-            log::error!("{}", e);
+            log::error!("{e}");
         }
     }
 
     async fn waiting(&mut self) -> u32 {
         if let Err(e) = self.event_sender.send(Event::Waiting) {
-            log::error!("{}", e);
+            log::error!("{e}");
         }
 
         while let Ok(event) = self.emit_receiver.recv().await {
@@ -37,7 +37,7 @@ impl MoxnotifyInterface {
 
     async fn list(&mut self) -> Vec<String> {
         if let Err(e) = self.event_sender.send(Event::List) {
-            log::error!("{}", e);
+            log::error!("{e}");
         }
 
         while let Ok(event) = self.emit_receiver.recv().await {
@@ -51,19 +51,19 @@ impl MoxnotifyInterface {
 
     async fn mute(&self) {
         if let Err(e) = self.event_sender.send(Event::Mute) {
-            log::error!("{}", e);
+            log::error!("{e}");
         }
     }
 
     async fn unmute(&self) {
         if let Err(e) = self.event_sender.send(Event::Unmute) {
-            log::error!("{}", e);
+            log::error!("{e}");
         }
     }
 
     async fn muted(&mut self) -> bool {
         if let Err(e) = self.event_sender.send(Event::GetMuted) {
-            log::error!("{}", e);
+            log::error!("{e}");
             return false;
         }
 
@@ -81,19 +81,19 @@ impl MoxnotifyInterface {
 
     async fn show_history(&self) {
         if let Err(e) = self.event_sender.send(Event::ShowHistory) {
-            log::error!("{}", e);
+            log::error!("{e}");
         }
     }
 
     async fn hide_history(&self) {
         if let Err(e) = self.event_sender.send(Event::HideHistory) {
-            log::error!("{}", e);
+            log::error!("{e}");
         }
     }
 
     async fn history(&mut self) -> History {
         if let Err(e) = self.event_sender.send(Event::GetHistory) {
-            log::error!("{}", e);
+            log::error!("{e}");
             return History::Hidden;
         }
 
@@ -111,19 +111,19 @@ impl MoxnotifyInterface {
 
     async fn inhibit(&self) {
         if let Err(e) = self.event_sender.send(Event::Inhibit) {
-            log::error!("{}", e);
+            log::error!("{e}");
         }
     }
 
     async fn uninhibit(&self) {
         if let Err(e) = self.event_sender.send(Event::Uninhibit) {
-            log::error!("{}", e);
+            log::error!("{e}");
         }
     }
 
     async fn inhibited(&mut self) -> bool {
         if let Err(e) = self.event_sender.send(Event::GetInhibited) {
-            log::error!("{}", e);
+            log::error!("{e}");
             return false;
         }
 

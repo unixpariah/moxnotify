@@ -617,7 +617,7 @@ impl fmt::Display for Reason {
             Reason::CloseNotificationCall => "CloseNotificationCall",
             Reason::Unkown => "Unknown",
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 
@@ -698,7 +698,7 @@ impl Moxnotify {
                 &self.wgpu_state.queue,
                 &self.notifications,
             ) {
-                log::error!("Render error: {}", e);
+                log::error!("Render error: {e}");
             }
         }
 

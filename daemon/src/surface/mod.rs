@@ -25,7 +25,7 @@ impl fmt::Display for FocusReason {
             FocusReason::Ctl => "Ctl",
             FocusReason::MouseEnter => "MouseEnter",
         };
-        write!(f, "{}", s)
+        write!(f, "{s}")
     }
 }
 
@@ -275,12 +275,7 @@ impl Dispatch<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1, ()> for Moxnotify {
                     &state.wgpu_state.queue,
                     &state.notifications,
                 );
-                log::debug!(
-                    "Surface configured ({}x{}, serial={})",
-                    width,
-                    height,
-                    serial
-                );
+                log::debug!("Surface configured ({width}x{height}, serial={serial})");
             }
         }
     }

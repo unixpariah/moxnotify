@@ -107,19 +107,19 @@ impl<'a> TryFrom<Structure<'a>> for ImageData {
         }
 
         let data = Vec::<u8>::try_from(fields.remove(6))
-            .map_err(|e| zbus::Error::Failure(format!("data: {}", e)))?;
+            .map_err(|e| zbus::Error::Failure(format!("data: {e}")))?;
         let channels = i32::try_from(fields.remove(5))
-            .map_err(|e| zbus::Error::Failure(format!("channels: {}", e)))?;
+            .map_err(|e| zbus::Error::Failure(format!("channels: {e}")))?;
         let bits_per_sample = i32::try_from(fields.remove(4))
-            .map_err(|e| zbus::Error::Failure(format!("bits_per_sample: {}", e)))?;
+            .map_err(|e| zbus::Error::Failure(format!("bits_per_sample: {e}")))?;
         let has_alpha = bool::try_from(fields.remove(3))
-            .map_err(|e| zbus::Error::Failure(format!("has_alpha: {}", e)))?;
+            .map_err(|e| zbus::Error::Failure(format!("has_alpha: {e}")))?;
         let rowstride = i32::try_from(fields.remove(2))
-            .map_err(|e| zbus::Error::Failure(format!("rowstride: {}", e)))?;
+            .map_err(|e| zbus::Error::Failure(format!("rowstride: {e}")))?;
         let height = i32::try_from(fields.remove(1))
-            .map_err(|e| zbus::Error::Failure(format!("height: {}", e)))?;
+            .map_err(|e| zbus::Error::Failure(format!("height: {e}")))?;
         let width = i32::try_from(fields.remove(0))
-            .map_err(|e| zbus::Error::Failure(format!("width: {}", e)))?;
+            .map_err(|e| zbus::Error::Failure(format!("width: {e}")))?;
 
         if width <= 0 {
             return Err(zbus::Error::Failure(

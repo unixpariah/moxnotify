@@ -94,7 +94,7 @@ pub async fn emit(event: Event) -> zbus::Result<()> {
         Event::List => {
             let list = notify.list().await?;
             for item in list {
-                writeln!(out, "{}", item)?;
+                writeln!(out, "{item}")?;
             }
         }
         Event::DismissAll => notify.dismiss(true, 0).await?,
