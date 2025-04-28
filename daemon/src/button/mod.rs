@@ -408,7 +408,7 @@ impl<S> ButtonManager<S> {
             .cloned()
             .map(|action| {
                 let font = &self.config.styles.default.buttons.action.default.font;
-                let text = Text::new(font, font_system, &action.0);
+                let text = Text::new(font, font_system, &action.1);
 
                 Box::new(ActionButton {
                     id: self.id,
