@@ -1,11 +1,7 @@
-use super::notification::Notification;
-use crate::{
-    buffers,
-    config::{keymaps::Mode, Config},
-    NotificationData,
-};
+use super::{notification::Notification, UiState};
+use crate::{buffers, config::Config, NotificationData};
 use glyphon::{Attrs, FontSystem, TextArea, Weight};
-use std::{ops::Range, sync::Arc};
+use std::{cell::RefCell, ops::Range, rc::Rc};
 
 pub struct NotificationView {
     pub visible: Range<usize>,
@@ -13,11 +9,12 @@ pub struct NotificationView {
     pub next: Option<Notification>,
     max_visible: usize,
     font_system: FontSystem,
-    config: Arc<Config>,
+    config: Rc<Config>,
+    ui_state: Rc<RefCell<UiState>>,
 }
 
 impl NotificationView {
-    pub fn new(max_visible: u32, config: Arc<Config>) -> Self {
+    pub fn new(max_visible: u32, config: Rc<Config>, ui_state: Rc<RefCell<UiState>>) -> Self {
         Self {
             config,
             font_system: FontSystem::new(),
@@ -25,6 +22,7 @@ impl NotificationView {
             visible: 0..max_visible as usize,
             prev: None,
             next: None,
+            ui_state,
         }
     }
 
@@ -80,12 +78,14 @@ impl NotificationView {
                 );
             } else {
                 self.prev = Some(Notification::new(
-                    Arc::clone(&self.config),
+                    Rc::clone(&self.config),
                     &mut self.font_system,
                     NotificationData {
                         summary: summary.into(),
                         ..Default::default()
                     },
+                    Rc::clone(&self.ui_state),
+                    None,
                 ));
 
                 total_height += self
@@ -125,12 +125,14 @@ impl NotificationView {
                     .set_position(notification.x, total_height - notification.extents().height);
             } else {
                 let mut next = Notification::new(
-                    Arc::clone(&self.config),
+                    Rc::clone(&self.config),
                     &mut self.font_system,
                     NotificationData {
                         summary: summary.into(),
                         ..Default::default()
                     },
+                    Rc::clone(&self.ui_state),
+                    None,
                 );
                 next.set_position(next.x, total_height);
                 self.next = Some(next);
@@ -157,10 +159,7 @@ impl NotificationView {
                 scale,
             };
 
-            return Some((
-                instance,
-                prev.text_areas(Mode::Normal, scale).swap_remove(0),
-            ));
+            return Some((instance, prev.text_areas().swap_remove(0)));
         }
 
         None
@@ -183,10 +182,7 @@ impl NotificationView {
                 scale,
             };
 
-            return Some((
-                instance,
-                next.text_areas(Mode::Normal, scale).swap_remove(0),
-            ));
+            return Some((instance, next.text_areas().swap_remove(0)));
         }
 
         None

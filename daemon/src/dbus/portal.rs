@@ -43,7 +43,11 @@ enum TargetType {
     Directory,
 }
 
-fn detect_target_type(target: &str) -> Option<TargetType> {
+fn detect_target_type<T>(target: T) -> Option<TargetType>
+where
+    T: AsRef<str>,
+{
+    let target = target.as_ref();
     if target.starts_with("http://")
         || target.starts_with("https://")
         || target.starts_with("ftp://")
@@ -68,8 +72,11 @@ fn detect_target_type(target: &str) -> Option<TargetType> {
     }
 }
 
-fn path_to_fd(path: &str) -> zbus::Result<Fd> {
-    let clean_path = path.trim_start_matches("file://");
+fn path_to_fd<T>(path: T) -> zbus::Result<Fd<'static>>
+where
+    T: AsRef<str>,
+{
+    let clean_path = path.as_ref().trim_start_matches("file://");
     let file = File::open(clean_path)?;
 
     let raw_fd = file.into_raw_fd();

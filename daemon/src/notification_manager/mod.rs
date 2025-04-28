@@ -4,7 +4,7 @@ mod notification_view;
 use crate::{
     buffers,
     button::ButtonType,
-    config::{self, keymaps::Mode, Config, Queue},
+    config::{self, keymaps, Config, Queue},
     texture_renderer::TextureArea,
     EmitEvent, History, Moxnotify, NotificationData,
 };
@@ -16,33 +16,53 @@ use glyphon::{FontSystem, TextArea};
 use notification::{Notification, NotificationId};
 use notification_view::NotificationView;
 use rusqlite::params;
-use std::{fmt, sync::Arc, time::Duration};
+use std::{cell::RefCell, fmt, rc::Rc, time::Duration};
+
+#[derive(Clone)]
+pub struct UiState {
+    pub scale: f32,
+    pub mode: keymaps::Mode,
+    pub selected: Option<NotificationId>,
+}
+
+impl Default for UiState {
+    fn default() -> Self {
+        Self {
+            mode: keymaps::Mode::Normal,
+            scale: 1.0,
+            selected: None,
+        }
+    }
+}
 
 pub struct NotificationManager {
     notifications: Vec<Notification>,
     waiting: u32,
-    config: Arc<Config>,
+    config: Rc<Config>,
     loop_handle: LoopHandle<'static, Moxnotify>,
-    selected: Option<NotificationId>,
     font_system: FontSystem,
     notification_view: NotificationView,
     inhibited: bool,
+    pub ui_state: Rc<RefCell<UiState>>,
 }
 
 impl NotificationManager {
-    pub fn new(config: Arc<Config>, loop_handle: LoopHandle<'static, Moxnotify>) -> Self {
+    pub fn new(config: Rc<Config>, loop_handle: LoopHandle<'static, Moxnotify>) -> Self {
+        let ui_state = Rc::new(RefCell::new(UiState::default()));
+
         Self {
             inhibited: false,
             waiting: 0,
-            notification_view: NotificationView::new(
-                config.general.max_visible,
-                Arc::clone(&config),
-            ),
             font_system: FontSystem::new(),
             loop_handle,
             notifications: Vec::new(),
-            selected: None,
+            notification_view: NotificationView::new(
+                config.general.max_visible,
+                Rc::clone(&config),
+                Rc::clone(&ui_state),
+            ),
             config,
+            ui_state: Rc::clone(&ui_state),
         }
     }
 
@@ -63,11 +83,7 @@ impl NotificationManager {
         &self.notifications
     }
 
-    pub fn data(
-        &self,
-        mode: Mode,
-        scale: f32,
-    ) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
+    pub fn data(&self, scale: f32) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
         let (mut instances, mut text_areas, textures) = self
             .notifications
             .iter()
@@ -76,8 +92,8 @@ impl NotificationManager {
             .fold(
                 (Vec::new(), Vec::new(), Vec::new()),
                 |(mut instances, mut text_areas, mut textures), (_, notification)| {
-                    let instance = notification.instances(mode, scale);
-                    let text = notification.text_areas(mode, scale);
+                    let instance = notification.instances();
+                    let text = notification.text_areas();
                     let texture = notification.icons.textures(
                         notification.style(),
                         &self.config,
@@ -137,13 +153,21 @@ impl NotificationManager {
             .next()
     }
 
-    pub fn get_button_by_coordinates(&mut self, x: f64, y: f64) -> Option<ButtonType> {
-        self.notification_view.visible.clone().find_map(|index| {
-            self.notifications.get_mut(index).and_then(|notification| {
-                notification
-                    .buttons
-                    .get_by_coordinates(notification.hovered(), x, y)
-            })
+    pub fn click(&mut self, x: f64, y: f64) -> bool {
+        self.notification_view.visible.clone().any(|index| {
+            self.notifications
+                .get_mut(index)
+                .map(|notification| notification.buttons.click(x, y))
+                .unwrap_or_default()
+        })
+    }
+
+    pub fn hover(&mut self, x: f64, y: f64) -> bool {
+        self.notification_view.visible.clone().any(|index| {
+            self.notifications
+                .get_mut(index)
+                .map(|notification| notification.buttons.hover(x, y))
+                .unwrap_or_default()
         })
     }
 
@@ -190,18 +214,19 @@ impl NotificationManager {
     }
 
     pub fn selected_id(&self) -> Option<NotificationId> {
-        self.selected
+        self.ui_state.borrow().selected
     }
 
     pub fn selected_notification_mut(&mut self) -> Option<&mut Notification> {
-        let id = self.selected_id()?;
+        let id = self.selected_id();
         self.notifications
             .iter_mut()
-            .find(|notification| notification.id() == id)
+            .find(|notification| Some(notification.id()) == id)
     }
 
     pub fn select(&mut self, id: NotificationId) {
-        if let Some(old_id) = self.selected.take() {
+        let old_id = self.ui_state.borrow_mut().selected.take();
+        if let Some(old_id) = old_id {
             self.unhover_notification(old_id);
         }
 
@@ -216,8 +241,8 @@ impl NotificationManager {
                 .buttons
                 .buttons()
                 .iter()
-                .find(|button| button.button_type == ButtonType::Dismiss)
-                .map(|b| b.rendered_extents(new_notification.hovered()).width)
+                .find(|button| button.button_type() == ButtonType::Dismiss)
+                .map(|button| button.render_bounds().width)
                 .unwrap_or(0.0);
 
             new_notification.text.buffer.set_size(
@@ -226,7 +251,7 @@ impl NotificationManager {
                 None,
             );
 
-            self.selected = Some(id);
+            self.ui_state.borrow_mut().selected = Some(id);
             if let Some(token) = new_notification.registration_token.take() {
                 self.loop_handle.remove(token);
             }
@@ -234,7 +259,7 @@ impl NotificationManager {
     }
 
     pub fn next(&mut self) {
-        let next_notification_index = if let Some(id) = self.selected {
+        let next_notification_index = if let Some(id) = self.ui_state.borrow().selected {
             self.notifications
                 .iter()
                 .position(|n| n.id() == id)
@@ -284,7 +309,7 @@ impl NotificationManager {
     }
 
     pub fn prev(&mut self) {
-        let notification_index = if let Some(id) = self.selected {
+        let notification_index = if let Some(id) = self.ui_state.borrow().selected {
             self.notifications.iter().position(|n| n.id() == id).map_or(
                 self.notifications.len().saturating_sub(1),
                 |index| {
@@ -334,7 +359,9 @@ impl NotificationManager {
     }
 
     pub fn deselect(&mut self) {
-        if let Some(old_id) = self.selected.take() {
+        let mut ui_state = self.ui_state.borrow_mut();
+        if let Some(old_id) = ui_state.selected.take() {
+            drop(ui_state);
             self.unhover_notification(old_id);
         }
     }
@@ -347,8 +374,13 @@ impl NotificationManager {
         let mut y = 0.0;
 
         data.into_iter().for_each(|data| {
-            let mut notification =
-                Notification::new(Arc::clone(&self.config), &mut self.font_system, data);
+            let mut notification = Notification::new(
+                Rc::clone(&self.config),
+                &mut self.font_system,
+                data,
+                Rc::clone(&self.ui_state),
+                Some(self.loop_handle.clone()),
+            );
             notification.set_position(0.0, y);
             let height = notification.extents().height;
             y += height;
@@ -391,8 +423,13 @@ impl NotificationManager {
                 (self.height(), None)
             };
 
-        let mut notification =
-            Notification::new(Arc::clone(&self.config), &mut self.font_system, data);
+        let mut notification = Notification::new(
+            Rc::clone(&self.config),
+            &mut self.font_system,
+            data,
+            Rc::clone(&self.ui_state),
+            Some(self.loop_handle.clone()),
+        );
         notification.set_position(0.0, y);
 
         if let Some(timeout) = notification.timeout() {
@@ -629,7 +666,7 @@ impl Moxnotify {
                     .position(|n| n.id() == id)
                 {
                     if self.notifications.selected_id() == Some(id) {
-                        self.seat.keyboard.mode = Mode::Normal;
+                        self.notifications.ui_state.borrow_mut().mode = keymaps::Mode::Normal;
                     }
 
                     self.notifications.dismiss(id);
@@ -657,7 +694,6 @@ impl Moxnotify {
         self.update_surface_size();
         if let Some(surface) = self.surface.as_mut() {
             if let Err(e) = surface.render(
-                self.seat.keyboard.mode,
                 &self.wgpu_state.device,
                 &self.wgpu_state.queue,
                 &self.notifications,

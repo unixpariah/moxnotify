@@ -1,14 +1,13 @@
 use crate::{
-    button::ButtonType,
     config::keymaps::{Key, KeyAction, KeyWithModifiers, Keys, Mode, Modifiers},
     notification_manager::Reason,
-    EmitEvent, History, Moxnotify,
+    History, Moxnotify,
 };
 use calloop::{
     timer::{TimeoutAction, Timer},
     RegistrationToken,
 };
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 use wayland_client::{
     protocol::{wl_keyboard, wl_seat},
     Connection, Dispatch, QueueHandle, WEnum,
@@ -26,7 +25,6 @@ pub struct Keyboard {
     xkb: Xkb,
     pub key_combination: Keys,
     modifiers: Modifiers,
-    pub mode: Mode,
 }
 
 #[derive(Default)]
@@ -44,7 +42,6 @@ impl Keyboard {
         let xkb_context = Context::new(0);
 
         Self {
-            mode: Mode::Normal,
             key_combination: Keys(Vec::new()),
             xkb: Xkb {
                 context: xkb_context,
@@ -113,8 +110,17 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for Moxnotify {
                         meta: meta_active,
                     };
 
-                    // Clear the xkb_state so that I can handle the key modifiers my way
-                    xkb_state.update_mask(0, 0, 0, 0, 0, 0);
+                    // Let me handle ctrl, alt and meta my own way while still keeping the shift functionality
+
+                    let shift_active =
+                        xkb_state.mod_name_is_active("Shift", xkbcommon::xkb::STATE_MODS_EFFECTIVE);
+                    let shift_bit = if shift_active {
+                        1 << xkb_state.get_keymap().mod_get_index("Shift")
+                    } else {
+                        0
+                    };
+
+                    xkb_state.update_mask(shift_bit, shift_bit, shift_bit, 0, 0, group);
                 }
             }
             wl_keyboard::Event::Key {
@@ -231,8 +237,9 @@ impl Moxnotify {
 
         if let Some(key_combination) = self.config.keymaps.iter().find(|keymap| {
             keymap.keys == self.seat.keyboard.key_combination
-                && keymap.mode == self.seat.keyboard.mode
+                && keymap.mode == self.notifications.ui_state.borrow().mode
         }) {
+            log::debug!("Action executed: {:?}", key_combination.action);
             match key_combination.action {
                 KeyAction::Noop => {}
                 KeyAction::NextNotification => self.notifications.next(),
@@ -264,7 +271,7 @@ impl Moxnotify {
                         self.seat.keyboard.repeat.key = None;
                     }
                 }
-                KeyAction::HintMode => self.seat.keyboard.mode = Mode::Hint,
+                KeyAction::HintMode => self.notifications.ui_state.borrow_mut().mode = Mode::Hint,
                 KeyAction::ShowHistory => self.handle_app_event(crate::Event::ShowHistory)?,
                 KeyAction::HideHistory => {
                     self.handle_app_event(crate::Event::HideHistory)?;
@@ -305,65 +312,25 @@ impl Moxnotify {
                         }
                     }
                 }
-                KeyAction::NormalMode => self.seat.keyboard.mode = Mode::Normal,
+                KeyAction::NormalMode => {
+                    self.notifications.ui_state.borrow_mut().mode = Mode::Normal
+                }
             }
         } else {
             let combination = self.seat.keyboard.key_combination.to_string();
             if let Some(notification) = self.notifications.selected_notification_mut() {
-                let id = notification.id();
-
-                match notification.buttons.get_by_character(&combination) {
-                    Some(ButtonType::Dismiss) => {
-                        self.dismiss_by_id(id, Some(Reason::DismissedByUser))
-                    }
-                    Some(ButtonType::Action { action, .. }) => {
-                        if let Some(surface) = self.surface.as_ref() {
-                            let token = surface.token.as_ref().map(Arc::clone);
-                            _ = self.emit_sender.send(EmitEvent::ActionInvoked {
-                                id,
-                                action_key: action,
-                                token: token.unwrap_or_default(),
-                            });
-                        }
-
-                        if !notification.data.hints.resident {
-                            self.dismiss_by_id(id, Some(Reason::DismissedByUser));
-                        } else {
-                            self.seat.keyboard.mode = Mode::Normal;
-                        }
-                    }
-                    Some(ButtonType::Anchor { anchor }) => {
-                        if let Some(surface) = self.surface.as_ref() {
-                            let token = surface.token.as_ref().map(Arc::clone);
-                            if self
-                                .emit_sender
-                                .send(EmitEvent::Open {
-                                    uri: Arc::clone(&anchor.href),
-                                    token,
-                                })
-                                .is_ok()
-                            {
-                                self.notifications.deselect();
-                                self.seat.keyboard.mode = Mode::Normal;
-                            }
-                        }
-                    }
-                    None => return Err(anyhow::anyhow!("")),
-                }
+                notification.buttons.hint(&combination);
             }
         }
 
         self.update_surface_size();
         if let Some(surface) = self.surface.as_mut() {
             _ = surface.render(
-                self.seat.keyboard.mode,
                 &self.wgpu_state.device,
                 &self.wgpu_state.queue,
                 &self.notifications,
             );
         }
-
-        self.seat.keyboard.key_combination.clear();
 
         Ok(())
     }

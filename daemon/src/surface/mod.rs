@@ -1,11 +1,11 @@
 pub mod wgpu_surface;
 
 use crate::{
-    config::{self, keymaps::Mode, Anchor, Config},
+    config::{self, Anchor, Config},
     notification_manager::NotificationManager,
     wgpu_state, Moxnotify, Output,
 };
-use std::{fmt, sync::Arc};
+use std::{fmt, rc::Rc, sync::Arc};
 use wayland_client::{delegate_noop, protocol::wl_surface, Connection, Dispatch, QueueHandle};
 use wayland_protocols::xdg::foreign::zv2::client::zxdg_exporter_v2;
 use wayland_protocols_wlr::layer_shell::v1::client::{
@@ -33,7 +33,7 @@ pub struct Surface {
     pub wgpu_surface: wgpu_surface::WgpuSurface,
     pub wl_surface: wl_surface::WlSurface,
     pub layer_surface: zwlr_layer_surface_v1::ZwlrLayerSurfaceV1,
-    scale: f32,
+    pub scale: f32,
     configured: bool,
     pub token: Option<Arc<str>>,
     pub focus_reason: Option<FocusReason>,
@@ -46,7 +46,7 @@ impl Surface {
         layer_shell: &zwlr_layer_shell_v1::ZwlrLayerShellV1,
         qh: &QueueHandle<Moxnotify>,
         outputs: &[Output],
-        config: Arc<Config>,
+        config: Rc<Config>,
     ) -> anyhow::Result<Self> {
         let output = outputs
             .iter()
@@ -118,7 +118,6 @@ impl Surface {
 
     pub fn render(
         &mut self,
-        mode: Mode,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         notifications: &NotificationManager,
@@ -127,7 +126,7 @@ impl Surface {
             return Ok(());
         }
 
-        log::debug!("Render called");
+        log::debug!("render()");
 
         let surface_texture = self
             .wgpu_surface
@@ -154,7 +153,7 @@ impl Surface {
             occlusion_query_set: None,
         });
 
-        let (instances, text_data, textures) = notifications.data(mode, self.scale);
+        let (instances, text_data, textures) = notifications.data(self.scale);
 
         self.wgpu_surface
             .shape_renderer
@@ -272,7 +271,6 @@ impl Dispatch<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1, ()> for Moxnotify {
                 surface.layer_surface.ack_configure(serial);
                 surface.configured = true;
                 _ = surface.render(
-                    state.seat.keyboard.mode,
                     &state.wgpu_state.device,
                     &state.wgpu_state.queue,
                     &state.notifications,
@@ -304,9 +302,16 @@ impl Moxnotify {
                 &self.layer_shell,
                 &self.qh,
                 &self.outputs,
-                Arc::clone(&self.config),
+                Rc::clone(&self.config),
             )
             .ok();
+
+            let mut ui_state = self.notifications.ui_state.borrow_mut();
+            ui_state.scale = self
+                .surface
+                .as_ref()
+                .map(|surface| surface.scale)
+                .unwrap_or(1.0);
         }
 
         if total_width == 0. || total_height == 0. {

@@ -1,6 +1,6 @@
 use super::{progress::Progress, Extents};
 use crate::{
-    button::{ButtonManager, ButtonType},
+    button::{ButtonManager, ButtonType, Finished},
     config::{Config, StyleState},
     image_data::ImageData,
     texture_renderer::{TextureArea, TextureBounds},
@@ -49,8 +49,7 @@ impl Icons {
         container_extents: &Extents,
         style: &StyleState,
         progress: &Option<Progress>,
-        buttons: &ButtonManager,
-        container_hovered: bool,
+        buttons: &ButtonManager<Finished>,
     ) {
         let icon_size = 64.0;
 
@@ -67,8 +66,8 @@ impl Icons {
                 .buttons()
                 .iter()
                 .filter_map(|button| {
-                    if matches!(button.button_type, ButtonType::Action { .. }) {
-                        Some(button.extents(container_hovered).height)
+                    if button.button_type() == ButtonType::Action {
+                        Some(button.bounds().height)
                     } else {
                         None
                     }
@@ -162,8 +161,11 @@ impl Icons {
     }
 }
 
-fn find_icon(name: &str, icon_size: u16) -> Option<ImageData> {
-    let icon_path = freedesktop_icons::lookup(name)
+fn find_icon<T>(name: T, icon_size: u16) -> Option<ImageData>
+where
+    T: AsRef<str>,
+{
+    let icon_path = freedesktop_icons::lookup(name.as_ref())
         .with_size(icon_size)
         .with_cache()
         .find()?;

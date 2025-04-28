@@ -1,8 +1,4 @@
-use crate::{
-    button::ButtonType, config::keymaps::Mode, notification_manager::Reason, surface::FocusReason,
-    EmitEvent, Moxnotify,
-};
-use std::sync::Arc;
+use crate::{config::keymaps::Mode, surface::FocusReason, Moxnotify};
 use wayland_client::{
     delegate_noop,
     globals::GlobalList,
@@ -100,16 +96,10 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                 }
 
                 let pointer = &state.seat.pointer;
-                if state
-                    .notifications
-                    .get_button_by_coordinates(pointer.x, pointer.y)
-                    .is_some()
-                {
-                    if state.seat.pointer.state == PointerState::Default {
-                        state.update_surface_size();
+                if state.notifications.hover(pointer.x, pointer.y) {
+                    if state.seat.pointer.state != PointerState::Hover {
                         if let Some(surface) = state.surface.as_mut() {
                             _ = surface.render(
-                                state.seat.keyboard.mode,
                                 &state.wgpu_state.device,
                                 &state.wgpu_state.queue,
                                 &state.notifications,
@@ -119,11 +109,9 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                     state.seat.pointer.change_state(PointerState::Hover);
                 } else {
-                    if state.seat.pointer.state == PointerState::Hover {
-                        state.update_surface_size();
+                    if state.seat.pointer.state != PointerState::Default {
                         if let Some(surface) = state.surface.as_mut() {
                             _ = surface.render(
-                                state.seat.keyboard.mode,
                                 &state.wgpu_state.device,
                                 &state.wgpu_state.queue,
                                 &state.notifications,
@@ -136,12 +124,11 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
 
                 match (hovered_id, state.notifications.selected_id()) {
                     (Some(new_id), Some(old_id)) if new_id != old_id => {
-                        state.notifications.select(new_id);
                         state.update_surface_size();
+                        state.notifications.select(new_id);
 
                         if let Some(surface) = state.surface.as_mut() {
                             _ = surface.render(
-                                state.seat.keyboard.mode,
                                 &state.wgpu_state.device,
                                 &state.wgpu_state.queue,
                                 &state.notifications,
@@ -149,12 +136,11 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                         }
                     }
                     (Some(new_id), None) => {
-                        state.notifications.select(new_id);
                         state.update_surface_size();
+                        state.notifications.select(new_id);
 
                         if let Some(surface) = state.surface.as_mut() {
                             _ = surface.render(
-                                state.seat.keyboard.mode,
                                 &state.wgpu_state.device,
                                 &state.wgpu_state.queue,
                                 &state.notifications,
@@ -168,11 +154,10 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                             }
                         }
                         state.update_surface_size();
-                        state.seat.keyboard.mode = Mode::Normal;
+                        state.notifications.ui_state.borrow_mut().mode = Mode::Normal;
 
                         if let Some(surface) = state.surface.as_mut() {
                             _ = surface.render(
-                                state.seat.keyboard.mode,
                                 &state.wgpu_state.device,
                                 &state.wgpu_state.queue,
                                 &state.notifications,
@@ -199,76 +184,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                         state.seat.pointer.change_state(PointerState::Default);
 
                         let (x, y) = (state.seat.pointer.x, state.seat.pointer.y);
-
-                        let (notification_id, button) = {
-                            if let Some(under_pointer) =
-                                state.notifications.get_by_coordinates(x, y)
-                            {
-                                let notification_id = under_pointer.id();
-                                let button = state.notifications.get_button_by_coordinates(x, y);
-
-                                (Some(notification_id), button)
-                            } else {
-                                (None, None)
-                            }
-                        };
-
-                        if let Some(notification_id) = notification_id {
-                            match button {
-                                Some(ButtonType::Dismiss) => state
-                                    .dismiss_by_id(notification_id, Some(Reason::DismissedByUser)),
-                                Some(ButtonType::Action { action, .. }) => {
-                                    if let Some(surface) = state.surface.as_ref() {
-                                        let token = surface.token.as_ref().map(Arc::clone);
-                                        _ = state.emit_sender.send(EmitEvent::ActionInvoked {
-                                            id: notification_id,
-                                            action_key: action,
-                                            token: token.unwrap_or_default(),
-                                        });
-                                    }
-
-                                    if !state
-                                        .notifications
-                                        .notifications()
-                                        .iter()
-                                        .find(|notification| notification.id() == notification_id)
-                                        .map(|n| n.data.hints.resident)
-                                        .unwrap_or_default()
-                                    {
-                                        state.dismiss_by_id(notification_id, None);
-                                    }
-                                }
-                                Some(ButtonType::Anchor { anchor }) => {
-                                    if let Some(surface) = state.surface.as_ref() {
-                                        let token = surface.token.as_ref().map(Arc::clone);
-                                        if state
-                                            .emit_sender
-                                            .send(EmitEvent::Open {
-                                                uri: Arc::clone(&anchor.href),
-                                                token,
-                                            })
-                                            .is_ok()
-                                            && surface.focus_reason == Some(FocusReason::MouseEnter)
-                                        {
-                                            state.notifications.deselect();
-                                        }
-                                    }
-                                }
-                                _ => {}
-                            }
-                        }
-
-                        if let Some(notification) = state.notifications.get_by_coordinates(x, y) {
-                            state.notifications.select(notification.id());
-                        }
-
-                        if state
-                            .notifications
-                            .get_button_by_coordinates(x, y)
-                            .is_some()
-                        {
-                            state.seat.pointer.change_state(PointerState::Hover);
-                        }
+                        state.notifications.click(x, y);
                     }
                     _ => unreachable!(),
                 }
@@ -276,11 +192,14 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
             wl_pointer::Event::Leave { .. } => {
                 if let Some(surface) = state.surface.as_mut() {
                     if surface.focus_reason == Some(FocusReason::MouseEnter) {
-                        surface.unfocus();
                         state.seat.pointer.change_state(PointerState::Default);
-                        if surface.focus_reason == Some(FocusReason::MouseEnter) {
-                            state.notifications.deselect();
-                        }
+                        state.notifications.deselect();
+                        surface.unfocus();
+                        _ = surface.render(
+                            &state.wgpu_state.device,
+                            &state.wgpu_state.queue,
+                            &state.notifications,
+                        );
                     }
                 }
             }
@@ -317,7 +236,6 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                             state.update_surface_size();
                             if let Some(surface) = state.surface.as_mut() {
                                 _ = surface.render(
-                                    state.seat.keyboard.mode,
                                     &state.wgpu_state.device,
                                     &state.wgpu_state.queue,
                                     &state.notifications,
@@ -328,7 +246,6 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                             state.update_surface_size();
                             if let Some(surface) = state.surface.as_mut() {
                                 _ = surface.render(
-                                    state.seat.keyboard.mode,
                                     &state.wgpu_state.device,
                                     &state.wgpu_state.queue,
                                     &state.notifications,

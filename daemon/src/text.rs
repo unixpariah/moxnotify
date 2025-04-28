@@ -9,6 +9,7 @@ use glyphon::{
 use regex::Regex;
 use std::{
     path::Path,
+    rc::Rc,
     sync::{Arc, LazyLock},
 };
 use wgpu::{MultisampleState, TextureFormat};
@@ -23,8 +24,9 @@ static URL_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)\b(https?://|ftp://|www\.)\S+\b").unwrap());
 static SPLIT_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(<[^>]+>)|([^<]+)").unwrap());
 
+#[derive(Debug)]
 pub struct Anchor {
-    text: Arc<str>,
+    text: Rc<str>,
     pub href: Arc<str>,
     pub line: usize,
     pub start: usize,
@@ -52,18 +54,21 @@ fn create_buffer(font: &Font, font_system: &mut FontSystem, max_width: Option<f3
 
 pub struct Text {
     pub buffer: Buffer,
-    pub anchors: Vec<Arc<Anchor>>,
+    pub anchors: Vec<Rc<Anchor>>,
     x: f32,
     y: f32,
 }
 
 impl Text {
-    pub fn new(font: &Font, font_system: &mut FontSystem, body: &str) -> Self {
+    pub fn new<T>(font: &Font, font_system: &mut FontSystem, body: T) -> Self
+    where
+        T: AsRef<str>,
+    {
         let attrs = Attrs::new()
             .family(glyphon::Family::Name(&font.family))
             .weight(Weight::BOLD);
         let mut buffer = create_buffer(font, font_system, None);
-        buffer.set_text(font_system, body, &attrs, Shaping::Basic);
+        buffer.set_text(font_system, body.as_ref(), &attrs, Shaping::Basic);
 
         Self {
             buffer,
@@ -73,27 +78,30 @@ impl Text {
         }
     }
 
-    pub fn new_notification(
+    pub fn new_notification<T>(
         font: &Font,
         font_system: &mut FontSystem,
-        summary: &str,
+        summary: T,
         mut body: String,
         max_width: f32,
-    ) -> Self {
+    ) -> Self
+    where
+        T: AsRef<str>,
+    {
         let attrs = Attrs::new().family(glyphon::Family::Name(&font.family));
         let mut spans = vec![];
         let mut anchors = Vec::new();
         let mut anchor_stack: Vec<Anchor> = Vec::new();
 
-        if !summary.is_empty() {
-            spans.push((summary, attrs.clone().weight(Weight::BOLD)));
+        if !summary.as_ref().is_empty() {
+            spans.push((summary.as_ref(), attrs.clone().weight(Weight::BOLD)));
         }
 
-        if !summary.is_empty() && !body.is_empty() {
+        if !summary.as_ref().is_empty() && !body.is_empty() {
             spans.push(("\n\n", attrs.clone()));
         }
 
-        let mut start_pos = summary.len();
+        let mut start_pos = summary.as_ref().len();
         if !body.is_empty() {
             let mut style_stack = Vec::new();
             let mut current_attrs = attrs.clone();
@@ -205,18 +213,21 @@ impl Text {
                             anchor.end = start + anchor.text.len();
                             anchor.line = i;
                             anchor.extents = match buffer.layout_runs().nth(anchor.line) {
-                                Some(line) => Extents {
-                                    x: line.glyphs.get(anchor.start).unwrap().x
-                                        + line.glyphs.get(anchor.start).unwrap().w,
-                                    y: line.line_top + line.line_height,
-                                    width: (line.glyphs.get(anchor.end - 1).unwrap().x
-                                        + line.glyphs.get(anchor.end - 1).unwrap().w)
-                                        - line.glyphs.get(anchor.start).unwrap().x,
-                                    height: line.line_height,
-                                },
-
+                                Some(line) => {
+                                    let first = line.glyphs.get(anchor.start);
+                                    let last = line.glyphs.get(anchor.end.saturating_sub(1));
+                                    match (first, last) {
+                                        (Some(first), Some(last)) => Extents {
+                                            x: first.x + first.w,
+                                            y: line.line_top + line.line_height,
+                                            width: (last.x + last.w) - first.x,
+                                            height: line.line_height,
+                                        },
+                                        _ => Extents::default(),
+                                    }
+                                }
                                 None => Extents::default(),
-                            }
+                            };
                         }
                     });
                 total += line.text().len();
@@ -225,7 +236,7 @@ impl Text {
 
         Self {
             buffer,
-            anchors: anchors.into_iter().map(Arc::new).collect(),
+            anchors: anchors.into_iter().map(Rc::new).collect(),
             x: 0.,
             y: 0.,
         }

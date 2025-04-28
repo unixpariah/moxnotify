@@ -158,7 +158,11 @@ impl FromStr for Color {
     }
 }
 
-pub fn parse_hex(hex: &str) -> Result<[u8; 4], String> {
+pub fn parse_hex<T>(hex: T) -> Result<[u8; 4], String>
+where
+    T: AsRef<str>,
+{
+    let hex = hex.as_ref();
     if !hex.starts_with('#') {
         return Err("Hex string must start with '#'".to_string());
     }

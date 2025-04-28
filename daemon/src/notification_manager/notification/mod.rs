@@ -1,18 +1,18 @@
 pub mod icons;
 mod progress;
 
-use super::config::Config;
+use super::{config::Config, UiState};
 use crate::{
     buffers,
-    button::{ButtonManager, ButtonType},
-    config::{keymaps::Mode, Size, StyleState},
-    text, NotificationData, Urgency,
+    button::{ButtonManager, ButtonType, Finished},
+    config::{Size, StyleState},
+    text, Moxnotify, NotificationData, Urgency,
 };
-use calloop::RegistrationToken;
+use calloop::{LoopHandle, RegistrationToken};
 use glyphon::{FontSystem, TextArea, TextBounds};
 use icons::Icons;
 use progress::Progress;
-use std::sync::Arc;
+use std::{cell::RefCell, rc::Rc};
 
 #[derive(Debug, Default)]
 pub struct Extents {
@@ -29,12 +29,13 @@ pub struct Notification {
     pub x: f32,
     pub text: text::Text,
     hovered: bool,
-    config: Arc<Config>,
+    config: Rc<Config>,
     pub icons: Icons,
     progress: Option<Progress>,
     pub registration_token: Option<RegistrationToken>,
-    pub buttons: ButtonManager,
+    pub buttons: ButtonManager<Finished>,
     pub data: NotificationData,
+    ui_state: Rc<RefCell<UiState>>,
 }
 
 impl PartialEq for Notification {
@@ -44,17 +45,22 @@ impl PartialEq for Notification {
 }
 
 impl Notification {
-    pub fn new(config: Arc<Config>, font_system: &mut FontSystem, data: NotificationData) -> Self {
+    pub fn new(
+        config: Rc<Config>,
+        font_system: &mut FontSystem,
+        data: NotificationData,
+        ui_state: Rc<RefCell<UiState>>,
+        loop_handle: Option<LoopHandle<'static, Moxnotify>>,
+    ) -> Self {
         if data.app_name == "next_notification_count".into()
             || data.app_name == "prev_notification_count".into()
         {
             return Self {
                 y: 0.,
                 x: 0.,
-                data,
                 text: text::Text::new(&config.styles.default.font, font_system, ""),
                 hovered: false,
-                config: Arc::clone(&config),
+                config: Rc::clone(&config),
                 icons: Icons {
                     icon: None,
                     app_icon: None,
@@ -63,22 +69,32 @@ impl Notification {
                 },
                 progress: None,
                 registration_token: None,
-                buttons: ButtonManager::default(),
+                buttons: ButtonManager::new(
+                    data.id,
+                    data.hints.urgency,
+                    Rc::clone(&ui_state),
+                    loop_handle,
+                    Rc::clone(&config),
+                )
+                .add_dismiss(font_system)
+                .finish(font_system),
+                data,
+                ui_state: Rc::clone(&ui_state),
             };
         }
 
         let icons = Icons::new(data.hints.image.as_ref(), data.app_icon.as_deref(), &config);
 
         let style = &config.styles.default;
-        let mut buttons = ButtonManager::default();
-        buttons.add(ButtonType::Dismiss, Arc::clone(&config), font_system);
-        data.actions.iter().cloned().for_each(|(action, text)| {
-            buttons.add(
-                ButtonType::Action { text, action },
-                Arc::clone(&config),
-                font_system,
-            )
-        });
+        let buttons = ButtonManager::new(
+            data.id,
+            data.hints.urgency,
+            Rc::clone(&ui_state),
+            loop_handle,
+            Rc::clone(&config),
+        )
+        .add_dismiss(font_system)
+        .add_actions(&data.actions, font_system);
 
         let icon_width = icons
             .icon
@@ -95,31 +111,24 @@ impl Notification {
                 - buttons
                     .buttons()
                     .first()
-                    .map(|b| b.rendered_extents(false).width)
+                    .map(|buttons| buttons.render_bounds().width)
                     .unwrap_or_default(),
         );
-
-        text.anchors.iter().for_each(|anchor| {
-            buttons.add(
-                ButtonType::Anchor {
-                    anchor: Arc::clone(anchor),
-                },
-                Arc::clone(&config),
-                font_system,
-            );
-        });
 
         Self {
             progress: data.hints.value.map(Progress::new),
             y: 0.,
             x: 0.,
             icons,
-            buttons,
+            buttons: buttons
+                .add_anchors(&text.anchors, font_system)
+                .finish(font_system),
             data,
             text,
             config,
             hovered: false,
             registration_token: None,
+            ui_state: Rc::clone(&ui_state),
         }
     }
 
@@ -163,7 +172,7 @@ impl Notification {
         let style = self.config.find_style(&self.data.app_name, hovered);
 
         self.icons
-            .set_position(&extents, style, &self.progress, &self.buttons, hovered);
+            .set_position(&extents, style, &self.progress, &self.buttons);
         if let Some(progress) = self.progress.as_mut() {
             progress.set_position(&extents, style);
         }
@@ -174,32 +183,24 @@ impl Notification {
             .buttons
             .buttons_mut()
             .iter_mut()
-            .find(|button| button.button_type == ButtonType::Dismiss)
+            .find(|button| button.button_type() == ButtonType::Dismiss)
             .map(|button| {
                 let x = extents.x + extents.width
                     - style.border.size.right
                     - style.padding.right
-                    - button.extents(hovered).width;
+                    - button.bounds().width;
                 let y = extents.y + style.margin.top + style.border.size.top + style.padding.top;
                 button.set_position(x, y);
-                let button_extents = button.extents(hovered);
+                let button_extents = button.bounds();
                 button_extents.y + button_extents.height
             })
             .unwrap_or(0.0);
-
-        self.buttons
-            .buttons_mut()
-            .iter_mut()
-            .filter(|button| matches!(button.button_type, ButtonType::Anchor { .. }))
-            .for_each(|button| {
-                button.set_position(extents.x + self.icons.extents(style).width, extents.y)
-            });
 
         let action_buttons = self
             .buttons
             .buttons()
             .iter()
-            .filter(|button| matches!(button.button_type, ButtonType::Action { .. }))
+            .filter(|button| button.button_type() == ButtonType::Action)
             .count();
 
         if action_buttons > 0 {
@@ -207,8 +208,8 @@ impl Notification {
                 .buttons
                 .buttons()
                 .iter()
-                .find(|b| matches!(b.button_type, ButtonType::Action { .. }))
-                .map(|b| b.style(hovered))
+                .find(|button| button.button_type() == ButtonType::Action)
+                .map(|button| button.style())
                 .unwrap_or_else(|| &style.buttons.action.default);
 
             let side_padding = style.border.size.left
@@ -230,21 +231,28 @@ impl Notification {
             let base_x = extents.x + style.border.size.left + style.padding.left;
             let bottom_padding = style.border.size.bottom + style.padding.bottom + progress_height;
 
+            self.buttons.set_action_widths(button_width);
+
             self.buttons
                 .buttons_mut()
                 .iter_mut()
-                .filter(|b| matches!(b.button_type, ButtonType::Action { .. }))
+                .filter(|b| b.button_type() == ButtonType::Action)
                 .enumerate()
                 .for_each(|(i, button)| {
-                    button.width = button_width;
                     let x_position = base_x + (button_width + button_margin) * i as f32;
-                    let y_position = (extents.y + extents.height
-                        - bottom_padding
-                        - button.extents(hovered).height)
-                        .max(dismiss_bottom_y);
+                    let y_position =
+                        (extents.y + extents.height - bottom_padding - button.bounds().height)
+                            .max(dismiss_bottom_y);
 
                     button.set_position(x_position, y_position);
                 });
+
+            let icons_width = self.icons.extents(self.style()).width;
+            self.buttons
+                .buttons_mut()
+                .iter_mut()
+                .filter(|b| b.button_type() == ButtonType::Anchor)
+                .for_each(|button| button.set_position(base_x + icons_width, extents.y));
         }
     }
 
@@ -256,7 +264,7 @@ impl Notification {
             .buttons
             .buttons()
             .iter()
-            .find(|button| button.button_type == ButtonType::Dismiss);
+            .find(|button| button.button_type() == ButtonType::Dismiss);
 
         let extents = self.rendered_extents();
 
@@ -268,9 +276,7 @@ impl Notification {
             y: extents.y + style.border.size.top.resolve(0.) + style.padding.top.resolve(0.),
             width: style.width.resolve(0.)
                 - icon_extents.width
-                - dismiss_button
-                    .map(|b| b.extents(self.hovered()).width)
-                    .unwrap_or_default(),
+                - dismiss_button.map(|b| b.bounds().width).unwrap_or_default(),
             height: 0.,
         }
     }
@@ -282,16 +288,16 @@ impl Notification {
             .buttons
             .buttons()
             .iter()
-            .find(|button| button.button_type == ButtonType::Dismiss)
-            .map(|b| b.extents(self.hovered()).height)
+            .find(|button| button.button_type() == ButtonType::Dismiss)
+            .map(|b| b.bounds().height)
             .unwrap_or(0.0);
 
         let action_button = self
             .buttons
             .buttons()
             .iter()
-            .filter_map(|button| match button.button_type {
-                ButtonType::Action { .. } => Some(button.extents(self.hovered())),
+            .filter_map(|button| match button.button_type() {
+                ButtonType::Action => Some(button.bounds()),
                 _ => None,
             })
             .max_by(|a, b| {
@@ -375,7 +381,7 @@ impl Notification {
         self.data.id
     }
 
-    fn background_instance(&self, scale: f32) -> buffers::Instance {
+    fn background_instance(&self) -> buffers::Instance {
         let extents = self.rendered_extents();
         let style = self.style();
 
@@ -389,24 +395,21 @@ impl Notification {
             border_radius: style.border.radius.into(),
             border_size: style.border.size.into(),
             border_color: style.border.color.to_linear(self.urgency()),
-            scale,
+            scale: self.ui_state.borrow().scale,
         }
     }
 
-    pub fn instances(&self, mode: Mode, scale: f32) -> Vec<buffers::Instance> {
-        let mut instances = vec![self.background_instance(scale)];
+    pub fn instances(&self) -> Vec<buffers::Instance> {
+        let mut instances = vec![self.background_instance()];
         if let Some(progress) = self.progress.as_ref() {
             instances.extend_from_slice(&progress.instances(
                 self.urgency(),
                 &self.rendered_extents(),
                 self.style(),
-                scale,
             ));
         }
 
-        let button_instances = self
-            .buttons
-            .instances(mode, self.hovered(), self.urgency(), scale);
+        let button_instances = self.buttons.instances();
 
         instances.extend_from_slice(&button_instances);
 
@@ -464,7 +467,7 @@ impl Notification {
         }
     }
 
-    pub fn text_areas(&self, mode: Mode, scale: f32) -> Vec<TextArea> {
+    pub fn text_areas(&self) -> Vec<TextArea> {
         let extents = self.rendered_extents();
         let (width, height) = self.text.extents();
 
@@ -481,7 +484,7 @@ impl Notification {
             buffer: &self.text.buffer,
             left: extents.x + style.border.size.left + style.padding.left + icon_width_positioning,
             top: extents.y + style.border.size.top + style.padding.top,
-            scale,
+            scale: self.ui_state.borrow().scale,
             bounds: TextBounds {
                 left: (extents.x
                     + style.border.size.left
@@ -502,9 +505,7 @@ impl Notification {
             custom_glyphs: &[],
         }];
 
-        let button_areas = self
-            .buttons
-            .text_areas(mode, self.hovered(), self.urgency(), scale);
+        let button_areas = self.buttons.text_areas();
 
         res.extend_from_slice(&button_areas);
         res

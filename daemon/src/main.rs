@@ -2,6 +2,7 @@ mod animation;
 mod audio;
 pub mod buffers;
 pub mod button;
+pub mod component;
 mod config;
 mod dbus;
 mod image_data;
@@ -23,11 +24,11 @@ use dbus::xdg::NotificationData;
 use env_logger::Builder;
 use image_data::ImageData;
 use log::LevelFilter;
-use notification_manager::{NotificationManager, Reason};
+use notification_manager::{notification::NotificationId, NotificationManager, Reason};
 use rusqlite::params;
 use seat::Seat;
 use serde::{Deserialize, Serialize};
-use std::{path::Path, sync::Arc};
+use std::{path::Path, rc::Rc, sync::Arc};
 use surface::{FocusReason, Surface};
 use tokio::sync::broadcast;
 use wayland_client::{
@@ -50,7 +51,7 @@ pub struct Output {
 }
 
 impl Output {
-    fn new(wl_output: wl_output::WlOutput, id: u32) -> Self {
+    fn new(wl_output: wl_output::WlOutput, id: NotificationId) -> Self {
         Self {
             id,
             name: None,
@@ -74,7 +75,7 @@ pub struct Moxnotify {
     outputs: Vec<Output>,
     wgpu_state: wgpu_state::WgpuState,
     notifications: NotificationManager,
-    config: Arc<Config>,
+    config: Rc<Config>,
     qh: QueueHandle<Self>,
     globals: GlobalList,
     loop_handle: calloop::LoopHandle<'static, Self>,
@@ -101,7 +102,7 @@ impl Moxnotify {
         let compositor = globals.bind::<wl_compositor::WlCompositor, _, _>(&qh, 1..=6, ())?;
         let seat = Seat::new(&qh, &globals)?;
 
-        let config = Arc::new(Config::load(config_path)?);
+        let config = Rc::new(Config::load(config_path)?);
 
         let wgpu_state = WgpuState::new(conn).await?;
 
@@ -120,13 +121,14 @@ impl Moxnotify {
         );",
             (),
         )?;
+
         Ok(Self {
             history: History::Hidden,
             db,
             audio: Audio::new().ok(),
             globals,
             qh,
-            notifications: NotificationManager::new(Arc::clone(&config), loop_handle.clone()),
+            notifications: NotificationManager::new(Rc::clone(&config), loop_handle.clone()),
             config,
             wgpu_state,
             layer_shell,
@@ -433,7 +435,6 @@ impl Moxnotify {
         self.update_surface_size();
         if let Some(surface) = self.surface.as_mut() {
             surface.render(
-                self.seat.keyboard.mode,
                 &self.wgpu_state.device,
                 &self.wgpu_state.queue,
                 &self.notifications,
@@ -481,12 +482,12 @@ pub enum Hint {
 pub enum EmitEvent {
     Waiting(u32),
     ActionInvoked {
-        id: u32,
+        id: NotificationId,
         action_key: Arc<str>,
         token: Arc<str>,
     },
     NotificationClosed {
-        id: u32,
+        id: NotificationId,
         reason: Reason,
     },
     Open {
@@ -504,7 +505,7 @@ pub enum EmitEvent {
 
 pub enum Event {
     Waiting,
-    Dismiss { all: bool, id: u32 },
+    Dismiss { all: bool, id: NotificationId },
     Notify(Box<NotificationData>),
     CloseNotification(u32),
     List,

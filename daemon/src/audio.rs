@@ -6,11 +6,9 @@ use libpulse_binding::{
     stream::{self, Stream},
 };
 use std::{
-    cell::RefCell,
     fs,
     path::Path,
-    rc::Rc,
-    sync::mpsc,
+    sync::{mpsc, Arc, Mutex},
     thread::{self, JoinHandle},
 };
 use symphonia::core::{
@@ -30,7 +28,11 @@ struct Playback {
 }
 
 impl Playback {
-    fn new<T>(path: T, context: &mut Context, mainloop: &mut Mainloop) -> anyhow::Result<Self>
+    fn new<T>(
+        path: T,
+        context: Arc<Mutex<Context>>,
+        mainloop: &mut Mainloop,
+    ) -> anyhow::Result<Self>
     where
         T: AsRef<Path>,
     {
@@ -52,10 +54,11 @@ impl Playback {
             .tracks()
             .iter()
             .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
-            .ok_or(anyhow::anyhow!(""))?;
+            .ok_or(anyhow::anyhow!("No valid track found"))?;
 
+        let mut context = context.lock().unwrap();
         let mut stream = Stream::new(
-            context,
+            &mut context,
             "moxnotify",
             &Spec {
                 format: libpulse_binding::sample::Format::FLOAT32NE,
@@ -104,7 +107,7 @@ impl Playback {
         let rx = self.shutdown_channel.1.take().unwrap();
 
         let handle = thread::spawn(move || {
-            let stream = Rc::new(RefCell::new(stream));
+            let stream = Arc::new(Mutex::new(stream));
 
             let track = format
                 .tracks()
@@ -137,11 +140,12 @@ impl Playback {
                     SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
                 sample_buf.copy_interleaved_ref(decoded);
 
-                let writable = stream.borrow().writable_size();
+                let writable = stream.lock().unwrap().writable_size();
                 let samples: &[u8] = bytemuck::cast_slice(sample_buf.samples());
 
                 stream
-                    .borrow_mut()
+                    .lock()
+                    .unwrap()
                     .write(
                         if samples.len() > writable.unwrap_or_default() {
                             &samples[..writable.unwrap_or_default()]
@@ -155,10 +159,10 @@ impl Playback {
                     .unwrap();
             }
 
-            stream.borrow_mut().drain(Some(Box::new({
-                let stream = Rc::clone(&stream);
+            stream.lock().unwrap().drain(Some(Box::new({
+                let stream = Arc::clone(&stream);
                 move |_: bool| {
-                    stream.borrow_mut().cork(None);
+                    stream.lock().unwrap().cork(None);
                 }
             })));
         });
@@ -180,7 +184,7 @@ impl Playback {
 pub struct Audio {
     muted: bool,
     mainloop: Mainloop,
-    context: Context,
+    context: Arc<Mutex<Context>>,
     playback: Option<Playback>,
 }
 
@@ -188,6 +192,7 @@ impl Audio {
     pub fn new() -> anyhow::Result<Self> {
         let mut mainloop = Mainloop::new().ok_or(PAErr(0))?;
         let mut context = Context::new(&mainloop, "moxnotify").ok_or(PAErr(0))?;
+
         context.connect(None, context::FlagSet::NOFLAGS, None)?;
         mainloop.start()?;
 
@@ -198,7 +203,7 @@ impl Audio {
         Ok(Self {
             muted: false,
             mainloop,
-            context,
+            context: Arc::new(Mutex::new(context)),
             playback: None,
         })
     }
@@ -213,9 +218,15 @@ impl Audio {
 
         if let Some(mut playback) = self.playback.take() {
             playback.stop();
+            while self.context.lock().unwrap().get_state() != State::Ready {
+                self.mainloop.wait();
+            }
         }
 
-        let mut playback = Playback::new(path, &mut self.context, &mut self.mainloop)?;
+        let mut playback = Playback::new(path, self.context.clone(), &mut self.mainloop)?;
+        while self.context.lock().unwrap().get_state() != State::Ready {
+            self.mainloop.wait();
+        }
         playback.play()?;
 
         self.playback = Some(playback);
