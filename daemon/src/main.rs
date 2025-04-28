@@ -147,21 +147,17 @@ impl Moxnotify {
                 if all {
                     log::info!("Dismissing all notifications");
                     self.dismiss_range(.., Some(Reason::DismissedByUser));
-                    return Ok(());
-                }
-
-                if id == 0 {
+                } else if id == 0 {
                     if let Some(notification) = self.notifications.notifications().first() {
                         log::info!("Dismissing first notification (id={})", notification.id());
                         self.dismiss_by_id(notification.id(), Some(Reason::DismissedByUser));
                     } else {
                         log::debug!("No notifications to dismiss");
                     }
-                    return Ok(());
+                } else {
+                    log::info!("Dismissing notification with id={id}");
+                    self.dismiss_by_id(id, Some(Reason::DismissedByUser));
                 }
-
-                log::info!("Dismissing notification with id={id}");
-                self.dismiss_by_id(id, Some(Reason::DismissedByUser));
             }
             Event::Notify(data) => {
                 log::info!(
@@ -251,10 +247,7 @@ impl Moxnotify {
 
                 if self.notifications.inhibited() || suppress_sound {
                     log::debug!("Sound suppressed for notification");
-                    return Ok(());
-                }
-
-                if let (Some(audio), Some(path)) = (self.audio.as_mut(), path) {
+                } else if let (Some(audio), Some(path)) = (self.audio.as_mut(), path) {
                     log::debug!("Playing notification sound");
                     audio.play(path)?;
                 }

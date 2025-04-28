@@ -5,7 +5,12 @@ mod dismiss;
 use crate::{
     buffers,
     component::{Bounds, Component},
-    config::{self, button::ButtonState, keymaps, Config},
+    config::{
+        self,
+        button::ButtonState,
+        keymaps::{self, Mode},
+        Config,
+    },
     notification_manager::{Reason, UiState},
     surface::FocusReason,
     text::{Anchor, Text},
@@ -328,6 +333,7 @@ impl<S> ButtonManager<S> {
                                 && surface.focus_reason == Some(FocusReason::MouseEnter)
                             {
                                 moxnotify.notifications.deselect();
+                                moxnotify.notifications.ui_state.borrow_mut().mode = Mode::Normal;
                             }
                         }
                     }
