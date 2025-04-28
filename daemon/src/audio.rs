@@ -191,24 +191,19 @@ pub struct Audio {
 impl Audio {
     pub fn new() -> anyhow::Result<Self> {
         let mut mainloop = Mainloop::new().ok_or(PAErr(0))?;
-        let context = Arc::new(Mutex::new(
-            Context::new(&mainloop, "moxnotify").ok_or(PAErr(0))?,
-        ));
+        let mut context = Context::new(&mainloop, "moxnotify").ok_or(PAErr(0))?;
 
-        context
-            .lock()
-            .unwrap()
-            .connect(None, context::FlagSet::NOFLAGS, None)?;
+        context.connect(None, context::FlagSet::NOFLAGS, None)?;
         mainloop.start()?;
 
-        while context.lock().unwrap().get_state() != State::Ready {
+        while context.get_state() != State::Ready {
             mainloop.wait();
         }
 
         Ok(Self {
             muted: false,
             mainloop,
-            context,
+            context: Arc::new(Mutex::new(context)),
             playback: None,
         })
     }
@@ -223,9 +218,15 @@ impl Audio {
 
         if let Some(mut playback) = self.playback.take() {
             playback.stop();
+            while self.context.lock().unwrap().get_state() != State::Ready {
+                self.mainloop.wait();
+            }
         }
 
         let mut playback = Playback::new(path, self.context.clone(), &mut self.mainloop)?;
+        while self.context.lock().unwrap().get_state() != State::Ready {
+            self.mainloop.wait();
+        }
         playback.play()?;
 
         self.playback = Some(playback);

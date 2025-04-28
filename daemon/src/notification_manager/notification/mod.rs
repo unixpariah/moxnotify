@@ -94,8 +94,7 @@ impl Notification {
             Rc::clone(&config),
         )
         .add_dismiss(font_system)
-        .add_actions(&data.actions, font_system)
-        .finish(font_system);
+        .add_actions(&data.actions, font_system);
 
         let icon_width = icons
             .icon
@@ -121,7 +120,9 @@ impl Notification {
             y: 0.,
             x: 0.,
             icons,
-            buttons,
+            buttons: buttons
+                .add_anchors(&text.anchors, font_system)
+                .finish(font_system),
             data,
             text,
             config,
@@ -245,6 +246,13 @@ impl Notification {
 
                     button.set_position(x_position, y_position);
                 });
+
+            let icons_width = self.icons.extents(self.style()).width;
+            self.buttons
+                .buttons_mut()
+                .iter_mut()
+                .filter(|b| b.button_type() == ButtonType::Anchor)
+                .for_each(|button| button.set_position(base_x + icons_width, extents.y));
         }
     }
 

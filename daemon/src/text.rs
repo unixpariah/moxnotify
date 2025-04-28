@@ -24,6 +24,7 @@ static URL_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)\b(https?://|ftp://|www\.)\S+\b").unwrap());
 static SPLIT_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(<[^>]+>)|([^<]+)").unwrap());
 
+#[derive(Debug)]
 pub struct Anchor {
     text: Rc<str>,
     pub href: Arc<str>,

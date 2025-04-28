@@ -1,4 +1,5 @@
 mod action;
+mod anchor;
 mod dismiss;
 
 use crate::{
@@ -6,10 +7,12 @@ use crate::{
     component::{Bounds, Component},
     config::{self, button::ButtonState, keymaps, Config},
     notification_manager::{Reason, UiState},
-    text::Text,
-    Moxnotify, Urgency,
+    surface::FocusReason,
+    text::{Anchor, Text},
+    EmitEvent, Moxnotify, Urgency,
 };
 use action::ActionButton;
+use anchor::AnchorButton;
 use calloop::{channel::Event, LoopHandle};
 use dismiss::DismissButton;
 use glyphon::{FontSystem, TextArea};
@@ -43,6 +46,7 @@ pub trait Button: Component {
 pub enum ButtonType {
     Dismiss,
     Action,
+    Anchor,
 }
 
 pub struct NotReady;
@@ -84,6 +88,10 @@ impl ButtonManager<NotReady> {
         font_system: &mut FontSystem,
     ) -> Self {
         self.internal_add_actions(actions, font_system)
+    }
+
+    pub fn add_anchors(self, anchors: &[Rc<Anchor>], font_system: &mut FontSystem) -> Self {
+        self.internal_add_anchors(anchors, font_system)
     }
 
     pub fn add_dismiss(mut self, font_system: &mut FontSystem) -> ButtonManager<Ready> {
@@ -141,6 +149,10 @@ impl ButtonManager<Ready> {
         self.internal_add_actions(actions, font_system)
     }
 
+    pub fn add_anchors(self, anchors: &[Rc<Anchor>], font_system: &mut FontSystem) -> Self {
+        self.internal_add_anchors(anchors, font_system)
+    }
+
     pub fn finish(mut self, font_system: &mut FontSystem) -> ButtonManager<Finished> {
         let hint_chars: Vec<char> = self.config.general.hint_characters.chars().collect();
         let n = hint_chars.len() as i32;
@@ -183,14 +195,6 @@ impl ButtonManager<Ready> {
 }
 
 impl ButtonManager<Finished> {
-    pub fn buttons(&self) -> &[Box<dyn Button<Style = ButtonState>>] {
-        &self.buttons
-    }
-
-    pub fn buttons_mut(&mut self) -> &mut [Box<dyn Button<Style = ButtonState>>] {
-        &mut self.buttons
-    }
-
     pub fn click(&self, x: f64, y: f64) -> bool {
         self.buttons
             .iter()
@@ -296,6 +300,65 @@ impl ButtonManager<Finished> {
 }
 
 impl<S> ButtonManager<S> {
+    fn internal_add_anchors(
+        mut self,
+        anchors: &[Rc<Anchor>],
+        font_system: &mut FontSystem,
+    ) -> Self {
+        if anchors.is_empty() {
+            return self;
+        }
+
+        let font = &self.config.styles.default.buttons.action.default.font;
+
+        let (tx, rx) = calloop::channel::channel::<Arc<str>>();
+        if let Some(loop_handle) = self.loop_handle.as_ref() {
+            loop_handle
+                .insert_source(rx, move |event, _, moxnotify| {
+                    if let Event::Msg(uri) = event {
+                        if let Some(surface) = moxnotify.surface.as_ref() {
+                            let token = surface.token.as_ref().map(Arc::clone);
+                            if moxnotify
+                                .emit_sender
+                                .send(EmitEvent::Open {
+                                    uri: Arc::clone(&uri),
+                                    token,
+                                })
+                                .is_ok()
+                                && surface.focus_reason == Some(FocusReason::MouseEnter)
+                            {
+                                moxnotify.notifications.deselect();
+                            }
+                        }
+                    }
+                })
+                .ok();
+        }
+
+        self.buttons.extend(anchors.iter().map(|anchor| {
+            let text = Text::new(font, font_system, "");
+            Box::new(AnchorButton {
+                id: self.id,
+                x: 0.,
+                y: 0.,
+                hint: Hint::new(
+                    "",
+                    Rc::clone(&self.config),
+                    font_system,
+                    Rc::clone(&self.ui_state),
+                ),
+                config: Rc::clone(&self.config),
+                state: State::Unhovered,
+                tx: tx.clone(),
+                text,
+                ui_state: Rc::clone(&self.ui_state),
+                anchor: Rc::clone(anchor),
+            }) as Box<dyn Button<Style = ButtonState>>
+        }));
+
+        self
+    }
+
     fn internal_add_actions(
         mut self,
         actions: &[(Arc<str>, Arc<str>)],
@@ -360,11 +423,19 @@ impl<S> ButtonManager<S> {
                     tx: tx.clone(),
                 }) as Box<dyn Button<Style = ButtonState>>
             })
-            .collect::<Vec<Box<dyn Button<Style = ButtonState>>>>();
+            .collect();
 
         self.buttons.append(&mut buttons);
 
         self
+    }
+
+    pub fn buttons(&self) -> &[Box<dyn Button<Style = ButtonState>>] {
+        &self.buttons
+    }
+
+    pub fn buttons_mut(&mut self) -> &mut [Box<dyn Button<Style = ButtonState>>] {
+        &mut self.buttons
     }
 }
 
@@ -576,11 +647,10 @@ mod tests {
             .iter()
             .enumerate()
             .for_each(|(i, (x, y, expected))| {
-                let clicked = button_manager.click(*x, *y);
                 assert_eq!(
-                    clicked, *expected,
-                    "Test point {} at ({}, {}) failed",
-                    i, x, y
+                    button_manager.click(*x, *y),
+                    *expected,
+                    "Test point {i} at ({x}, {y}) failed",
                 );
             });
     }
@@ -641,11 +711,10 @@ mod tests {
             .iter()
             .enumerate()
             .for_each(|(i, (x, y, expected))| {
-                let hovered = button_manager.hover(*x, *y);
                 assert_eq!(
-                    hovered, *expected,
-                    "Test point {} at ({}, {}) failed",
-                    i, x, y
+                    button_manager.hover(*x, *y),
+                    *expected,
+                    "Test point {i} at ({x}, {y}) failed",
                 );
             });
     }
