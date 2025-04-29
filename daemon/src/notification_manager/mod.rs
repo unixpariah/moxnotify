@@ -454,6 +454,10 @@ impl NotificationManager {
 
         match existing_index {
             Some(index) => {
+                if let Some(token) = self.notifications[index].registration_token.take() {
+                    self.loop_handle.remove(token);
+                }
+
                 let replaced_height_differs =
                     self.notifications[index].extents().height != notification.extents().height;
 
