@@ -5,6 +5,7 @@ use super::{config::Config, UiState};
 use crate::{
     buffers,
     button::{ButtonManager, ButtonType, Finished},
+    component::Component,
     config::{Size, StyleState},
     text, Moxnotify, NotificationData, Urgency,
 };
@@ -120,10 +121,10 @@ impl Notification {
         Self {
             progress: data.hints.value.map(|value| {
                 Progress::new(
+                    data.id,
                     value,
                     Rc::clone(&ui_state),
                     Rc::clone(&config),
-                    data.id,
                     Arc::clone(&data.app_name),
                 )
             }),
@@ -184,7 +185,27 @@ impl Notification {
         self.icons
             .set_position(&extents, style, &self.progress, &self.buttons);
         if let Some(progress) = self.progress.as_mut() {
-            progress.set_position(&extents);
+            let available_width = extents.width
+                - style.border.size.left
+                - style.border.size.right
+                - style.padding.left
+                - style.padding.right
+                - style.progress.margin.left
+                - style.progress.margin.right;
+            progress.set_width(available_width);
+
+            let style = self.config.find_style(
+                &self.data.app_name,
+                self.ui_state.borrow().selected == Some(self.data.id),
+            );
+
+            let x = extents.x + style.border.size.left + style.padding.left;
+            let y = extents.y + extents.height
+                - style.border.size.bottom.resolve(0.)
+                - style.padding.bottom.resolve(0.)
+                - progress.get_bounds().height;
+
+            progress.set_position(x, y);
         }
 
         let extents = self.rendered_extents();
@@ -236,7 +257,7 @@ impl Notification {
             let progress_height = self
                 .progress
                 .as_ref()
-                .map(|p| p.extents(&extents).height)
+                .map(|p| p.get_bounds().height)
                 .unwrap_or_default();
 
             let base_x = extents.x + style.border.size.left + style.padding.left;
@@ -415,11 +436,7 @@ impl Notification {
     pub fn instances(&self) -> Vec<buffers::Instance> {
         let mut instances = vec![self.background_instance()];
         if let Some(progress) = self.progress.as_ref() {
-            instances.extend_from_slice(&progress.instances(
-                self.urgency(),
-                &self.rendered_extents(),
-                self.style(),
-            ));
+            instances.extend_from_slice(&progress.instances(&self.data.hints.urgency));
         }
 
         let button_instances = self.buttons.instances();

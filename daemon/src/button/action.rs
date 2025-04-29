@@ -61,7 +61,7 @@ impl Component for ActionButton {
         }
     }
 
-    fn get_text_area(&self, urgency: &Urgency) -> glyphon::TextArea {
+    fn get_text_area(&self, urgency: &Urgency) -> Option<glyphon::TextArea> {
         let extents = self.get_render_bounds();
         let style = self.get_style();
         let text_extents = self.text.extents();
@@ -86,7 +86,7 @@ impl Component for ActionButton {
             ),
         };
 
-        glyphon::TextArea {
+        Some(glyphon::TextArea {
             buffer: &self.text.buffer,
             left: extents.x + style.border.size.left + style.padding.left.resolve(pl),
             top: extents.y + style.border.size.top + style.padding.top.resolve(pt),
@@ -105,7 +105,7 @@ impl Component for ActionButton {
             },
             custom_glyphs: &[],
             default_color: style.font.color.into_glyphon(urgency),
-        }
+        })
     }
 
     fn get_style(&self) -> &Self::Style {

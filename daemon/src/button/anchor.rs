@@ -59,9 +59,9 @@ impl Component for AnchorButton {
         }
     }
 
-    fn get_text_area(&self, urgency: &crate::Urgency) -> glyphon::TextArea {
+    fn get_text_area(&self, urgency: &crate::Urgency) -> Option<glyphon::TextArea> {
         let style = self.get_style();
-        glyphon::TextArea {
+        Some(glyphon::TextArea {
             buffer: &self.text.buffer,
             left: 0.,
             top: 0.,
@@ -74,7 +74,7 @@ impl Component for AnchorButton {
             },
             custom_glyphs: &[],
             default_color: style.font.color.into_glyphon(urgency),
-        }
+        })
     }
 
     fn get_bounds(&self) -> Bounds {

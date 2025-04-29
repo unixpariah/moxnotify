@@ -1,6 +1,7 @@
 use super::{progress::Progress, Extents};
 use crate::{
     button::{ButtonManager, ButtonType, Finished},
+    component::Component,
     config::{Config, StyleState},
     image_data::ImageData,
     texture_renderer::{TextureArea, TextureBounds},
@@ -60,7 +61,7 @@ impl Icons {
             - style.padding.bottom
             - progress
                 .as_ref()
-                .map(|p| p.extents(container_extents).height)
+                .map(|p| p.get_bounds().height)
                 .unwrap_or_default()
             - buttons
                 .buttons()

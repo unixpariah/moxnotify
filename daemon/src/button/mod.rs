@@ -290,7 +290,7 @@ impl ButtonManager<Finished> {
         let mut text_areas = self
             .buttons
             .iter()
-            .map(|button| button.get_text_area(&self.urgency))
+            .filter_map(|button| button.get_text_area(&self.urgency))
             .collect::<Vec<_>>();
 
         let ui_state = self.ui_state.borrow();
@@ -298,7 +298,7 @@ impl ButtonManager<Finished> {
             let hints = self
                 .buttons
                 .iter()
-                .map(|button| button.hint().get_text_area(&self.urgency))
+                .filter_map(|button| button.hint().get_text_area(&self.urgency))
                 .collect::<Vec<_>>();
             text_areas.extend_from_slice(&hints);
         }
@@ -587,7 +587,7 @@ impl Component for Hint {
         self.y = y;
     }
 
-    fn get_text_area(&self, urgency: &Urgency) -> TextArea {
+    fn get_text_area(&self, urgency: &Urgency) -> Option<TextArea> {
         let style = self.get_style();
         let text_extents = self.text.extents();
         let bounds = self.get_render_bounds();
@@ -611,7 +611,7 @@ impl Component for Hint {
             ),
         };
 
-        TextArea {
+        Some(TextArea {
             buffer: &self.text.buffer,
             left: bounds.x + style.padding.left.resolve(pl),
             top: bounds.y + style.padding.top.resolve(pt),
@@ -624,7 +624,7 @@ impl Component for Hint {
             },
             default_color: style.font.color.into_glyphon(urgency),
             custom_glyphs: &[],
-        }
+        })
     }
 }
 

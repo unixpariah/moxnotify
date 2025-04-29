@@ -36,7 +36,7 @@ pub trait Component {
 
     fn get_instance(&self, urgency: &Urgency) -> buffers::Instance;
 
-    fn get_text_area(&self, urgency: &Urgency) -> TextArea;
+    fn get_text_area(&self, urgency: &Urgency) -> Option<TextArea>;
 
     fn get_bounds(&self) -> Bounds;
 
