@@ -4,7 +4,7 @@ mod dismiss;
 
 use crate::{
     buffers,
-    component::{Bounds, Component},
+    component::{Bounds, Component, Data},
     config::{
         self,
         button::ButtonState,
@@ -107,8 +107,8 @@ impl ButtonManager<NotReady> {
         let font = &self.config.styles.default.buttons.dismiss.default.font;
         let text = Text::new(font, font_system, "X");
 
-        let (tx, rx) = calloop::channel::channel();
-        if let Some(loop_handle) = self.loop_handle.as_ref() {
+        let tx = if let Some(loop_handle) = self.loop_handle.as_ref() {
+            let (tx, rx) = calloop::channel::channel();
             loop_handle
                 .insert_source(rx, move |event, _, moxnotify| {
                     if let Event::Msg(id) = event {
@@ -116,7 +116,11 @@ impl ButtonManager<NotReady> {
                     }
                 })
                 .ok();
-        }
+
+            Some(tx)
+        } else {
+            None
+        };
 
         let button = DismissButton {
             id: self.id,
@@ -270,7 +274,7 @@ impl ButtonManager<Finished> {
         let mut buttons = self
             .buttons
             .iter()
-            .map(|button| button.get_instance(&self.urgency))
+            .flat_map(|button| button.get_instances(&self.urgency))
             .collect::<Vec<_>>();
 
         let ui_state = self.ui_state.borrow();
@@ -278,7 +282,7 @@ impl ButtonManager<Finished> {
             let hints = self
                 .buttons
                 .iter()
-                .map(|button| button.hint().get_instance(&self.urgency))
+                .flat_map(|button| button.hint().get_instances(&self.urgency))
                 .collect::<Vec<_>>();
             buttons.extend_from_slice(&hints);
         }
@@ -290,7 +294,7 @@ impl ButtonManager<Finished> {
         let mut text_areas = self
             .buttons
             .iter()
-            .filter_map(|button| button.get_text_area(&self.urgency))
+            .flat_map(|button| button.get_text_areas(&self.urgency))
             .collect::<Vec<_>>();
 
         let ui_state = self.ui_state.borrow();
@@ -298,12 +302,30 @@ impl ButtonManager<Finished> {
             let hints = self
                 .buttons
                 .iter()
-                .filter_map(|button| button.hint().get_text_area(&self.urgency))
-                .collect::<Vec<_>>();
-            text_areas.extend_from_slice(&hints);
+                .flat_map(|button| button.hint().get_text_areas(&self.urgency));
+            text_areas.extend(hints);
         }
 
         text_areas
+    }
+
+    pub fn data(&self) -> Vec<Data> {
+        let mut data = self
+            .buttons
+            .iter()
+            .flat_map(|button| button.get_data(&self.urgency))
+            .collect::<Vec<_>>();
+
+        let ui_state = self.ui_state.borrow();
+        if ui_state.mode == keymaps::Mode::Hint && ui_state.selected == Some(self.id) {
+            let hints = self
+                .buttons
+                .iter()
+                .flat_map(|button| button.hint().get_data(&self.urgency));
+            data.extend(hints);
+        }
+
+        data
     }
 
     pub fn set_action_widths(&mut self, width: f32) {
@@ -328,8 +350,8 @@ impl<S> ButtonManager<S> {
 
         let font = &self.config.styles.default.buttons.action.default.font;
 
-        let (tx, rx) = calloop::channel::channel::<Arc<str>>();
-        if let Some(loop_handle) = self.loop_handle.as_ref() {
+        let tx = if let Some(loop_handle) = self.loop_handle.as_ref() {
+            let (tx, rx) = calloop::channel::channel();
             loop_handle
                 .insert_source(rx, move |event, _, moxnotify| {
                     if let Event::Msg(uri) = event {
@@ -351,7 +373,11 @@ impl<S> ButtonManager<S> {
                     }
                 })
                 .ok();
-        }
+
+            Some(tx)
+        } else {
+            None
+        };
 
         self.buttons.extend(anchors.iter().map(|anchor| {
             let text = Text::new(font, font_system, "");
@@ -390,8 +416,8 @@ impl<S> ButtonManager<S> {
             return self;
         }
 
-        let (tx, rx) = calloop::channel::channel();
-        if let Some(loop_handle) = self.loop_handle.as_ref() {
+        let tx = if let Some(loop_handle) = self.loop_handle.as_ref() {
+            let (tx, rx) = calloop::channel::channel();
             loop_handle
                 .insert_source(rx, move |event, _, moxnotify| {
                     if let Event::Msg((id, action_key)) = event {
@@ -417,7 +443,11 @@ impl<S> ButtonManager<S> {
                     }
                 })
                 .ok();
-        }
+
+            Some(tx)
+        } else {
+            None
+        };
 
         let mut buttons = actions
             .iter()
@@ -567,11 +597,11 @@ impl Component for Hint {
         }
     }
 
-    fn get_instance(&self, urgency: &Urgency) -> buffers::Instance {
+    fn get_instances(&self, urgency: &Urgency) -> Vec<buffers::Instance> {
         let style = &self.config.styles.hover.hint;
         let bounds = self.get_render_bounds();
 
-        buffers::Instance {
+        vec![buffers::Instance {
             rect_pos: [bounds.x, bounds.y],
             rect_size: [bounds.width, bounds.height],
             rect_color: style.background.to_linear(urgency),
@@ -579,7 +609,7 @@ impl Component for Hint {
             border_size: style.border.size.into(),
             border_color: style.border.color.to_linear(urgency),
             scale: self.ui_state.borrow().scale,
-        }
+        }]
     }
 
     fn set_position(&mut self, x: f32, y: f32) {
@@ -587,7 +617,7 @@ impl Component for Hint {
         self.y = y;
     }
 
-    fn get_text_area(&self, urgency: &Urgency) -> Option<TextArea> {
+    fn get_text_areas(&self, urgency: &Urgency) -> Vec<TextArea> {
         let style = self.get_style();
         let text_extents = self.text.extents();
         let bounds = self.get_render_bounds();
@@ -611,7 +641,7 @@ impl Component for Hint {
             ),
         };
 
-        Some(TextArea {
+        vec![TextArea {
             buffer: &self.text.buffer,
             left: bounds.x + style.padding.left.resolve(pl),
             top: bounds.y + style.padding.top.resolve(pt),
@@ -624,7 +654,7 @@ impl Component for Hint {
             },
             default_color: style.font.color.into_glyphon(urgency),
             custom_glyphs: &[],
-        })
+        }]
     }
 }
 

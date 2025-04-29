@@ -4,7 +4,11 @@ use crate::{
     notification_manager::UiState,
     Urgency,
 };
-use glyphon::TextArea;
+
+pub enum Data<'a> {
+    Instance(buffers::Instance),
+    TextArea(glyphon::TextArea<'a>),
+}
 
 #[derive(Default)]
 pub struct Bounds {
@@ -34,13 +38,21 @@ pub trait Component {
 
     fn get_style(&self) -> &Self::Style;
 
-    fn get_instance(&self, urgency: &Urgency) -> buffers::Instance;
+    fn get_instances(&self, urgency: &Urgency) -> Vec<buffers::Instance>;
 
-    fn get_text_area(&self, urgency: &Urgency) -> Option<TextArea>;
+    fn get_text_areas(&self, urgency: &Urgency) -> Vec<glyphon::TextArea>;
 
     fn get_bounds(&self) -> Bounds;
 
     fn get_render_bounds(&self) -> Bounds;
 
     fn set_position(&mut self, x: f32, y: f32);
+
+    fn get_data(&self, urgency: &Urgency) -> Vec<Data> {
+        self.get_instances(urgency)
+            .into_iter()
+            .map(Data::Instance)
+            .chain(self.get_text_areas(urgency).into_iter().map(Data::TextArea))
+            .collect()
+    }
 }

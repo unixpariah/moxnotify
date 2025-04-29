@@ -92,6 +92,8 @@ impl NotificationManager {
             .fold(
                 (Vec::new(), Vec::new(), Vec::new()),
                 |(mut instances, mut text_areas, mut textures), (_, notification)| {
+                    //let data = notification.data();
+
                     let instance = notification.instances();
                     let text = notification.text_areas();
                     let texture = notification.icons.textures(
@@ -379,7 +381,7 @@ impl NotificationManager {
                 &mut self.font_system,
                 data,
                 Rc::clone(&self.ui_state),
-                Some(self.loop_handle.clone()),
+                None,
             );
             notification.set_position(0.0, y);
             let height = notification.extents().height;

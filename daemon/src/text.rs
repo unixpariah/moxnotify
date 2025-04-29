@@ -68,7 +68,7 @@ impl Text {
             .family(glyphon::Family::Name(&font.family))
             .weight(Weight::BOLD);
         let mut buffer = create_buffer(font, font_system, None);
-        buffer.set_text(font_system, body.as_ref(), &attrs, Shaping::Basic);
+        buffer.set_text(font_system, body.as_ref(), &attrs, Shaping::Advanced);
 
         Self {
             buffer,
@@ -199,7 +199,7 @@ impl Text {
         }
 
         let mut buffer = create_buffer(font, font_system, Some(max_width));
-        buffer.set_rich_text(font_system, spans, &attrs, Shaping::Basic, None);
+        buffer.set_rich_text(font_system, spans, &attrs, Shaping::Advanced, None);
 
         let mut total = 0;
         anchors.iter_mut().for_each(|anchor| {

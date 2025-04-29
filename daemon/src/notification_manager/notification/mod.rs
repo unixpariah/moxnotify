@@ -5,7 +5,7 @@ use super::{config::Config, UiState};
 use crate::{
     buffers,
     button::{ButtonManager, ButtonType, Finished},
-    component::Component,
+    component::{Component, Data},
     config::{Size, StyleState},
     text, Moxnotify, NotificationData, Urgency,
 };
@@ -141,6 +141,15 @@ impl Notification {
             registration_token: None,
             ui_state: Rc::clone(&ui_state),
         }
+    }
+
+    pub fn data(&self) -> Vec<Data> {
+        let mut data = self.buttons.data();
+        if let Some(progress) = self.progress.as_ref() {
+            data.extend(progress.get_data(self.urgency()));
+        }
+
+        data
     }
 
     pub fn timeout(&self) -> Option<u64> {
@@ -436,7 +445,7 @@ impl Notification {
     pub fn instances(&self) -> Vec<buffers::Instance> {
         let mut instances = vec![self.background_instance()];
         if let Some(progress) = self.progress.as_ref() {
-            instances.extend_from_slice(&progress.instances(&self.data.hints.urgency));
+            instances.extend_from_slice(&progress.get_instances(&self.data.hints.urgency));
         }
 
         let button_instances = self.buttons.instances();

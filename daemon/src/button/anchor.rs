@@ -17,7 +17,7 @@ pub struct AnchorButton {
     pub text: Text,
     pub state: State,
     pub ui_state: Rc<RefCell<UiState>>,
-    pub tx: calloop::channel::Sender<Arc<str>>,
+    pub tx: Option<calloop::channel::Sender<Arc<str>>>,
     pub anchor: Rc<Anchor>,
     pub app_name: Arc<str>,
 }
@@ -45,10 +45,10 @@ impl Component for AnchorButton {
         &self.config.styles.hover.buttons.dismiss.default
     }
 
-    fn get_instance(&self, urgency: &crate::Urgency) -> buffers::Instance {
+    fn get_instances(&self, urgency: &crate::Urgency) -> Vec<buffers::Instance> {
         let style = self.get_style();
         let bounds = self.get_render_bounds();
-        buffers::Instance {
+        vec![buffers::Instance {
             rect_pos: [bounds.x, bounds.y],
             rect_size: [bounds.width, bounds.height],
             rect_color: style.background.to_linear(urgency),
@@ -56,12 +56,12 @@ impl Component for AnchorButton {
             border_size: style.border.size.into(),
             border_color: style.border.color.to_linear(urgency),
             scale: 0.,
-        }
+        }]
     }
 
-    fn get_text_area(&self, urgency: &crate::Urgency) -> Option<glyphon::TextArea> {
+    fn get_text_areas(&self, urgency: &crate::Urgency) -> Vec<glyphon::TextArea> {
         let style = self.get_style();
-        Some(glyphon::TextArea {
+        vec![glyphon::TextArea {
             buffer: &self.text.buffer,
             left: 0.,
             top: 0.,
@@ -74,7 +74,7 @@ impl Component for AnchorButton {
             },
             custom_glyphs: &[],
             default_color: style.font.color.into_glyphon(urgency),
-        })
+        }]
     }
 
     fn get_bounds(&self) -> Bounds {
@@ -107,7 +107,9 @@ impl Button for AnchorButton {
     }
 
     fn click(&self) {
-        _ = self.tx.send(Arc::clone(&self.anchor.href));
+        if let Some(tx) = self.tx.as_ref() {
+            _ = tx.send(Arc::clone(&self.anchor.href));
+        }
     }
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {

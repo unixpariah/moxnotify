@@ -120,50 +120,87 @@ impl Component for Progress {
         }
     }
 
-    fn get_text_area(&self, _: &Urgency) -> Option<glyphon::TextArea> {
-        None
+    fn get_text_areas(&self, _: &Urgency) -> Vec<glyphon::TextArea> {
+        vec![]
     }
 
-    fn get_instance(&self, urgency: &Urgency) -> buffers::Instance {
-        let style = self.config.find_style(
-            &self.app_name,
-            self.ui_state.borrow().selected == Some(self.id),
-        );
-
+    fn get_instances(&self, urgency: &Urgency) -> Vec<buffers::Instance> {
         let extents = self.get_render_bounds();
 
         let progress_ratio = (self.value as f32 / 100.0).min(1.0);
 
+        let mut instances = Vec::new();
         let complete_width = (extents.width * progress_ratio).max(0.);
 
-        let border_size = if self.value < 100 {
-            Insets {
-                right: Size::Value(0.),
-                ..style.progress.border.size
-            }
-        } else {
-            style.progress.border.size
-        };
+        let style = self.get_style();
 
-        let border_radius = if self.value < 100 {
-            BorderRadius {
-                top_right: 0.0,
-                bottom_right: 0.0,
-                ..style.progress.border.radius
-            }
-        } else {
-            style.progress.border.radius
-        };
+        if complete_width > 0.0 {
+            let border_size = if self.value < 100 {
+                Insets {
+                    right: Size::Value(0.),
+                    ..style.border.size
+                }
+            } else {
+                style.border.size
+            };
 
-        buffers::Instance {
-            rect_pos: [extents.x, extents.y],
-            rect_size: [complete_width, extents.height],
-            rect_color: style.progress.complete_color.to_linear(urgency),
-            border_radius: border_radius.into(),
-            border_size: border_size.into(),
-            border_color: style.progress.border.color.to_linear(urgency),
-            scale: self.ui_state.borrow().scale,
+            let border_radius = if self.value < 100 {
+                BorderRadius {
+                    top_right: 0.0,
+                    bottom_right: 0.0,
+                    ..style.border.radius
+                }
+            } else {
+                style.border.radius
+            };
+
+            instances.push(buffers::Instance {
+                rect_pos: [extents.x, extents.y],
+                rect_size: [complete_width, extents.height],
+                rect_color: style.complete_color.to_linear(urgency),
+                border_radius: border_radius.into(),
+                border_size: border_size.into(),
+                border_color: style.border.color.to_linear(urgency),
+                scale: self.get_ui_state().scale,
+            });
         }
+
+        if self.value < 100 {
+            let incomplete_width = extents.width - complete_width;
+
+            if incomplete_width > 0.0 {
+                let border_size = if self.value > 0 {
+                    Insets {
+                        left: Size::Value(0.),
+                        ..style.border.size
+                    }
+                } else {
+                    style.border.size
+                };
+
+                let border_radius = if self.value > 0 {
+                    BorderRadius {
+                        top_left: 0.0,
+                        bottom_left: 0.0,
+                        ..style.border.radius
+                    }
+                } else {
+                    style.border.radius
+                };
+
+                instances.push(buffers::Instance {
+                    rect_pos: [extents.x + complete_width, extents.y],
+                    rect_size: [incomplete_width, extents.height],
+                    rect_color: style.incomplete_color.to_linear(urgency),
+                    border_radius: border_radius.into(),
+                    border_size: border_size.into(),
+                    border_color: style.border.color.to_linear(urgency),
+                    scale: self.get_ui_state().scale,
+                });
+            }
+        }
+
+        instances
     }
 }
 
@@ -189,60 +226,5 @@ impl Progress {
 
     pub fn set_width(&mut self, width: f32) {
         self.width = width;
-    }
-
-    pub fn instances(&self, urgency: &Urgency) -> Vec<buffers::Instance> {
-        let style = self.config.find_style(
-            &self.app_name,
-            self.ui_state.borrow().selected == Some(self.id),
-        );
-
-        let extents = self.get_render_bounds();
-
-        let progress_ratio = (self.value as f32 / 100.0).min(1.0);
-
-        let mut instances = Vec::new();
-        let complete_width = (extents.width * progress_ratio).max(0.);
-
-        if complete_width > 0.0 {
-            instances.push(self.get_instance(urgency));
-        }
-
-        if self.value < 100 {
-            let incomplete_width = extents.width - complete_width;
-
-            if incomplete_width > 0.0 {
-                let border_size = if self.value > 0 {
-                    Insets {
-                        left: Size::Value(0.),
-                        ..style.progress.border.size
-                    }
-                } else {
-                    style.progress.border.size
-                };
-
-                let border_radius = if self.value > 0 {
-                    BorderRadius {
-                        top_left: 0.0,
-                        bottom_left: 0.0,
-                        ..style.progress.border.radius
-                    }
-                } else {
-                    style.progress.border.radius
-                };
-
-                instances.push(buffers::Instance {
-                    rect_pos: [extents.x + complete_width, extents.y],
-                    rect_size: [incomplete_width, extents.height],
-                    rect_color: style.progress.incomplete_color.to_linear(urgency),
-                    border_radius: border_radius.into(),
-                    border_size: border_size.into(),
-                    border_color: style.progress.border.color.to_linear(urgency),
-                    scale: self.ui_state.borrow().scale,
-                });
-            }
-        }
-
-        instances
     }
 }

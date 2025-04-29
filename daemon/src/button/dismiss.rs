@@ -18,7 +18,7 @@ pub struct DismissButton {
     pub text: Text,
     pub state: State,
     pub ui_state: Rc<RefCell<UiState>>,
-    pub tx: calloop::channel::Sender<u32>,
+    pub tx: Option<calloop::channel::Sender<u32>>,
     pub app_name: Arc<str>,
 }
 
@@ -49,11 +49,11 @@ impl Component for DismissButton {
         }
     }
 
-    fn get_instance(&self, urgency: &Urgency) -> buffers::Instance {
+    fn get_instances(&self, urgency: &Urgency) -> Vec<buffers::Instance> {
         let style = self.get_style();
         let bounds = self.get_render_bounds();
 
-        buffers::Instance {
+        vec![buffers::Instance {
             rect_pos: [bounds.x, bounds.y],
             rect_size: [
                 bounds.width - style.border.size.left - style.border.size.right,
@@ -64,10 +64,10 @@ impl Component for DismissButton {
             border_size: style.border.size.into(),
             border_color: style.border.color.to_linear(urgency),
             scale: self.get_ui_state().scale,
-        }
+        }]
     }
 
-    fn get_text_area(&self, urgency: &Urgency) -> Option<glyphon::TextArea> {
+    fn get_text_areas(&self, urgency: &Urgency) -> Vec<glyphon::TextArea> {
         let extents = self.get_render_bounds();
         let style = self.get_style();
         let text_extents = self.text.extents();
@@ -92,7 +92,7 @@ impl Component for DismissButton {
             ),
         };
 
-        Some(glyphon::TextArea {
+        vec![glyphon::TextArea {
             buffer: &self.text.buffer,
             left: extents.x + style.border.size.left + style.padding.left.resolve(pl),
             top: extents.y + style.border.size.top + style.padding.top.resolve(pt),
@@ -111,7 +111,7 @@ impl Component for DismissButton {
             },
             custom_glyphs: &[],
             default_color: style.font.color.into_glyphon(urgency),
-        })
+        }]
     }
 
     fn get_bounds(&self) -> Bounds {
@@ -168,7 +168,9 @@ impl Button for DismissButton {
     }
 
     fn click(&self) {
-        _ = self.tx.send(self.id);
+        if let Some(tx) = self.tx.as_ref() {
+            _ = tx.send(self.id);
+        }
     }
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -233,7 +235,7 @@ mod tests {
             state: crate::button::State::Hovered,
             config: Rc::clone(&config),
             ui_state: Rc::clone(&ui_state),
-            tx,
+            tx: Some(tx),
         };
 
         button.click();

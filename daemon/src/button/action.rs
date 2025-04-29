@@ -21,7 +21,7 @@ pub struct ActionButton {
     pub action: Arc<str>,
     pub state: State,
     pub width: f32,
-    pub tx: calloop::channel::Sender<(u32, Arc<str>)>,
+    pub tx: Option<calloop::channel::Sender<(u32, Arc<str>)>>,
 }
 
 impl Component for ActionButton {
@@ -43,11 +43,11 @@ impl Component for ActionButton {
         self.ui_state.borrow()
     }
 
-    fn get_instance(&self, urgency: &Urgency) -> buffers::Instance {
+    fn get_instances(&self, urgency: &Urgency) -> Vec<buffers::Instance> {
         let style = self.get_style();
         let bounds = self.get_render_bounds();
 
-        buffers::Instance {
+        vec![buffers::Instance {
             rect_pos: [bounds.x, bounds.y],
             rect_size: [
                 bounds.width - style.border.size.left - style.border.size.right,
@@ -58,10 +58,10 @@ impl Component for ActionButton {
             border_size: style.border.size.into(),
             border_color: style.border.color.to_linear(urgency),
             scale: self.get_ui_state().scale,
-        }
+        }]
     }
 
-    fn get_text_area(&self, urgency: &Urgency) -> Option<glyphon::TextArea> {
+    fn get_text_areas(&self, urgency: &Urgency) -> Vec<glyphon::TextArea> {
         let extents = self.get_render_bounds();
         let style = self.get_style();
         let text_extents = self.text.extents();
@@ -86,7 +86,7 @@ impl Component for ActionButton {
             ),
         };
 
-        Some(glyphon::TextArea {
+        vec![glyphon::TextArea {
             buffer: &self.text.buffer,
             left: extents.x + style.border.size.left + style.padding.left.resolve(pl),
             top: extents.y + style.border.size.top + style.padding.top.resolve(pt),
@@ -105,7 +105,7 @@ impl Component for ActionButton {
             },
             custom_glyphs: &[],
             default_color: style.font.color.into_glyphon(urgency),
-        })
+        }]
     }
 
     fn get_style(&self) -> &Self::Style {
@@ -173,7 +173,9 @@ impl Button for ActionButton {
     }
 
     fn click(&self) {
-        _ = self.tx.send((self.id, Arc::clone(&self.action)));
+        if let Some(tx) = self.tx.as_ref() {
+            _ = tx.send((self.id, Arc::clone(&self.action)));
+        }
     }
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
@@ -239,7 +241,7 @@ mod tests {
             state: crate::button::State::Hovered,
             config: Rc::clone(&config),
             ui_state: Rc::clone(&ui_state),
-            tx,
+            tx: Some(tx),
             width: 100.,
             action: Arc::clone(&test_action),
             app_name: "".into(),
@@ -283,7 +285,7 @@ mod tests {
             state: crate::button::State::Hovered,
             config: Rc::clone(&config),
             ui_state: Rc::clone(&ui_state),
-            tx: tx.clone(),
+            tx: Some(tx.clone()),
             width: 100.,
             action: Arc::clone(&test_action1),
             app_name: "".into(),
@@ -310,7 +312,7 @@ mod tests {
             state: crate::button::State::Hovered,
             config: Rc::clone(&config),
             ui_state: Rc::clone(&ui_state),
-            tx: tx.clone(),
+            tx: Some(tx.clone()),
             width: 100.,
             action: Arc::clone(&test_action2),
             app_name: "".into(),

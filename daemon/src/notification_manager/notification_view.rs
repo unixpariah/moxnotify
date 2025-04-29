@@ -74,7 +74,7 @@ impl NotificationView {
                     &mut self.font_system,
                     &summary,
                     &attrs,
-                    glyphon::Shaping::Basic,
+                    glyphon::Shaping::Advanced,
                 );
             } else {
                 self.prev = Some(Notification::new(
@@ -119,7 +119,7 @@ impl NotificationView {
                     &mut self.font_system,
                     &summary,
                     &attrs,
-                    glyphon::Shaping::Basic,
+                    glyphon::Shaping::Advanced,
                 );
                 notification
                     .set_position(notification.x, total_height - notification.extents().height);
