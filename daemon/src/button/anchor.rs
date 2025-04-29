@@ -19,33 +19,35 @@ pub struct AnchorButton {
     pub ui_state: Rc<RefCell<UiState>>,
     pub tx: calloop::channel::Sender<Arc<str>>,
     pub anchor: Rc<Anchor>,
+    pub app_name: Arc<str>,
 }
 
 impl Component for AnchorButton {
     type Style = ButtonState;
 
-    fn ui_state(&self) -> std::cell::Ref<'_, UiState> {
+    fn get_config(&self) -> &Config {
+        &self.config
+    }
+
+    fn get_id(&self) -> u32 {
+        self.id
+    }
+
+    fn get_app_name(&self) -> &str {
+        &self.app_name
+    }
+
+    fn get_ui_state(&self) -> std::cell::Ref<'_, UiState> {
         self.ui_state.borrow()
     }
 
-    fn style(&self) -> &Self::Style {
-        let style = match self
-            .ui_state()
-            .selected
-            .is_some_and(|selected| selected == self.id)
-        {
-            true => &self.config.styles.hover.buttons.dismiss,
-            false => &self.config.styles.default.buttons.dismiss,
-        };
-        match self.state() {
-            State::Unhovered => &style.default,
-            State::Hovered => &style.hover,
-        }
+    fn get_style(&self) -> &Self::Style {
+        &self.config.styles.hover.buttons.dismiss.default
     }
 
-    fn instance(&self, urgency: &crate::Urgency) -> buffers::Instance {
-        let style = self.style();
-        let bounds = self.render_bounds();
+    fn get_instance(&self, urgency: &crate::Urgency) -> buffers::Instance {
+        let style = self.get_style();
+        let bounds = self.get_render_bounds();
         buffers::Instance {
             rect_pos: [bounds.x, bounds.y],
             rect_size: [bounds.width, bounds.height],
@@ -57,8 +59,8 @@ impl Component for AnchorButton {
         }
     }
 
-    fn text_area(&self, urgency: &crate::Urgency) -> glyphon::TextArea {
-        let style = self.style();
+    fn get_text_area(&self, urgency: &crate::Urgency) -> glyphon::TextArea {
+        let style = self.get_style();
         glyphon::TextArea {
             buffer: &self.text.buffer,
             left: 0.,
@@ -75,7 +77,7 @@ impl Component for AnchorButton {
         }
     }
 
-    fn bounds(&self) -> Bounds {
+    fn get_bounds(&self) -> Bounds {
         let anchor_extents = self.anchor.extents();
 
         Bounds {
@@ -86,15 +88,15 @@ impl Component for AnchorButton {
         }
     }
 
-    fn render_bounds(&self) -> Bounds {
-        self.bounds()
+    fn get_render_bounds(&self) -> Bounds {
+        self.get_bounds()
     }
 
     fn set_position(&mut self, x: f32, y: f32) {
         self.x = x;
         self.y = y;
 
-        let bounds = self.render_bounds();
+        let bounds = self.get_render_bounds();
         self.hint.set_position(bounds.x, bounds.y);
     }
 }

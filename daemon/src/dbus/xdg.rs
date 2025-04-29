@@ -85,7 +85,7 @@ impl NotificationHints {
 #[derive(Debug, Default, Deserialize, Serialize)]
 pub struct NotificationData {
     pub id: u32,
-    pub app_name: Box<str>,
+    pub app_name: Arc<str>,
     pub app_icon: Option<Box<str>>,
     pub summary: Box<str>,
     pub body: Box<str>,

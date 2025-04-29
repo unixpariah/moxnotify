@@ -11,6 +11,7 @@ use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 pub struct ActionButton {
     pub id: u32,
+    pub app_name: Arc<str>,
     pub ui_state: Rc<RefCell<UiState>>,
     pub x: f32,
     pub y: f32,
@@ -26,13 +27,25 @@ pub struct ActionButton {
 impl Component for ActionButton {
     type Style = ButtonState;
 
-    fn ui_state(&self) -> std::cell::Ref<'_, UiState> {
+    fn get_config(&self) -> &Config {
+        &self.config
+    }
+
+    fn get_id(&self) -> u32 {
+        self.id
+    }
+
+    fn get_app_name(&self) -> &str {
+        &self.app_name
+    }
+
+    fn get_ui_state(&self) -> std::cell::Ref<'_, UiState> {
         self.ui_state.borrow()
     }
 
-    fn instance(&self, urgency: &Urgency) -> buffers::Instance {
-        let style = self.style();
-        let bounds = self.render_bounds();
+    fn get_instance(&self, urgency: &Urgency) -> buffers::Instance {
+        let style = self.get_style();
+        let bounds = self.get_render_bounds();
 
         buffers::Instance {
             rect_pos: [bounds.x, bounds.y],
@@ -44,13 +57,13 @@ impl Component for ActionButton {
             border_radius: style.border.radius.into(),
             border_size: style.border.size.into(),
             border_color: style.border.color.to_linear(urgency),
-            scale: self.ui_state().scale,
+            scale: self.get_ui_state().scale,
         }
     }
 
-    fn text_area(&self, urgency: &Urgency) -> glyphon::TextArea {
-        let extents = self.render_bounds();
-        let style = self.style();
+    fn get_text_area(&self, urgency: &Urgency) -> glyphon::TextArea {
+        let extents = self.get_render_bounds();
+        let style = self.get_style();
         let text_extents = self.text.extents();
 
         let remaining_padding = extents.width - text_extents.0;
@@ -77,7 +90,7 @@ impl Component for ActionButton {
             buffer: &self.text.buffer,
             left: extents.x + style.border.size.left + style.padding.left.resolve(pl),
             top: extents.y + style.border.size.top + style.padding.top.resolve(pt),
-            scale: self.ui_state().scale,
+            scale: self.get_ui_state().scale,
             bounds: glyphon::TextBounds {
                 left: (extents.x + style.border.size.left + style.padding.left.resolve(pl)) as i32,
                 top: (extents.y + style.border.size.top + style.padding.top.resolve(pt)) as i32,
@@ -95,23 +108,17 @@ impl Component for ActionButton {
         }
     }
 
-    fn style(&self) -> &Self::Style {
-        let style = match self
-            .ui_state()
-            .selected
-            .is_some_and(|selected| selected == self.id)
-        {
-            true => &self.config.styles.hover.buttons.action,
-            false => &self.config.styles.default.buttons.action,
-        };
+    fn get_style(&self) -> &Self::Style {
+        let style = self.get_notification_style();
+
         match self.state() {
-            State::Unhovered => &style.default,
-            State::Hovered => &style.hover,
+            State::Unhovered => &style.buttons.action.default,
+            State::Hovered => &style.buttons.action.hover,
         }
     }
 
-    fn bounds(&self) -> Bounds {
-        let style = self.style();
+    fn get_bounds(&self) -> Bounds {
+        let style = self.get_style();
         let text_extents = self.text.extents();
 
         let width = style.width.resolve(self.width)
@@ -138,9 +145,9 @@ impl Component for ActionButton {
         }
     }
 
-    fn render_bounds(&self) -> Bounds {
-        let bounds = self.bounds();
-        let style = self.style();
+    fn get_render_bounds(&self) -> Bounds {
+        let bounds = self.get_bounds();
+        let style = self.get_style();
 
         Bounds {
             x: bounds.x + style.margin.left,
@@ -155,7 +162,7 @@ impl Component for ActionButton {
         self.y = y;
         self.text.set_buffer_position(x, y);
 
-        let bounds = self.render_bounds();
+        let bounds = self.get_render_bounds();
         self.hint.set_position(bounds.x, bounds.y);
     }
 }
@@ -211,14 +218,14 @@ mod tests {
     fn test_action_button() {
         let config = Rc::new(Config::default());
         let ui_state = Rc::new(RefCell::new(UiState::default()));
-        let hint = Hint {
-            combination: "".into(),
-            text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
-            config: Rc::clone(&config),
-            ui_state: Rc::clone(&ui_state),
-            x: 0.,
-            y: 0.,
-        };
+        let hint = Hint::new(
+            0,
+            "",
+            "".into(),
+            Rc::clone(&config),
+            &mut FontSystem::new(),
+            Rc::clone(&ui_state),
+        );
 
         let (tx, rx) = calloop::channel::channel();
         let test_id = 10;
@@ -235,6 +242,7 @@ mod tests {
             tx,
             width: 100.,
             action: Arc::clone(&test_action),
+            app_name: "".into(),
         };
 
         button.click();
@@ -257,19 +265,20 @@ mod tests {
 
         let test_id1 = 1;
         let test_action1: Arc<str> = "test1".into();
-        let hint1 = Hint {
-            combination: "".into(),
-            text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
-            config: Rc::clone(&config),
-            ui_state: Rc::clone(&ui_state),
-            x: 0.,
-            y: 0.,
-        };
+        let hint = Hint::new(
+            0,
+            "",
+            "".into(),
+            Rc::clone(&config),
+            &mut FontSystem::new(),
+            Rc::clone(&ui_state),
+        );
+
         let button1 = ActionButton {
             id: test_id1,
             x: 0.,
             y: 0.,
-            hint: hint1,
+            hint,
             text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
             state: crate::button::State::Hovered,
             config: Rc::clone(&config),
@@ -277,25 +286,26 @@ mod tests {
             tx: tx.clone(),
             width: 100.,
             action: Arc::clone(&test_action1),
+            app_name: "".into(),
         };
 
         let (tx, text_rx2) = calloop::channel::channel();
 
         let test_id2 = 2;
         let test_action2: Arc<str> = "test2".into();
-        let hint2 = Hint {
-            combination: "".into(),
-            text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
-            config: Rc::clone(&config),
-            ui_state: Rc::clone(&ui_state),
-            x: 0.,
-            y: 0.,
-        };
+        let hint = Hint::new(
+            0,
+            "",
+            "".into(),
+            Rc::clone(&config),
+            &mut FontSystem::new(),
+            Rc::clone(&ui_state),
+        );
         let button2 = ActionButton {
             id: test_id2,
             x: 0.,
             y: 0.,
-            hint: hint2,
+            hint,
             text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
             state: crate::button::State::Hovered,
             config: Rc::clone(&config),
@@ -303,6 +313,7 @@ mod tests {
             tx: tx.clone(),
             width: 100.,
             action: Arc::clone(&test_action2),
+            app_name: "".into(),
         };
 
         button1.click();

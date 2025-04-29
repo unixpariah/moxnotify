@@ -60,14 +60,14 @@ impl Icons {
             - style.padding.bottom
             - progress
                 .as_ref()
-                .map(|p| p.extents(container_extents, style).height)
+                .map(|p| p.extents(container_extents).height)
                 .unwrap_or_default()
             - buttons
                 .buttons()
                 .iter()
                 .filter_map(|button| {
                     if button.button_type() == ButtonType::Action {
-                        Some(button.bounds().height)
+                        Some(button.get_bounds().height)
                     } else {
                         None
                     }

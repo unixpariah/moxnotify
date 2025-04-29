@@ -1141,7 +1141,7 @@ impl<'de> Deserialize<'de> for Timeout {
 
 #[derive(Default)]
 pub struct NotificationStyleEntry {
-    pub app: Box<str>,
+    pub app: Arc<str>,
     pub default: StyleState,
     pub hover: StyleState,
     pub default_timeout: Option<Timeout>,

@@ -1,28 +1,48 @@
 use super::Extents;
 use crate::{
     buffers,
-    config::{border::BorderRadius, Insets, Size, StyleState},
+    config::{border::BorderRadius, Config, Insets, Size, StyleState},
+    notification_manager::UiState,
     Urgency,
 };
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
-#[derive(Clone, Copy)]
 pub struct Progress {
+    id: u32,
+    app_name: Arc<str>,
+    ui_state: Rc<RefCell<UiState>>,
+    config: Rc<Config>,
     value: i32,
     x: f32,
     y: f32,
 }
 
 impl Progress {
-    pub fn new(value: i32) -> Self {
+    pub fn new(
+        value: i32,
+        ui_state: Rc<RefCell<UiState>>,
+        config: Rc<Config>,
+        id: u32,
+        app_name: Arc<str>,
+    ) -> Self {
         Self {
+            id,
+            app_name,
+            config,
+            ui_state,
             value,
             x: 0.,
             y: 0.,
         }
     }
 
-    pub fn set_position(&mut self, container_extents: &Extents, style: &StyleState) {
-        let extents = self.extents(container_extents, style);
+    pub fn set_position(&mut self, container_extents: &Extents) {
+        let extents = self.extents(container_extents);
+
+        let style = self.config.find_style(
+            &self.app_name,
+            self.ui_state.borrow().selected == Some(self.id),
+        );
 
         self.x = container_extents.x + style.border.size.left + style.padding.left;
         self.y = container_extents.y + container_extents.height
@@ -31,7 +51,12 @@ impl Progress {
             - extents.height
     }
 
-    pub fn extents(&self, container_extents: &Extents, style: &StyleState) -> Extents {
+    pub fn extents(&self, container_extents: &Extents) -> Extents {
+        let style = self.config.find_style(
+            &self.app_name,
+            self.ui_state.borrow().selected == Some(self.id),
+        );
+
         let available_width = container_extents.width
             - style.border.size.left
             - style.border.size.right
@@ -73,8 +98,13 @@ impl Progress {
         }
     }
 
-    pub fn rendered_extents(&self, container_extents: &Extents, style: &StyleState) -> Extents {
-        let extents = self.extents(container_extents, style);
+    pub fn rendered_extents(&self, container_extents: &Extents) -> Extents {
+        let extents = self.extents(container_extents);
+
+        let style = self.config.find_style(
+            &self.app_name,
+            self.ui_state.borrow().selected == Some(self.id),
+        );
 
         let remaining_space = container_extents.width
             - extents.width
@@ -115,7 +145,7 @@ impl Progress {
         notification_extents: &Extents,
         style: &StyleState,
     ) -> Vec<buffers::Instance> {
-        let extents = self.rendered_extents(notification_extents, style);
+        let extents = self.rendered_extents(notification_extents);
 
         let progress_ratio = (self.value as f32 / 100.0).min(1.0);
 

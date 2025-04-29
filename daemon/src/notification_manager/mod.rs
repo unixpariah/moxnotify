@@ -242,7 +242,7 @@ impl NotificationManager {
                 .buttons()
                 .iter()
                 .find(|button| button.button_type() == ButtonType::Dismiss)
-                .map(|button| button.render_bounds().width)
+                .map(|button| button.get_render_bounds().width)
                 .unwrap_or(0.0);
 
             new_notification.text.buffer.set_size(

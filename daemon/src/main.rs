@@ -311,7 +311,7 @@ impl Moxnotify {
                     let rows = stmt.query_map([], |row| {
                         Ok(NotificationData {
                             id: row.get(0)?,
-                            app_name: row.get::<_, Box<str>>(1)?,
+                            app_name: row.get(1)?,
                             app_icon: row.get::<_, Option<Box<str>>>(2)?,
                             summary: row.get::<_, Box<str>>(3)?,
                             body: row.get::<_, Box<str>>(4)?,
@@ -371,7 +371,7 @@ impl Moxnotify {
                     let rows = stmt.query_map([count], |row| {
                         Ok(NotificationData {
                             id: row.get(0)?,
-                            app_name: row.get::<_, Box<str>>(1)?,
+                            app_name: row.get(1)?,
                             app_icon: row.get::<_, Option<Box<str>>>(2)?,
                             summary: row.get::<_, Box<str>>(3)?,
                             body: row.get::<_, Box<str>>(4)?,

@@ -12,7 +12,7 @@ use calloop::{LoopHandle, RegistrationToken};
 use glyphon::{FontSystem, TextArea, TextBounds};
 use icons::Icons;
 use progress::Progress;
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 #[derive(Debug, Default)]
 pub struct Extents {
@@ -72,6 +72,7 @@ impl Notification {
                 buttons: ButtonManager::new(
                     data.id,
                     data.hints.urgency,
+                    Arc::clone(&data.app_name),
                     Rc::clone(&ui_state),
                     loop_handle,
                     Rc::clone(&config),
@@ -89,6 +90,7 @@ impl Notification {
         let buttons = ButtonManager::new(
             data.id,
             data.hints.urgency,
+            Arc::clone(&data.app_name),
             Rc::clone(&ui_state),
             loop_handle,
             Rc::clone(&config),
@@ -111,12 +113,20 @@ impl Notification {
                 - buttons
                     .buttons()
                     .first()
-                    .map(|buttons| buttons.render_bounds().width)
+                    .map(|buttons| buttons.get_render_bounds().width)
                     .unwrap_or_default(),
         );
 
         Self {
-            progress: data.hints.value.map(Progress::new),
+            progress: data.hints.value.map(|value| {
+                Progress::new(
+                    value,
+                    Rc::clone(&ui_state),
+                    Rc::clone(&config),
+                    data.id,
+                    Arc::clone(&data.app_name),
+                )
+            }),
             y: 0.,
             x: 0.,
             icons,
@@ -174,7 +184,7 @@ impl Notification {
         self.icons
             .set_position(&extents, style, &self.progress, &self.buttons);
         if let Some(progress) = self.progress.as_mut() {
-            progress.set_position(&extents, style);
+            progress.set_position(&extents);
         }
 
         let extents = self.rendered_extents();
@@ -188,10 +198,10 @@ impl Notification {
                 let x = extents.x + extents.width
                     - style.border.size.right
                     - style.padding.right
-                    - button.bounds().width;
+                    - button.get_bounds().width;
                 let y = extents.y + style.margin.top + style.border.size.top + style.padding.top;
                 button.set_position(x, y);
-                let button_extents = button.bounds();
+                let button_extents = button.get_bounds();
                 button_extents.y + button_extents.height
             })
             .unwrap_or(0.0);
@@ -209,7 +219,7 @@ impl Notification {
                 .buttons()
                 .iter()
                 .find(|button| button.button_type() == ButtonType::Action)
-                .map(|button| button.style())
+                .map(|button| button.get_style())
                 .unwrap_or_else(|| &style.buttons.action.default);
 
             let side_padding = style.border.size.left
@@ -225,7 +235,8 @@ impl Notification {
 
             let progress_height = self
                 .progress
-                .map(|p| p.extents(&extents, style).height)
+                .as_ref()
+                .map(|p| p.extents(&extents).height)
                 .unwrap_or_default();
 
             let base_x = extents.x + style.border.size.left + style.padding.left;
@@ -241,7 +252,7 @@ impl Notification {
                 .for_each(|(i, button)| {
                     let x_position = base_x + (button_width + button_margin) * i as f32;
                     let y_position =
-                        (extents.y + extents.height - bottom_padding - button.bounds().height)
+                        (extents.y + extents.height - bottom_padding - button.get_bounds().height)
                             .max(dismiss_bottom_y);
 
                     button.set_position(x_position, y_position);
@@ -276,7 +287,9 @@ impl Notification {
             y: extents.y + style.border.size.top.resolve(0.) + style.padding.top.resolve(0.),
             width: style.width.resolve(0.)
                 - icon_extents.width
-                - dismiss_button.map(|b| b.bounds().width).unwrap_or_default(),
+                - dismiss_button
+                    .map(|b| b.get_bounds().width)
+                    .unwrap_or_default(),
             height: 0.,
         }
     }
@@ -289,7 +302,7 @@ impl Notification {
             .buttons()
             .iter()
             .find(|button| button.button_type() == ButtonType::Dismiss)
-            .map(|b| b.bounds().height)
+            .map(|b| b.get_bounds().height)
             .unwrap_or(0.0);
 
         let action_button = self
@@ -297,7 +310,7 @@ impl Notification {
             .buttons()
             .iter()
             .filter_map(|button| match button.button_type() {
-                ButtonType::Action => Some(button.bounds()),
+                ButtonType::Action => Some(button.get_bounds()),
                 _ => None,
             })
             .max_by(|a, b| {

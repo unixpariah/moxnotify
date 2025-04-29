@@ -59,6 +59,7 @@ pub struct Ready;
 pub struct Finished;
 
 pub struct ButtonManager<State = NotReady> {
+    app_name: Arc<str>,
     id: u32,
     buttons: Vec<Box<dyn Button<Style = ButtonState>>>,
     urgency: Urgency,
@@ -72,6 +73,7 @@ impl ButtonManager<NotReady> {
     pub fn new(
         id: u32,
         urgency: Urgency,
+        app_name: Arc<str>,
         ui_state: Rc<RefCell<UiState>>,
         loop_handle: Option<LoopHandle<'static, Moxnotify>>,
         config: Rc<Config>,
@@ -83,6 +85,7 @@ impl ButtonManager<NotReady> {
             ui_state,
             loop_handle,
             config,
+            app_name,
             _state: std::marker::PhantomData,
         }
     }
@@ -92,7 +95,8 @@ impl ButtonManager<NotReady> {
         actions: &[(Arc<str>, Arc<str>)],
         font_system: &mut FontSystem,
     ) -> Self {
-        self.internal_add_actions(actions, font_system)
+        let app_name = Arc::clone(&self.app_name);
+        self.internal_add_actions(app_name, actions, font_system)
     }
 
     pub fn add_anchors(self, anchors: &[Rc<Anchor>], font_system: &mut FontSystem) -> Self {
@@ -116,9 +120,12 @@ impl ButtonManager<NotReady> {
 
         let button = DismissButton {
             id: self.id,
+            app_name: "".into(),
             ui_state: Rc::clone(&self.ui_state),
             hint: Hint::new(
+                0,
                 "",
+                "".into(),
                 Rc::clone(&self.config),
                 font_system,
                 Rc::clone(&self.ui_state),
@@ -135,6 +142,7 @@ impl ButtonManager<NotReady> {
 
         ButtonManager {
             id: self.id,
+            app_name: self.app_name,
             buttons: self.buttons,
             urgency: self.urgency,
             ui_state: self.ui_state,
@@ -151,7 +159,8 @@ impl ButtonManager<Ready> {
         actions: &[(Arc<str>, Arc<str>)],
         font_system: &mut FontSystem,
     ) -> Self {
-        self.internal_add_actions(actions, font_system)
+        let app_name = Arc::clone(&self.app_name);
+        self.internal_add_actions(app_name, actions, font_system)
     }
 
     pub fn add_anchors(self, anchors: &[Rc<Anchor>], font_system: &mut FontSystem) -> Self {
@@ -178,7 +187,9 @@ impl ButtonManager<Ready> {
             indices.reverse();
             let combination: String = indices.into_iter().map(|i| hint_chars[i]).collect();
             let hint = Hint::new(
+                0,
                 &combination,
+                "".into(),
                 Rc::clone(&self.config),
                 font_system,
                 Rc::clone(&self.ui_state),
@@ -189,6 +200,7 @@ impl ButtonManager<Ready> {
 
         ButtonManager {
             id: self.id,
+            app_name: self.app_name,
             buttons: self.buttons,
             urgency: self.urgency,
             ui_state: self.ui_state,
@@ -204,7 +216,7 @@ impl ButtonManager<Finished> {
         self.buttons
             .iter()
             .filter_map(|button| {
-                let bounds = button.render_bounds();
+                let bounds = button.get_render_bounds();
                 if x >= bounds.x as f64
                     && y >= bounds.y as f64
                     && x <= (bounds.x + bounds.width) as f64
@@ -224,7 +236,7 @@ impl ButtonManager<Finished> {
         self.buttons
             .iter_mut()
             .filter_map(|button| {
-                let bounds = button.render_bounds();
+                let bounds = button.get_render_bounds();
                 if x >= bounds.x as f64
                     && y >= bounds.y as f64
                     && x <= (bounds.x + bounds.width) as f64
@@ -258,7 +270,7 @@ impl ButtonManager<Finished> {
         let mut buttons = self
             .buttons
             .iter()
-            .map(|button| button.instance(&self.urgency))
+            .map(|button| button.get_instance(&self.urgency))
             .collect::<Vec<_>>();
 
         let ui_state = self.ui_state.borrow();
@@ -266,7 +278,7 @@ impl ButtonManager<Finished> {
             let hints = self
                 .buttons
                 .iter()
-                .map(|button| button.hint().instance(&self.urgency))
+                .map(|button| button.hint().get_instance(&self.urgency))
                 .collect::<Vec<_>>();
             buttons.extend_from_slice(&hints);
         }
@@ -278,7 +290,7 @@ impl ButtonManager<Finished> {
         let mut text_areas = self
             .buttons
             .iter()
-            .map(|button| button.text_area(&self.urgency))
+            .map(|button| button.get_text_area(&self.urgency))
             .collect::<Vec<_>>();
 
         let ui_state = self.ui_state.borrow();
@@ -286,7 +298,7 @@ impl ButtonManager<Finished> {
             let hints = self
                 .buttons
                 .iter()
-                .map(|button| button.hint().text_area(&self.urgency))
+                .map(|button| button.hint().get_text_area(&self.urgency))
                 .collect::<Vec<_>>();
             text_areas.extend_from_slice(&hints);
         }
@@ -348,7 +360,9 @@ impl<S> ButtonManager<S> {
                 x: 0.,
                 y: 0.,
                 hint: Hint::new(
+                    0,
                     "",
+                    "".into(),
                     Rc::clone(&self.config),
                     font_system,
                     Rc::clone(&self.ui_state),
@@ -359,6 +373,7 @@ impl<S> ButtonManager<S> {
                 text,
                 ui_state: Rc::clone(&self.ui_state),
                 anchor: Rc::clone(anchor),
+                app_name: Arc::clone(&self.app_name),
             }) as Box<dyn Button<Style = ButtonState>>
         }));
 
@@ -367,6 +382,7 @@ impl<S> ButtonManager<S> {
 
     fn internal_add_actions(
         mut self,
+        app_name: Arc<str>,
         actions: &[(Arc<str>, Arc<str>)],
         font_system: &mut FontSystem,
     ) -> Self {
@@ -414,7 +430,9 @@ impl<S> ButtonManager<S> {
                     id: self.id,
                     ui_state: Rc::clone(&self.ui_state),
                     hint: Hint::new(
+                        0,
                         "",
+                        "".into(),
                         Rc::clone(&self.config),
                         font_system,
                         Rc::clone(&self.ui_state),
@@ -426,6 +444,7 @@ impl<S> ButtonManager<S> {
                     action: action.0,
                     state: State::Unhovered,
                     width: 0.,
+                    app_name: Arc::clone(&app_name),
                     tx: tx.clone(),
                 }) as Box<dyn Button<Style = ButtonState>>
             })
@@ -446,7 +465,9 @@ impl<S> ButtonManager<S> {
 }
 
 pub struct Hint {
+    id: u32,
     combination: Box<str>,
+    app_name: Arc<str>,
     text: Text,
     config: Rc<Config>,
     ui_state: Rc<RefCell<UiState>>,
@@ -456,7 +477,9 @@ pub struct Hint {
 
 impl Hint {
     pub fn new<T>(
+        id: u32,
         combination: T,
+        app_name: Arc<str>,
         config: Rc<Config>,
         font_system: &mut FontSystem,
         ui_state: Rc<RefCell<UiState>>,
@@ -465,6 +488,8 @@ impl Hint {
         T: AsRef<str>,
     {
         Self {
+            id,
+            app_name,
             combination: combination.as_ref().into(),
             ui_state,
             text: Text::new(
@@ -482,16 +507,28 @@ impl Hint {
 impl Component for Hint {
     type Style = config::Hint;
 
-    fn ui_state(&self) -> std::cell::Ref<'_, UiState> {
+    fn get_config(&self) -> &Config {
+        &self.config
+    }
+
+    fn get_id(&self) -> u32 {
+        self.id
+    }
+
+    fn get_app_name(&self) -> &str {
+        &self.app_name
+    }
+
+    fn get_ui_state(&self) -> std::cell::Ref<'_, UiState> {
         self.ui_state.borrow()
     }
 
-    fn style(&self) -> &Self::Style {
+    fn get_style(&self) -> &Self::Style {
         &self.config.styles.hover.hint
     }
 
-    fn bounds(&self) -> Bounds {
-        let style = self.style();
+    fn get_bounds(&self) -> Bounds {
+        let style = self.get_style();
         let text_extents = self.text.extents();
 
         let width = style.width.resolve(text_extents.0)
@@ -518,9 +555,9 @@ impl Component for Hint {
         }
     }
 
-    fn render_bounds(&self) -> Bounds {
-        let bounds = self.bounds();
-        let style = self.style();
+    fn get_render_bounds(&self) -> Bounds {
+        let bounds = self.get_bounds();
+        let style = self.get_style();
 
         Bounds {
             x: bounds.x + style.margin.left,
@@ -530,9 +567,9 @@ impl Component for Hint {
         }
     }
 
-    fn instance(&self, urgency: &Urgency) -> buffers::Instance {
+    fn get_instance(&self, urgency: &Urgency) -> buffers::Instance {
         let style = &self.config.styles.hover.hint;
-        let bounds = self.render_bounds();
+        let bounds = self.get_render_bounds();
 
         buffers::Instance {
             rect_pos: [bounds.x, bounds.y],
@@ -550,10 +587,10 @@ impl Component for Hint {
         self.y = y;
     }
 
-    fn text_area(&self, urgency: &Urgency) -> TextArea {
-        let style = self.style();
+    fn get_text_area(&self, urgency: &Urgency) -> TextArea {
+        let style = self.get_style();
         let text_extents = self.text.extents();
-        let bounds = self.render_bounds();
+        let bounds = self.get_render_bounds();
 
         let remaining_padding = style.width.resolve(text_extents.0) - text_extents.0;
         let (pl, _) = match (style.padding.left.is_auto(), style.padding.right.is_auto()) {
@@ -606,6 +643,7 @@ mod tests {
         let mut button_manager = ButtonManager::new(
             1,
             Urgency::Normal,
+            "".into(),
             Rc::clone(&ui_state),
             None,
             Rc::clone(&config),
@@ -616,7 +654,7 @@ mod tests {
         let button = &mut button_manager.buttons_mut()[0];
         button.set_position(10.0, 10.0);
 
-        let style = button.style();
+        let style = button.get_style();
         let width = style.width
             + style.border.size.left
             + style.border.size.right
@@ -670,6 +708,7 @@ mod tests {
         let mut button_manager = ButtonManager::new(
             1,
             Urgency::Normal,
+            "".into(),
             Rc::clone(&ui_state),
             None,
             Rc::clone(&config),
@@ -680,7 +719,7 @@ mod tests {
         let button = &mut button_manager.buttons_mut()[0];
         button.set_position(10.0, 10.0);
 
-        let style = button.style();
+        let style = button.get_style();
         let width = style.width
             + style.border.size.left
             + style.border.size.right
