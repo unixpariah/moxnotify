@@ -274,6 +274,8 @@ impl Moxnotify {
                     .map(|notification| serde_json::to_string(&notification.data).unwrap())
                     .collect::<Vec<_>>();
                 _ = self.emit_sender.send(EmitEvent::List(list));
+
+                return Ok(());
             }
             Event::Mute => {
                 if let Some(audio) = self.audio.as_mut() {
@@ -285,6 +287,8 @@ impl Moxnotify {
                         log::debug!("Audio already muted");
                     }
                 }
+
+                return Ok(());
             }
             Event::Unmute => {
                 if let Some(audio) = self.audio.as_mut() {
@@ -298,6 +302,8 @@ impl Moxnotify {
                         log::debug!("Audio already unmuted");
                     }
                 }
+
+                return Ok(());
             }
             Event::ShowHistory => {
                 if self.history == History::Hidden {
@@ -330,7 +336,6 @@ impl Moxnotify {
                     log::info!("Loaded {} historical notifications", notifications.len());
                     self.notifications.add_many(notifications)?;
                     drop(stmt);
-                    self.update_surface_size();
                     log::debug!("History view completed");
                 } else {
                     log::debug!("History already shown");
@@ -395,8 +400,6 @@ impl Moxnotify {
                     rows.into_iter()
                         .try_for_each(|notification| self.notifications.add(notification?))?;
                     drop(stmt);
-
-                    self.update_surface_size();
                 } else {
                     log::debug!("Notifications already uninhibited");
                 }
@@ -405,23 +408,31 @@ impl Moxnotify {
                 log::debug!("Getting audio mute state");
                 _ = self.emit_sender.send(EmitEvent::Muted(
                     self.audio.as_ref().map(|a| a.muted()).unwrap_or(true),
-                ))
+                ));
+
+                return Ok(());
             }
             Event::GetInhibited => {
                 log::debug!("Getting inhibit state");
                 _ = self
                     .emit_sender
                     .send(EmitEvent::Inhibited(self.notifications.inhibited()));
+
+                return Ok(());
             }
             Event::GetHistory => {
                 log::debug!("Getting history state");
                 _ = self.emit_sender.send(EmitEvent::HistoryState(self.history));
+
+                return Ok(());
             }
             Event::Waiting => {
                 log::debug!("Getting waiting notification count");
                 _ = self
                     .emit_sender
                     .send(EmitEvent::Waiting(self.notifications.waiting()));
+
+                return Ok(());
             }
         };
 
