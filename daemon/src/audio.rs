@@ -21,7 +21,7 @@ use symphonia::core::{
 };
 
 struct Playback {
-    stream: Option<Stream>,
+    stream: Arc<Mutex<Stream>>,
     shutdown_channel: (mpsc::Sender<()>, Option<mpsc::Receiver<()>>),
     handle: Option<JoinHandle<()>>,
     format: Option<Box<dyn FormatReader>>,
@@ -36,7 +36,8 @@ impl Playback {
     where
         T: AsRef<Path>,
     {
-        let src = fs::File::open(path)?;
+        let src = fs::File::open(&path)?;
+
         let mss = MediaSourceStream::new(Box::new(src), Default::default());
         let hint = Hint::new();
 
@@ -47,32 +48,41 @@ impl Playback {
                 &FormatOptions::default(),
                 &MetadataOptions::default(),
             )
-            .unwrap();
+            .map_err(|e| anyhow::anyhow!("Failed to probe audio format: {}", e))?;
 
         let track = probed
             .format
             .tracks()
             .iter()
             .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
-            .ok_or(anyhow::anyhow!("No valid track found"))?;
+            .ok_or(anyhow::anyhow!("No valid audio track found"))?;
+
+        let channels = track
+            .codec_params
+            .channels
+            .map(|channels| channels.count())
+            .ok_or(anyhow::anyhow!("Unable to determine channel count"))?;
+
+        let sample_rate = track
+            .codec_params
+            .sample_rate
+            .ok_or(anyhow::anyhow!("Unable to determine sample rate"))?;
 
         let mut context = context.lock().unwrap();
+
         let mut stream = Stream::new(
             &mut context,
             "moxnotify",
             &Spec {
                 format: libpulse_binding::sample::Format::FLOAT32NE,
-                channels: track
-                    .codec_params
-                    .channels
-                    .map(|channels| channels.count())
-                    .unwrap_or(1) as u8,
-                rate: track.codec_params.sample_rate.unwrap_or(44100),
+                channels: channels as u8,
+                rate: sample_rate,
             },
             None,
         )
-        .ok_or(PAErr(0))?;
+        .ok_or(anyhow::anyhow!("Failed to create audio stream"))?;
 
+        mainloop.lock();
         stream.connect_playback(
             None,
             None,
@@ -82,6 +92,7 @@ impl Playback {
             None,
             None,
         )?;
+        mainloop.unlock();
 
         while stream.get_state() != stream::State::Ready {
             mainloop.wait();
@@ -90,7 +101,7 @@ impl Playback {
         let shutdown_channel = mpsc::channel();
 
         Ok(Self {
-            stream: Some(stream),
+            stream: Arc::new(Mutex::new(stream)),
             shutdown_channel: (shutdown_channel.0, Some(shutdown_channel.1)),
             format: Some(probed.format),
             handle: None,
@@ -98,16 +109,16 @@ impl Playback {
     }
 
     fn play(&mut self) -> anyhow::Result<()> {
-        if self.format.is_none() || self.stream.is_none() || self.shutdown_channel.1.is_none() {
+        if self.format.is_none() || self.shutdown_channel.1.is_none() {
             return Err(anyhow::anyhow!("Playback already played"));
         }
 
         let mut format = self.format.take().unwrap();
-        let stream = self.stream.take().unwrap();
         let rx = self.shutdown_channel.1.take().unwrap();
 
+        let stream = Arc::clone(&self.stream);
         let handle = thread::spawn(move || {
-            let stream = Arc::new(Mutex::new(stream));
+            let stream = stream;
 
             let track = format
                 .tracks()
@@ -158,13 +169,6 @@ impl Playback {
                     )
                     .unwrap();
             }
-
-            stream.lock().unwrap().drain(Some(Box::new({
-                let stream = Arc::clone(&stream);
-                move |_: bool| {
-                    stream.lock().unwrap().cork(None);
-                }
-            })));
         });
 
         self.handle = Some(handle);
@@ -172,11 +176,15 @@ impl Playback {
         Ok(())
     }
 
-    fn stop(&mut self) {
+    fn stop(&mut self, mainloop: &mut Mainloop) {
         _ = self.shutdown_channel.0.send(());
         if let Some(handle) = self.handle.take() {
             _ = handle.join();
         }
+
+        mainloop.lock();
+        self.stream.lock().unwrap().flush(None);
+        mainloop.unlock();
     }
 }
 
@@ -217,7 +225,7 @@ impl Audio {
         }
 
         if let Some(mut playback) = self.playback.take() {
-            playback.stop();
+            playback.stop(&mut self.mainloop);
             while self.context.lock().unwrap().get_state() != State::Ready {
                 self.mainloop.wait();
             }

@@ -438,11 +438,14 @@ impl Moxnotify {
 
         self.update_surface_size();
         if let Some(surface) = self.surface.as_mut() {
+            log::debug!("Surface does exist");
             surface.render(
                 &self.wgpu_state.device,
                 &self.wgpu_state.queue,
                 &self.notifications,
             )?;
+        } else {
+            log::debug!("Surface doesn't exist");
         }
 
         Ok(())
