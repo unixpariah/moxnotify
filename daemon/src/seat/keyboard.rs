@@ -329,6 +329,7 @@ impl Moxnotify {
                 &self.wgpu_state.device,
                 &self.wgpu_state.queue,
                 &self.notifications,
+                &mut self.font_system,
             );
         }
 

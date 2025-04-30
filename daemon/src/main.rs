@@ -22,6 +22,7 @@ use clap::Parser;
 use config::Config;
 use dbus::xdg::NotificationData;
 use env_logger::Builder;
+use glyphon::FontSystem;
 use image_data::ImageData;
 use log::LevelFilter;
 use notification_manager::{notification::NotificationId, NotificationManager, Reason};
@@ -84,6 +85,7 @@ pub struct Moxnotify {
     audio: Option<Audio>,
     db: rusqlite::Connection,
     history: History,
+    font_system: FontSystem,
 }
 
 impl Moxnotify {
@@ -123,6 +125,7 @@ impl Moxnotify {
         )?;
 
         Ok(Self {
+            font_system: FontSystem::new(),
             history: History::Hidden,
             db,
             audio: Audio::new().ok(),
@@ -443,6 +446,7 @@ impl Moxnotify {
                 &self.wgpu_state.device,
                 &self.wgpu_state.queue,
                 &self.notifications,
+                &mut self.font_system,
             )?;
         } else {
             log::debug!("Surface doesn't exist");

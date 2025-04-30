@@ -264,7 +264,6 @@ pub struct TextContext {
     pub viewport: glyphon::Viewport,
     pub atlas: glyphon::TextAtlas,
     pub renderer: glyphon::TextRenderer,
-    pub font_system: FontSystem,
 }
 
 impl TextContext {
@@ -275,7 +274,6 @@ impl TextContext {
         let renderer = TextRenderer::new(&mut atlas, device, MultisampleState::default(), None);
 
         Self {
-            font_system: FontSystem::new(),
             swash_cache,
             viewport: Viewport::new(device, &cache),
             atlas,
@@ -288,6 +286,7 @@ impl TextContext {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         text: Vec<TextArea>,
+        font_system: &mut FontSystem,
     ) -> anyhow::Result<()> {
         if text.is_empty() {
             return Ok(());
@@ -296,7 +295,7 @@ impl TextContext {
         self.renderer.prepare(
             device,
             queue,
-            &mut self.font_system,
+            font_system,
             &mut self.atlas,
             &self.viewport,
             text,

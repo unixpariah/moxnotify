@@ -40,7 +40,7 @@ pub struct NotificationManager {
     waiting: u32,
     config: Rc<Config>,
     loop_handle: LoopHandle<'static, Moxnotify>,
-    font_system: FontSystem,
+    pub font_system: FontSystem,
     notification_view: NotificationView,
     inhibited: bool,
     pub ui_state: Rc<RefCell<UiState>>,
@@ -703,6 +703,7 @@ impl Moxnotify {
                 &self.wgpu_state.device,
                 &self.wgpu_state.queue,
                 &self.notifications,
+                &mut self.font_system,
             ) {
                 log::error!("Render error: {e}");
             }

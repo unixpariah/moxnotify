@@ -6,8 +6,10 @@ use libpulse_binding::{
     stream::{self, Stream},
 };
 use std::{
+    cell::RefCell,
     fs,
     path::Path,
+    rc::Rc,
     sync::{mpsc, Arc, Mutex},
     thread::{self, JoinHandle},
 };
@@ -21,6 +23,7 @@ use symphonia::core::{
 };
 
 struct Playback {
+    mainloop: Rc<RefCell<Mainloop>>,
     stream: Arc<Mutex<Stream>>,
     shutdown_channel: (mpsc::Sender<()>, Option<mpsc::Receiver<()>>),
     handle: Option<JoinHandle<()>>,
@@ -31,7 +34,7 @@ impl Playback {
     fn new<T>(
         path: T,
         context: Arc<Mutex<Context>>,
-        mainloop: &mut Mainloop,
+        mainloop: Rc<RefCell<Mainloop>>,
     ) -> anyhow::Result<Self>
     where
         T: AsRef<Path>,
@@ -82,7 +85,7 @@ impl Playback {
         )
         .ok_or(anyhow::anyhow!("Failed to create audio stream"))?;
 
-        mainloop.lock();
+        mainloop.borrow_mut().lock();
         stream.connect_playback(
             None,
             None,
@@ -92,15 +95,16 @@ impl Playback {
             None,
             None,
         )?;
-        mainloop.unlock();
+        mainloop.borrow_mut().unlock();
 
         while stream.get_state() != stream::State::Ready {
-            mainloop.wait();
+            mainloop.borrow_mut().wait();
         }
 
         let shutdown_channel = mpsc::channel();
 
         Ok(Self {
+            mainloop,
             stream: Arc::new(Mutex::new(stream)),
             shutdown_channel: (shutdown_channel.0, Some(shutdown_channel.1)),
             format: Some(probed.format),
@@ -176,22 +180,22 @@ impl Playback {
         Ok(())
     }
 
-    fn stop(&mut self, mainloop: &mut Mainloop) {
+    fn stop(&mut self) {
         _ = self.shutdown_channel.0.send(());
         if let Some(handle) = self.handle.take() {
             _ = handle.join();
         }
 
-        mainloop.lock();
+        self.mainloop.borrow_mut().lock();
         self.stream.lock().unwrap().flush(None);
-        mainloop.unlock();
+        self.mainloop.borrow_mut().unlock();
     }
 }
 
 #[allow(dead_code)]
 pub struct Audio {
     muted: bool,
-    mainloop: Mainloop,
+    mainloop: Rc<RefCell<Mainloop>>,
     context: Arc<Mutex<Context>>,
     playback: Option<Playback>,
 }
@@ -210,7 +214,7 @@ impl Audio {
 
         Ok(Self {
             muted: false,
-            mainloop,
+            mainloop: Rc::new(RefCell::new(mainloop)),
             context: Arc::new(Mutex::new(context)),
             playback: None,
         })
@@ -225,15 +229,15 @@ impl Audio {
         }
 
         if let Some(mut playback) = self.playback.take() {
-            playback.stop(&mut self.mainloop);
+            playback.stop();
             while self.context.lock().unwrap().get_state() != State::Ready {
-                self.mainloop.wait();
+                self.mainloop.borrow_mut().wait();
             }
         }
 
-        let mut playback = Playback::new(path, self.context.clone(), &mut self.mainloop)?;
+        let mut playback = Playback::new(path, self.context.clone(), Rc::clone(&self.mainloop))?;
         while self.context.lock().unwrap().get_state() != State::Ready {
-            self.mainloop.wait();
+            self.mainloop.borrow_mut().wait();
         }
         playback.play()?;
 

@@ -103,6 +103,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                                 &state.wgpu_state.device,
                                 &state.wgpu_state.queue,
                                 &state.notifications,
+                                &mut state.font_system,
                             );
                         }
                     }
@@ -115,6 +116,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                                 &state.wgpu_state.device,
                                 &state.wgpu_state.queue,
                                 &state.notifications,
+                                &mut state.font_system,
                             );
                         }
                     }
@@ -132,6 +134,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                                 &state.wgpu_state.device,
                                 &state.wgpu_state.queue,
                                 &state.notifications,
+                                &mut state.font_system,
                             );
                         }
                     }
@@ -144,6 +147,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                                 &state.wgpu_state.device,
                                 &state.wgpu_state.queue,
                                 &state.notifications,
+                                &mut state.font_system,
                             );
                         }
                     }
@@ -161,6 +165,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                                 &state.wgpu_state.device,
                                 &state.wgpu_state.queue,
                                 &state.notifications,
+                                &mut state.font_system,
                             );
                         }
                     }
@@ -199,6 +204,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                             &state.wgpu_state.device,
                             &state.wgpu_state.queue,
                             &state.notifications,
+                            &mut state.font_system,
                         );
                     }
                 }
@@ -239,6 +245,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                                     &state.wgpu_state.device,
                                     &state.wgpu_state.queue,
                                     &state.notifications,
+                                    &mut state.font_system,
                                 );
                             }
                         } else {
@@ -249,6 +256,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                                     &state.wgpu_state.device,
                                     &state.wgpu_state.queue,
                                     &state.notifications,
+                                    &mut state.font_system,
                                 );
                             }
                         }
