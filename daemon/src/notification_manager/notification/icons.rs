@@ -8,7 +8,51 @@ use crate::{
     Image,
 };
 use resvg::usvg;
-use std::path::Path;
+use std::{
+    collections::BTreeMap,
+    path::Path,
+    sync::{LazyLock, Mutex},
+};
+
+static ICON_CACHE: LazyLock<Cache> = LazyLock::new(Cache::default);
+type IconMap = BTreeMap<Box<Path>, ImageData>;
+type ThemeMap = BTreeMap<Box<str>, IconMap>;
+
+#[derive(Default)]
+pub struct Cache(Mutex<ThemeMap>);
+
+impl Cache {
+    pub fn insert<P>(&self, theme: &str, icon_path: &P, data: ImageData)
+    where
+        P: AsRef<Path>,
+    {
+        let mut theme_map = self.0.lock().unwrap();
+        let entry = icon_path.as_ref();
+
+        match theme_map.get_mut(theme) {
+            Some(theme_map) => {
+                theme_map.insert(entry.into(), data);
+            }
+            None => {
+                let mut icon_map = BTreeMap::new();
+                icon_map.insert(entry.into(), data);
+                theme_map.insert(theme.into(), icon_map);
+            }
+        }
+    }
+
+    pub fn get<P>(&self, theme: &str, icon_path: P) -> Option<ImageData>
+    where
+        P: AsRef<Path>,
+    {
+        let theme_map = self.0.lock().unwrap();
+
+        theme_map
+            .get(theme)
+            .map(|icon_map| icon_map.get(icon_path.as_ref()))
+            .and_then(|image_data| image_data.cloned())
+    }
+}
 
 #[derive(Default)]
 pub struct Icons {
@@ -25,13 +69,21 @@ impl Icons {
                 Some(image_data.clone().into_rgba(config.general.icon_size))
             }
             Some(Image::File(file)) => get_icon(file, config.general.icon_size as u16),
-            Some(Image::Name(name)) => find_icon(name, config.general.icon_size as u16),
+            Some(Image::Name(name)) => find_icon(
+                name,
+                config.general.icon_size as u16,
+                config.general.theme.as_ref(),
+            ),
             _ => None,
         };
 
-        let app_icon = app_icon
-            .as_ref()
-            .and_then(|icon| find_icon(icon, config.general.icon_size as u16));
+        let app_icon = app_icon.as_ref().and_then(|icon| {
+            find_icon(
+                icon,
+                config.general.icon_size as u16,
+                config.general.theme.as_deref().as_ref(),
+            )
+        });
 
         let (final_app_icon, final_icon) = match icon.is_some() {
             true => (app_icon, icon),
@@ -163,13 +215,13 @@ impl Icons {
     }
 }
 
-fn find_icon<T>(name: T, icon_size: u16) -> Option<ImageData>
+fn find_icon<T>(name: T, icon_size: u16, theme: Option<T>) -> Option<ImageData>
 where
     T: AsRef<str>,
 {
     let icon_path = freedesktop_icons::lookup(name.as_ref())
         .with_size(icon_size)
-        .with_theme(&freedesktop_icons::default_theme_gtk().unwrap_or("hicolor".to_string()))
+        .with_theme(theme.as_ref().map(AsRef::as_ref).unwrap_or("hicolor"))
         .with_cache()
         .find()?;
 
@@ -180,17 +232,20 @@ pub fn get_icon<T>(icon_path: T, icon_size: u16) -> Option<ImageData>
 where
     T: AsRef<Path>,
 {
+    if let Some(icon) = ICON_CACHE.get("Cosmic", icon_path.as_ref()) {
+        return Some(icon);
+    }
+
     let image = if icon_path
         .as_ref()
         .extension()
         .is_some_and(|extension| extension == "svg")
     {
         let tree = {
-            let mut opt = usvg::Options {
+            let opt = usvg::Options {
                 resources_dir: Some(icon_path.as_ref().to_path_buf()),
                 ..usvg::Options::default()
             };
-            opt.fontdb_mut().load_system_fonts();
 
             let svg_data = std::fs::read(icon_path.as_ref()).ok()?;
             usvg::Tree::from_data(&svg_data, &opt).ok()?
@@ -209,9 +264,11 @@ where
 
         image::load_from_memory(&pixmap.encode_png().ok()?)
     } else {
-        image::open(icon_path)
+        image::open(icon_path.as_ref())
     };
 
     let image_data = ImageData::try_from(image.ok()?);
-    image_data.ok().map(|i| i.into_rgba(icon_size as u32))
+    let image_data = image_data.ok().map(|i| i.into_rgba(icon_size as u32))?;
+    ICON_CACHE.insert("Cosmic", &icon_path, image_data.clone());
+    Some(image_data)
 }

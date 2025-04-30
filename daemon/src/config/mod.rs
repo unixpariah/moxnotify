@@ -125,6 +125,7 @@ impl Default for History {
 #[serde(default)]
 pub struct General {
     pub history: History,
+    pub theme: Option<Box<str>>,
     pub default_sound_file: SoundFile,
     pub ignore_sound_file: bool,
     pub scroll_sensitivity: f64,
@@ -144,6 +145,7 @@ pub struct General {
 impl Default for General {
     fn default() -> Self {
         Self {
+            theme: None,
             margin: Insets::default(),
             history: History::default(),
             default_sound_file: SoundFile::default(),
@@ -186,6 +188,8 @@ pub struct Style {
     pub default_sound_file: Option<SoundFile>,
     #[serde(default)]
     pub ignore_sound_file: Option<bool>,
+    #[serde(default)]
+    pub theme: Option<Rc<str>>,
 }
 
 fn deserialize_selectors<'de, D>(deserializer: D) -> Result<Vec<Selector>, D::Error>
@@ -752,6 +756,7 @@ impl<'de> Deserialize<'de> for Styles {
                         ignore_timeout: style.ignore_timeout,
                         default_sound_file: style.default_sound_file.clone(),
                         ignore_sound_file: style.ignore_sound_file,
+                        theme: style.theme.clone(),
                     })
                 })
                 .collect::<Vec<_>>();

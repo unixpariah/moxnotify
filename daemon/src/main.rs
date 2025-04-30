@@ -208,7 +208,9 @@ impl Moxnotify {
 
                 let count: i64 =
                     self.db
-                        .query_row("SELECT COUNT(*) FROM notifications", [], |row| row.get(0))?;
+                        .query_row("SELECT MAX(rowid) FROM notifications;", [], |row| {
+                            row.get(0)
+                        })?;
 
                 let tx = self.db.transaction()?;
 
