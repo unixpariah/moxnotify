@@ -95,9 +95,9 @@ impl TextureRenderer {
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
             ..Default::default()
         });
 
@@ -234,6 +234,8 @@ impl TextureRenderer {
                 ],
             });
 
+            let bytes_per_row = (4 * self.max_icon_size).div_ceil(256) * 256;
+
             queue.write_texture(
                 wgpu::TexelCopyTextureInfo {
                     texture: &self.texture,
@@ -248,7 +250,7 @@ impl TextureRenderer {
                 texture.data,
                 wgpu::TexelCopyBufferLayout {
                     offset: 0,
-                    bytes_per_row: Some(4 * self.max_icon_size),
+                    bytes_per_row: Some(bytes_per_row),
                     rows_per_image: None,
                 },
                 wgpu::Extent3d {

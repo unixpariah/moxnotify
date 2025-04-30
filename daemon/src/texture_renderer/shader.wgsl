@@ -95,5 +95,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let color = mix(tex_color, vec4<f32>(0., 0., 0., 0.), border_alpha);
     let alpha = outer;
 
-    return vec4<f32>(color.rgb, color.a * alpha);
+    let final_alpha = color.a * alpha;
+    return vec4<f32>(color.rgb * final_alpha, final_alpha);
 }

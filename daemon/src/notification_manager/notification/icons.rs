@@ -9,7 +9,6 @@ use crate::{
 };
 use resvg::usvg;
 use std::path::Path;
-use tiny_skia::Size;
 
 #[derive(Default)]
 pub struct Icons {
@@ -189,18 +188,24 @@ where
         let tree = {
             let mut opt = usvg::Options {
                 resources_dir: Some(icon_path.as_ref().to_path_buf()),
-                default_size: Size::from_wh(icon_size as f32, icon_size as f32)?,
                 ..usvg::Options::default()
             };
             opt.fontdb_mut().load_system_fonts();
 
-            let svg_data = std::fs::read(icon_path.as_ref()).unwrap();
-            usvg::Tree::from_data(&svg_data, &opt).unwrap()
+            let svg_data = std::fs::read(icon_path.as_ref()).ok()?;
+            usvg::Tree::from_data(&svg_data, &opt).ok()?
         };
 
-        let pixmap_size = tree.size().to_int_size();
-        let mut pixmap = tiny_skia::Pixmap::new(pixmap_size.width(), pixmap_size.height()).unwrap();
-        resvg::render(&tree, tiny_skia::Transform::default(), &mut pixmap.as_mut());
+        let mut pixmap = tiny_skia::Pixmap::new(icon_size as u32, icon_size as u32)?;
+
+        let scale_x = icon_size as f32 / tree.size().width();
+        let scale_y = icon_size as f32 / tree.size().height();
+
+        resvg::render(
+            &tree,
+            tiny_skia::Transform::from_scale(scale_x, scale_y),
+            &mut pixmap.as_mut(),
+        );
 
         image::load_from_memory(&pixmap.encode_png().ok()?)
     } else {
