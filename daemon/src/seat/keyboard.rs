@@ -261,6 +261,7 @@ impl Moxnotify {
                 KeyAction::DismissNotification => {
                     if let Some(id) = self.notifications.selected_id() {
                         self.dismiss_by_id(id, Some(Reason::DismissedByUser));
+                        return Ok(());
                     }
                 }
                 KeyAction::Unfocus => {

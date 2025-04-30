@@ -414,7 +414,7 @@ impl Default for Icon {
             border: Border {
                 color: Color::default(),
                 size: Insets::size(Size::Value(0.)),
-                radius: BorderRadius::circle(),
+                radius: BorderRadius::default(),
             },
         }
     }

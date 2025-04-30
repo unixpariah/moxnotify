@@ -7,7 +7,9 @@ use crate::{
     texture_renderer::{TextureArea, TextureBounds},
     Image,
 };
+use resvg::usvg;
 use std::path::Path;
+use tiny_skia::Size;
 
 #[derive(Default)]
 pub struct Icons {
@@ -168,6 +170,7 @@ where
 {
     let icon_path = freedesktop_icons::lookup(name.as_ref())
         .with_size(icon_size)
+        .with_theme(&freedesktop_icons::default_theme_gtk().unwrap_or("hicolor".to_string()))
         .with_cache()
         .find()?;
 
@@ -178,7 +181,32 @@ pub fn get_icon<T>(icon_path: T, icon_size: u16) -> Option<ImageData>
 where
     T: AsRef<Path>,
 {
-    let image = image::open(icon_path).ok()?;
-    let image_data = ImageData::try_from(image);
+    let image = if icon_path
+        .as_ref()
+        .extension()
+        .is_some_and(|extension| extension == "svg")
+    {
+        let tree = {
+            let mut opt = usvg::Options {
+                resources_dir: Some(icon_path.as_ref().to_path_buf()),
+                default_size: Size::from_wh(icon_size as f32, icon_size as f32)?,
+                ..usvg::Options::default()
+            };
+            opt.fontdb_mut().load_system_fonts();
+
+            let svg_data = std::fs::read(icon_path.as_ref()).unwrap();
+            usvg::Tree::from_data(&svg_data, &opt).unwrap()
+        };
+
+        let pixmap_size = tree.size().to_int_size();
+        let mut pixmap = tiny_skia::Pixmap::new(pixmap_size.width(), pixmap_size.height()).unwrap();
+        resvg::render(&tree, tiny_skia::Transform::default(), &mut pixmap.as_mut());
+
+        image::load_from_memory(&pixmap.encode_png().ok()?)
+    } else {
+        image::open(icon_path)
+    };
+
+    let image_data = ImageData::try_from(image.ok()?);
     image_data.ok().map(|i| i.into_rgba(icon_size as u32))
 }

@@ -36,3 +36,5 @@ rusqlite = { version = "0.34.0", features = ["bundled"] }
 tracing = "0.1.41"
 log = "0.4.27"
 inotify = "0.11.0"
+resvg = "0.45.1"
+tiny-skia = "0.11.4"
