@@ -26,10 +26,10 @@ jobs:
             libvulkan-dev \
             libpulse-dev
 
-      - name: Install Rust
+      - name: Install Rust (Nightly)
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: stable
+          toolchain: nightly
           components: clippy, rustfmt
 
       - name: Cache Dependencies

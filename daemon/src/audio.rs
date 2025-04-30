@@ -35,10 +35,13 @@ impl Playback {
         path: T,
         context: Arc<Mutex<Context>>,
         mainloop: Rc<RefCell<Mainloop>>,
+        stream: Option<Arc<Mutex<Stream>>>,
     ) -> anyhow::Result<Self>
     where
         T: AsRef<Path>,
     {
+        let shutdown_channel = mpsc::channel();
+
         let src = fs::File::open(&path)?;
 
         let mss = MediaSourceStream::new(Box::new(src), Default::default());
@@ -52,6 +55,16 @@ impl Playback {
                 &MetadataOptions::default(),
             )
             .map_err(|e| anyhow::anyhow!("Failed to probe audio format: {}", e))?;
+
+        if let Some(stream) = stream {
+            return Ok(Self {
+                mainloop,
+                stream,
+                shutdown_channel: (shutdown_channel.0, Some(shutdown_channel.1)),
+                format: Some(probed.format),
+                handle: None,
+            });
+        }
 
         let track = probed
             .format
@@ -100,8 +113,6 @@ impl Playback {
         while stream.get_state() != stream::State::Ready {
             mainloop.borrow_mut().wait();
         }
-
-        let shutdown_channel = mpsc::channel();
 
         Ok(Self {
             mainloop,
@@ -180,7 +191,7 @@ impl Playback {
         Ok(())
     }
 
-    fn stop(&mut self) {
+    fn stop(&mut self) -> Arc<Mutex<Stream>> {
         _ = self.shutdown_channel.0.send(());
         if let Some(handle) = self.handle.take() {
             _ = handle.join();
@@ -189,6 +200,8 @@ impl Playback {
         self.mainloop.borrow_mut().lock();
         self.stream.lock().unwrap().flush(None);
         self.mainloop.borrow_mut().unlock();
+
+        Arc::clone(&self.stream)
     }
 }
 
@@ -197,6 +210,7 @@ pub struct Audio {
     muted: bool,
     mainloop: Rc<RefCell<Mainloop>>,
     context: Arc<Mutex<Context>>,
+    stream: Option<Arc<Mutex<Stream>>>,
     playback: Option<Playback>,
 }
 
@@ -213,6 +227,7 @@ impl Audio {
         }
 
         Ok(Self {
+            stream: None,
             muted: false,
             mainloop: Rc::new(RefCell::new(mainloop)),
             context: Arc::new(Mutex::new(context)),
@@ -229,13 +244,18 @@ impl Audio {
         }
 
         if let Some(mut playback) = self.playback.take() {
-            playback.stop();
+            self.stream = Some(playback.stop());
             while self.context.lock().unwrap().get_state() != State::Ready {
                 self.mainloop.borrow_mut().wait();
             }
         }
 
-        let mut playback = Playback::new(path, self.context.clone(), Rc::clone(&self.mainloop))?;
+        let mut playback = Playback::new(
+            path,
+            self.context.clone(),
+            Rc::clone(&self.mainloop),
+            self.stream.as_ref().map(Arc::clone),
+        )?;
         while self.context.lock().unwrap().get_state() != State::Ready {
             self.mainloop.borrow_mut().wait();
         }

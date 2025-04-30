@@ -280,14 +280,11 @@ mod tests {
 
         for (name, input, err_msg) in test_cases {
             let result = Color::from_str(input);
-            assert!(result.is_err(), "{} should fail", name);
+            assert!(result.is_err(), "{name} should fail");
             let err = result.unwrap_err();
             assert!(
                 err.contains(err_msg),
-                "{}: Expected error containing '{}', got '{}'",
-                name,
-                err_msg,
-                err
+                "{name}: Expected error containing '{err_msg}', got '{err}'",
             );
         }
     }
