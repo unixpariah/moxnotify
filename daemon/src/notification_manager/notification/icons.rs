@@ -1,69 +1,68 @@
-use super::{progress::Progress, Extents};
 use crate::{
-    button::{ButtonManager, ButtonType, Finished},
-    component::Component,
+    component::{Bounds, Component},
     config::{Config, StyleState},
     image_data::ImageData,
+    notification_manager::UiState,
     texture_renderer::{TextureArea, TextureBounds},
     Image,
 };
 use resvg::usvg;
 use std::{
+    cell::RefCell,
     collections::BTreeMap,
     path::Path,
-    sync::{LazyLock, Mutex},
+    rc::Rc,
+    sync::{Arc, LazyLock, Mutex},
 };
 
 static ICON_CACHE: LazyLock<Cache> = LazyLock::new(Cache::default);
 type IconMap = BTreeMap<Box<Path>, ImageData>;
-type ThemeMap = BTreeMap<Box<str>, IconMap>;
 
 #[derive(Default)]
-pub struct Cache(Mutex<ThemeMap>);
+pub struct Cache(Mutex<IconMap>);
 
 impl Cache {
-    pub fn insert<P>(&self, theme: &str, icon_path: &P, data: ImageData)
+    pub fn insert<P>(&self, icon_path: &P, data: ImageData)
     where
         P: AsRef<Path>,
     {
-        let mut theme_map = self.0.lock().unwrap();
+        let mut icon_map = self.0.lock().unwrap();
         let entry = icon_path.as_ref();
 
-        match theme_map.get_mut(theme) {
-            Some(theme_map) => {
-                theme_map.insert(entry.into(), data);
-            }
-            None => {
-                let mut icon_map = BTreeMap::new();
-                icon_map.insert(entry.into(), data);
-                theme_map.insert(theme.into(), icon_map);
-            }
-        }
+        icon_map.insert(entry.into(), data);
     }
 
-    pub fn get<P>(&self, theme: &str, icon_path: P) -> Option<ImageData>
+    pub fn get<P>(&self, icon_path: P) -> Option<ImageData>
     where
         P: AsRef<Path>,
     {
         let theme_map = self.0.lock().unwrap();
 
-        theme_map
-            .get(theme)
-            .map(|icon_map| icon_map.get(icon_path.as_ref()))
-            .and_then(|image_data| image_data.cloned())
+        theme_map.get(icon_path.as_ref()).cloned()
     }
 }
 
 #[derive(Default)]
 pub struct Icons {
+    pub id: u32,
     pub icon: Option<ImageData>,
     pub app_icon: Option<ImageData>,
     pub x: f32,
     pub y: f32,
+    pub ui_state: Rc<RefCell<UiState>>,
+    pub config: Rc<Config>,
+    pub app_name: Arc<str>,
 }
 
 impl Icons {
-    pub fn new(image: Option<&Image>, app_icon: Option<&str>, config: &Config) -> Self {
+    pub fn new(
+        id: u32,
+        image: Option<&Image>,
+        app_icon: Option<&str>,
+        config: Rc<Config>,
+        ui_state: Rc<RefCell<UiState>>,
+        app_name: Arc<str>,
+    ) -> Self {
         let icon = match image {
             Some(Image::Data(image_data)) => {
                 Some(image_data.clone().into_rgba(config.general.icon_size))
@@ -91,58 +90,67 @@ impl Icons {
         };
 
         Self {
+            id,
             icon: final_icon,
             app_icon: final_app_icon,
             x: 0.,
             y: 0.,
+            ui_state,
+            config,
+            app_name,
         }
     }
+}
 
-    pub fn set_position(
-        &mut self,
-        container_extents: &Extents,
-        style: &StyleState,
-        progress: &Option<Progress>,
-        buttons: &ButtonManager<Finished>,
-    ) {
-        let icon_size = 64.0;
+impl Component for Icons {
+    type Style = StyleState;
 
-        let available_height = container_extents.height
-            - style.border.size.top
-            - style.border.size.bottom
-            - style.padding.top
-            - style.padding.bottom
-            - progress
-                .as_ref()
-                .map(|p| p.get_bounds().height)
-                .unwrap_or_default()
-            - buttons
-                .buttons()
-                .iter()
-                .filter_map(|button| {
-                    if button.button_type() == ButtonType::Action {
-                        Some(button.get_bounds().height)
-                    } else {
-                        None
-                    }
-                })
-                .max_by(|a, b| a.partial_cmp(b).unwrap())
-                .unwrap_or_default();
-
-        let vertical_offset = (available_height - icon_size) / 2.0;
-
-        self.x = container_extents.x + style.border.size.left + style.padding.left;
-        self.y = container_extents.y + style.border.size.top + style.padding.top + vertical_offset;
+    fn get_config(&self) -> &Config {
+        &self.config
     }
 
-    pub fn extents(&self, style: &StyleState) -> Extents {
+    fn get_id(&self) -> u32 {
+        self.id
+    }
+
+    fn get_app_name(&self) -> &str {
+        &self.app_name
+    }
+
+    fn get_ui_state(&self) -> std::cell::Ref<'_, UiState> {
+        self.ui_state.borrow()
+    }
+
+    fn get_style(&self) -> &Self::Style {
+        self.get_notification_style()
+    }
+
+    fn get_bounds(&self) -> Bounds {
+        let style = self.config.find_style(
+            &self.app_name,
+            self.ui_state.borrow().selected == Some(self.id),
+        );
+
         let (width, height) = self
             .icon
             .as_ref()
-            .map(|i| (i.width as f32 + style.padding.right, i.height as f32))
+            .map(|i| {
+                (
+                    i.width as f32
+                        + style.icon.padding.right
+                        + style.icon.padding.left
+                        + style.icon.margin.left
+                        + style.icon.margin.right,
+                    i.height as f32
+                        + style.icon.padding.top
+                        + style.icon.padding.bottom
+                        + style.icon.margin.top
+                        + style.icon.margin.bottom,
+                )
+            })
             .unwrap_or((0., 0.));
 
-        Extents {
+        Bounds {
             x: self.x,
             y: self.y,
             width,
@@ -150,61 +158,91 @@ impl Icons {
         }
     }
 
-    pub fn textures(
-        &self,
-        style: &StyleState,
-        config: &Config,
-        total_height: f32,
-        scale: f32,
-    ) -> Vec<TextureArea> {
+    fn get_instances(&self, _: &crate::Urgency) -> Vec<crate::buffers::Instance> {
+        Vec::new()
+    }
+
+    fn get_text_areas(&self, _: &crate::Urgency) -> Vec<glyphon::TextArea> {
+        Vec::new()
+    }
+
+    fn get_render_bounds(&self) -> Bounds {
+        let style = self.config.find_style(
+            &self.app_name,
+            self.ui_state.borrow().selected == Some(self.id),
+        );
+
+        let (width, height) = self
+            .icon
+            .as_ref()
+            .map(|i| {
+                (
+                    i.width as f32 + style.icon.padding.right + style.icon.padding.left,
+                    i.height as f32 + style.icon.padding.top + style.icon.padding.bottom,
+                )
+            })
+            .unwrap_or((0., 0.));
+
+        Bounds {
+            x: self.x + style.icon.margin.left,
+            y: self.y + style.icon.margin.top,
+            width,
+            height,
+        }
+    }
+
+    fn set_position(&mut self, x: f32, y: f32) {
+        self.x = x;
+        self.y = y;
+    }
+
+    fn get_textures(&self) -> Vec<crate::texture_renderer::TextureArea> {
         let mut texture_areas = Vec::new();
 
-        let width = config.general.icon_size as f32;
-        let height = config.general.icon_size as f32;
+        let style = self.config.find_style(
+            &self.app_name,
+            self.ui_state.borrow().selected == Some(self.id),
+        );
 
-        let mut icon_extents = self.extents(style);
+        let mut bounds = self.get_render_bounds();
 
         if let Some(icon) = self.icon.as_ref() {
-            let icon_size = config.general.icon_size as f32;
-            let image_y = icon_extents.y + (height - icon_size) / 2.0;
-
             texture_areas.push(TextureArea {
-                left: icon_extents.x,
-                top: total_height - image_y - icon_size,
-                width: icon_size,
-                height: icon_size,
-                scale,
+                left: bounds.x,
+                top: bounds.y,
+                width: bounds.width,
+                height: bounds.height,
+                scale: self.ui_state.borrow().scale,
                 border_size: style.icon.border.size.into(),
                 bounds: TextureBounds {
-                    left: icon_extents.x as u32,
-                    top: (total_height - icon_extents.y - height) as u32,
-                    right: (icon_extents.x + width) as u32,
-                    bottom: (total_height - icon_extents.y) as u32,
+                    left: bounds.x as u32,
+                    top: bounds.y as u32,
+                    right: (bounds.x + bounds.width) as u32,
+                    bottom: bounds.y as u32,
                 },
                 data: &icon.data,
                 radius: style.icon.border.radius.into(),
             });
 
-            icon_extents.x += (icon.height - config.general.app_icon_size) as f32;
-            icon_extents.y += (icon.height as f32 / 2.) - config.general.app_icon_size as f32 / 2.;
+            bounds.x += bounds.height - self.config.general.app_icon_size as f32;
+            bounds.y += bounds.height - self.config.general.app_icon_size as f32;
         }
 
         if let Some(app_icon) = self.app_icon.as_ref() {
-            let app_icon_size = config.general.app_icon_size as f32;
-            let image_y = icon_extents.y + (height - app_icon_size) / 2.0;
+            let app_icon_size = self.config.general.app_icon_size as f32;
 
             texture_areas.push(TextureArea {
-                left: icon_extents.x,
-                top: total_height - image_y - app_icon_size,
+                left: bounds.x,
+                top: bounds.y,
                 width: app_icon_size,
                 height: app_icon_size,
-                scale,
+                scale: self.ui_state.borrow().scale,
                 border_size: style.icon.border.size.into(),
                 bounds: TextureBounds {
-                    left: icon_extents.x as u32,
-                    top: (total_height - icon_extents.y - height) as u32,
-                    right: (icon_extents.x + width) as u32,
-                    bottom: (total_height - icon_extents.y) as u32,
+                    left: bounds.x as u32,
+                    top: bounds.y as u32,
+                    right: (bounds.x + bounds.width) as u32,
+                    bottom: bounds.y as u32,
                 },
                 data: &app_icon.data,
                 radius: style.app_icon.border.radius.into(),
@@ -232,7 +270,7 @@ pub fn get_icon<T>(icon_path: T, icon_size: u16) -> Option<ImageData>
 where
     T: AsRef<Path>,
 {
-    if let Some(icon) = ICON_CACHE.get("Cosmic", icon_path.as_ref()) {
+    if let Some(icon) = ICON_CACHE.get(icon_path.as_ref()) {
         return Some(icon);
     }
 
@@ -269,6 +307,6 @@ where
 
     let image_data = ImageData::try_from(image.ok()?);
     let image_data = image_data.ok().map(|i| i.into_rgba(icon_size as u32))?;
-    ICON_CACHE.insert("Cosmic", &icon_path, image_data.clone());
+    ICON_CACHE.insert(&icon_path, image_data.clone());
     Some(image_data)
 }

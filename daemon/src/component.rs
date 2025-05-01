@@ -2,7 +2,7 @@ use crate::{
     buffers,
     config::{Config, StyleState},
     notification_manager::UiState,
-    Urgency,
+    texture_renderer, Urgency,
 };
 
 pub enum Data<'a> {
@@ -41,6 +41,8 @@ pub trait Component {
     fn get_instances(&self, urgency: &Urgency) -> Vec<buffers::Instance>;
 
     fn get_text_areas(&self, urgency: &Urgency) -> Vec<glyphon::TextArea>;
+
+    fn get_textures(&self) -> Vec<texture_renderer::TextureArea>;
 
     fn get_bounds(&self) -> Bounds;
 

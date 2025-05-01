@@ -222,15 +222,15 @@ impl TextureRenderer {
         textures.iter().enumerate().for_each(|(i, texture)| {
             instances.push(buffers::TextureInstance {
                 scale: texture.scale,
-                pos: [texture.left, texture.top],
+                pos: [texture.left, self.height - texture.top - texture.height],
                 size: [texture.width, texture.height],
                 radius: texture.radius,
                 border_width: texture.border_size,
                 container_rect: [
                     texture.bounds.left as f32,
-                    texture.bounds.top as f32,
+                    self.height - texture.bounds.top as f32 - texture.height,
                     texture.bounds.right as f32,
-                    texture.bounds.bottom as f32,
+                    self.height - texture.bounds.bottom as f32,
                 ],
             });
 

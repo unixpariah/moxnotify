@@ -63,10 +63,14 @@ impl Notification {
                 hovered: false,
                 config: Rc::clone(&config),
                 icons: Icons {
+                    id: data.id,
                     icon: None,
                     app_icon: None,
                     x: 0.,
                     y: 0.,
+                    config: Rc::clone(&config),
+                    ui_state: Rc::clone(&ui_state),
+                    app_name: Arc::clone(&data.app_name),
                 },
                 progress: None,
                 registration_token: None,
@@ -85,7 +89,16 @@ impl Notification {
             };
         }
 
-        let icons = Icons::new(data.hints.image.as_ref(), data.app_icon.as_deref(), &config);
+        println!("{:?}", data.app_icon.as_ref());
+
+        let icons = Icons::new(
+            data.id,
+            data.hints.image.as_ref(),
+            data.app_icon.as_deref(),
+            Rc::clone(&config),
+            Rc::clone(&ui_state),
+            Arc::clone(&data.app_name),
+        );
 
         let style = &config.styles.default;
         let buttons = ButtonManager::new(
@@ -191,8 +204,40 @@ impl Notification {
         let hovered = self.hovered();
         let style = self.config.find_style(&self.data.app_name, hovered);
 
-        self.icons
-            .set_position(&extents, style, &self.progress, &self.buttons);
+        {
+            // Icons
+            let available_height = extents.height
+                - style.border.size.top
+                - style.border.size.bottom
+                - style.padding.top
+                - style.padding.bottom
+                - self
+                    .progress
+                    .as_ref()
+                    .map(|p| p.get_bounds().height)
+                    .unwrap_or_default()
+                - self
+                    .buttons
+                    .buttons()
+                    .iter()
+                    .filter_map(|button| {
+                        if button.button_type() == ButtonType::Action {
+                            Some(button.get_bounds().height)
+                        } else {
+                            None
+                        }
+                    })
+                    .max_by(|a, b| a.partial_cmp(b).unwrap())
+                    .unwrap_or_default();
+
+            let vertical_offset = (available_height - self.config.general.icon_size as f32) / 2.0;
+
+            let x = extents.x + style.border.size.left + style.padding.left;
+            let y = extents.y + style.border.size.top + style.padding.top + vertical_offset;
+
+            self.icons.set_position(x, y);
+        }
+
         if let Some(progress) = self.progress.as_mut() {
             let available_width = extents.width
                 - style.border.size.left
@@ -288,7 +333,7 @@ impl Notification {
                     button.set_position(x_position, y_position);
                 });
 
-            let icons_width = self.icons.extents(self.style()).width;
+            let icons_width = self.icons.get_bounds().width;
             self.buttons
                 .buttons_mut()
                 .iter_mut()
@@ -299,7 +344,7 @@ impl Notification {
 
     pub fn text_extents(&self) -> Extents {
         let style = self.style();
-        let icon_extents = self.icons.extents(style);
+        let icon_extents = self.icons.get_bounds();
 
         let dismiss_button = self
             .buttons
@@ -372,7 +417,7 @@ impl Notification {
             Size::Value(height) => height.clamp(min_height, max_height),
             Size::Auto => {
                 let text_height = self.text.extents().1 + progress;
-                let icon_height = self.icons.extents(style).height + progress;
+                let icon_height = self.icons.get_bounds().height + progress;
                 let base_height = (text_height.max(icon_height).max(dismiss_button)
                     + action_button.height)
                     .max(dismiss_button + action_button.height)
@@ -399,7 +444,7 @@ impl Notification {
 
     fn update_text_position(&mut self) {
         let style = self.style();
-        let icon_extents = self.icons.extents(style);
+        let icon_extents = self.icons.get_bounds();
         let extents = self.rendered_extents();
         self.text.set_buffer_position(
             extents.x

@@ -202,6 +202,10 @@ impl Component for Progress {
 
         instances
     }
+
+    fn get_textures(&self) -> Vec<crate::texture_renderer::TextureArea> {
+        Vec::new()
+    }
 }
 
 impl Progress {

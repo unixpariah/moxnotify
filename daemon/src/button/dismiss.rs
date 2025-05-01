@@ -160,6 +160,10 @@ impl Component for DismissButton {
         self.text.set_buffer_position(x, y);
         self.hint.set_position(x, y);
     }
+
+    fn get_textures(&self) -> Vec<crate::texture_renderer::TextureArea> {
+        Vec::new()
+    }
 }
 
 impl Button for DismissButton {

@@ -656,6 +656,10 @@ impl Component for Hint {
             custom_glyphs: &[],
         }]
     }
+
+    fn get_textures(&self) -> Vec<crate::texture_renderer::TextureArea> {
+        Vec::new()
+    }
 }
 
 #[cfg(test)]

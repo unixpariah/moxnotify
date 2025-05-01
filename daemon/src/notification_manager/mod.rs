@@ -4,6 +4,7 @@ mod notification_view;
 use crate::{
     buffers,
     button::ButtonType,
+    component::Component,
     config::{self, keymaps, Config, Queue},
     texture_renderer::TextureArea,
     EmitEvent, History, Moxnotify, NotificationData,
@@ -96,16 +97,9 @@ impl NotificationManager {
             .fold(
                 (Vec::new(), Vec::new(), Vec::new()),
                 |(mut instances, mut text_areas, mut textures), (_, notification)| {
-                    //let data = notification.data();
-
                     let instance = notification.instances();
                     let text = notification.text_areas();
-                    let texture = notification.icons.textures(
-                        notification.style(),
-                        &self.config,
-                        self.height(),
-                        scale,
-                    );
+                    let texture = notification.icons.get_textures();
 
                     textures.extend_from_slice(&texture);
                     text_areas.extend_from_slice(&text);
@@ -241,7 +235,7 @@ impl NotificationManager {
 
             let style = new_notification.style();
 
-            let icon_extents = new_notification.icons.extents(new_notification.style());
+            let icon_extents = new_notification.icons.get_bounds();
 
             let dismiss_button = new_notification
                 .buttons

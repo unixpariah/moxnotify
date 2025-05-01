@@ -402,6 +402,8 @@ pub enum Queue {
 #[derive(Clone)]
 pub struct Icon {
     pub border: Border,
+    pub margin: Insets,
+    pub padding: Insets,
 }
 
 impl Icon {
@@ -420,6 +422,8 @@ impl Default for Icon {
                 size: Insets::size(Size::Value(0.)),
                 radius: BorderRadius::default(),
             },
+            margin: Insets::default(),
+            padding: Insets::default(),
         }
     }
 }

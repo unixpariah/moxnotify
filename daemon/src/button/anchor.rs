@@ -99,6 +99,10 @@ impl Component for AnchorButton {
         let bounds = self.get_render_bounds();
         self.hint.set_position(bounds.x, bounds.y);
     }
+
+    fn get_textures(&self) -> Vec<crate::texture_renderer::TextureArea> {
+        Vec::new()
+    }
 }
 
 impl Button for AnchorButton {

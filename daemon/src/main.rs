@@ -212,39 +212,20 @@ impl Moxnotify {
 
                 let suppress_sound = data.hints.suppress_sound;
 
-                let count: i64 =
-                    self.db
-                        .query_row("SELECT COUNT(*) FROM notifications", [], |row| row.get(0))?;
-
-                let tx = self.db.transaction()?;
-
-                let to_delete = count + 1 - self.config.general.history.size;
-                if to_delete > 0 {
-                    log::debug!("Removing {to_delete} oldest notifications from history");
-                    tx.execute(
-                        "DELETE FROM notifications WHERE rowid IN (
-                    SELECT rowid FROM notifications ORDER BY rowid ASC LIMIT ?
-                )",
-                        params![to_delete],
-                    )?;
-                }
-
-                tx.execute(
-                "INSERT INTO notifications (id, app_name, app_icon, timeout, summary, body, actions, hints)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                params![
-                    data.id,
-                    data.app_name,
-                    data.app_icon,
-                    data.timeout,
-                    data.summary,
-                    data.body,
-                    serde_json::to_string(&data.actions)?,
-                    serde_json::to_string(&data.hints)?
-                ],
-            )?;
-
-                tx.commit()?;
+                self.db.execute(
+                    "INSERT INTO notifications (id, app_name, app_icon, timeout, summary, body, actions, hints)
+                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                    params![
+                        data.id,
+                        data.app_name,
+                        data.app_icon,
+                        data.timeout,
+                        data.summary,
+                        data.body,
+                        serde_json::to_string(&data.actions)?,
+                        serde_json::to_string(&data.hints)?
+                    ],
+                )?;
 
                 let id = match self.history {
                     History::Shown => self.db.last_insert_rowid() as u32,
@@ -316,6 +297,15 @@ impl Moxnotify {
             }
             Event::ShowHistory => {
                 if self.history == History::Hidden {
+                    self.db.execute(
+                        "DELETE FROM notifications WHERE rowid IN (
+                        SELECT rowid FROM notifications ORDER BY rowid ASC LIMIT (
+                            SELECT MAX(COUNT(*) + 1 - ?, 0) FROM notifications
+                        )
+                    )",
+                        params![self.config.general.history.size],
+                    )?;
+
                     log::info!("Showing notification history");
                     self.history = History::Shown;
                     _ = self
@@ -352,6 +342,15 @@ impl Moxnotify {
             }
             Event::HideHistory => {
                 if self.history == History::Shown {
+                    self.db.execute(
+                        "DELETE FROM notifications WHERE rowid IN (
+                        SELECT rowid FROM notifications ORDER BY rowid ASC LIMIT (
+                            SELECT MAX(COUNT(*) + 1 - ?, 0) FROM notifications
+                        )
+                    )",
+                        params![self.config.general.history.size],
+                    )?;
+
                     log::info!("Hiding notification history");
                     self.history = History::Hidden;
                     _ = self
