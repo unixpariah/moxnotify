@@ -232,3 +232,212 @@ impl Progress {
         self.width = width;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{notification_manager::UiState, Urgency};
+    use std::{cell::RefCell, rc::Rc, sync::Arc};
+
+    fn create_test_progress(value: i32) -> Progress {
+        let config = Rc::new(Config::default());
+        let ui_state = Rc::new(RefCell::new(UiState::default()));
+
+        let app_name = Arc::from("test_app");
+        let mut progress = Progress::new(1, value, ui_state, config, app_name);
+        progress.set_width(300.0);
+        progress.set_position(0.0, 0.0);
+
+        progress
+    }
+
+    #[test]
+    fn test_initialization() {
+        let progress = create_test_progress(50);
+
+        assert_eq!(progress.id, 1);
+        assert_eq!(progress.value, 50);
+        assert_eq!(progress.x, 0.0);
+        assert_eq!(progress.y, 0.0);
+        assert_eq!(progress.width, 300.0);
+        assert_eq!(&*progress.app_name, "test_app");
+    }
+
+    #[test]
+    fn test_bounds_calculation() {
+        let progress = create_test_progress(50);
+
+        let bounds = progress.get_bounds();
+        assert!(bounds.width > 0.0);
+        assert!(bounds.height > 0.0);
+    }
+
+    #[test]
+    fn test_render_bounds() {
+        let progress = create_test_progress(50);
+
+        let render_bounds = progress.get_render_bounds();
+        assert!(render_bounds.width > 0.0);
+        assert!(render_bounds.height > 0.0);
+    }
+
+    #[test]
+    fn test_zero_progress() {
+        let mut progress = create_test_progress(0);
+        let width = 300.0;
+        progress.set_width(width);
+
+        let instances = progress.get_instances(&Urgency::Normal);
+
+        assert!(!instances.is_empty());
+
+        assert_eq!(instances.len(), 1);
+        assert_eq!(instances[0].rect_size[0], width);
+    }
+
+    #[test]
+    fn test_full_progress() {
+        let mut progress = create_test_progress(100);
+        let width = 300.0;
+        progress.set_width(width);
+
+        let instances = progress.get_instances(&Urgency::Normal);
+
+        assert_eq!(instances.len(), 1);
+        assert_eq!(instances[0].rect_size[0], width);
+    }
+
+    #[test]
+    fn test_partial_progress() {
+        let percentage = 50;
+        let mut progress = create_test_progress(percentage);
+        let width = 300.0;
+        progress.set_width(width);
+
+        let instances = progress.get_instances(&Urgency::Normal);
+
+        assert_eq!(instances.len(), 2);
+
+        let expected_complete_width = (percentage as f32 / 100.0) * width;
+        assert_eq!(instances[0].rect_size[0], expected_complete_width);
+
+        let expected_incomplete_width = width - expected_complete_width;
+        assert_eq!(instances[1].rect_size[0], expected_incomplete_width);
+
+        let total_width: f32 = instances.iter().map(|instance| instance.rect_size[0]).sum();
+        let render_bounds = progress.get_render_bounds();
+        assert!((total_width - render_bounds.width).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_progress_over_100_percent() {
+        let mut progress = create_test_progress(120);
+        let width = 300.0;
+        progress.set_width(width);
+
+        let instances = progress.get_instances(&Urgency::Normal);
+
+        assert_eq!(instances.len(), 1);
+        assert_eq!(instances[0].rect_size[0], width);
+    }
+
+    #[test]
+    fn test_progress_negative_value() {
+        let mut progress = create_test_progress(-20);
+        let width = 300.0;
+        progress.set_width(width);
+
+        let instances = progress.get_instances(&Urgency::Normal);
+
+        assert_eq!(instances.len(), 1);
+        assert_eq!(instances[0].rect_size[0], width);
+    }
+
+    #[test]
+    fn test_low_progress() {
+        let percentage = 25;
+        let mut progress = create_test_progress(percentage);
+        let width = 300.0;
+        progress.set_width(width);
+
+        let instances = progress.get_instances(&Urgency::Normal);
+
+        assert_eq!(instances.len(), 2);
+
+        let expected_complete_width = (percentage as f32 / 100.0) * width;
+        assert_eq!(instances[0].rect_size[0], expected_complete_width);
+
+        let expected_incomplete_width = width - expected_complete_width;
+        assert_eq!(instances[1].rect_size[0], expected_incomplete_width);
+    }
+
+    #[test]
+    fn test_high_progress() {
+        let percentage = 75;
+        let mut progress = create_test_progress(percentage);
+        let width = 300.0;
+        progress.set_width(width);
+
+        let instances = progress.get_instances(&Urgency::Normal);
+
+        assert_eq!(instances.len(), 2);
+
+        let expected_complete_width = (percentage as f32 / 100.0) * width;
+        assert_eq!(instances[0].rect_size[0], expected_complete_width);
+
+        let expected_incomplete_width = width - expected_complete_width;
+        assert_eq!(instances[1].rect_size[0], expected_incomplete_width);
+    }
+
+    #[test]
+    fn test_almost_complete_progress() {
+        let percentage = 99;
+        let mut progress = create_test_progress(percentage);
+        let width = 300.0;
+        progress.set_width(width);
+
+        let instances = progress.get_instances(&Urgency::Normal);
+
+        assert_eq!(instances.len(), 2);
+
+        let expected_complete_width = (percentage as f32 / 100.0) * width;
+        assert_eq!(instances[0].rect_size[0], expected_complete_width);
+
+        let expected_incomplete_width = width - expected_complete_width;
+        assert_eq!(instances[1].rect_size[0], expected_incomplete_width);
+    }
+
+    #[test]
+    fn test_selection_state() {
+        let config = Rc::new(Config::default());
+        let ui_state = Rc::new(RefCell::new(UiState {
+            selected: Some(1),
+            mode: config::keymaps::Mode::Normal,
+            scale: 1.0,
+        }));
+
+        let app_name = Arc::from("test_app");
+        let progress = Progress::new(1, 50, ui_state, config, app_name);
+
+        assert_eq!(progress.get_ui_state().selected, Some(1));
+    }
+
+    #[test]
+    fn test_set_width() {
+        let mut progress = create_test_progress(50);
+
+        progress.set_width(400.0);
+
+        assert_eq!(progress.width, 400.0);
+    }
+
+    #[test]
+    fn test_set_position() {
+        let mut progress = create_test_progress(50);
+
+        progress.set_position(10.0, 20.0);
+
+        assert_eq!(progress.x, 10.0);
+        assert_eq!(progress.y, 20.0);
+    }
+}
