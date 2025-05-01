@@ -310,3 +310,62 @@ where
     ICON_CACHE.insert(&icon_path, image_data.clone());
     Some(image_data)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn cache_insert_and_retrieve() {
+        let cache = Cache::default();
+        let path = PathBuf::from("test_icon.png");
+        let data = ImageData {
+            width: 32,
+            height: 32,
+            data: vec![0; 32 * 32 * 4],
+            rowstride: 32 * 4,
+            has_alpha: true,
+            bits_per_sample: 8,
+            channels: 4,
+        };
+
+        cache.insert(&path, data.clone());
+        assert_eq!(cache.get(&path).unwrap(), data);
+    }
+
+    #[test]
+    fn new_with_image_data() {
+        let config = Rc::new(Config::default());
+        let ui_state = Rc::new(RefCell::new(UiState::default()));
+        let image_data = ImageData {
+            width: 64,
+            height: 64,
+            data: vec![0; 64 * 64 * 4],
+            rowstride: 64 * 4,
+            has_alpha: true,
+            bits_per_sample: 8,
+            channels: 4,
+        };
+        let image = Image::Data(image_data.clone());
+        let icons = Icons::new(1, Some(&image), None, config, ui_state, Arc::from("app"));
+
+        assert!(icons.icon.is_some());
+        assert_eq!(icons.icon.unwrap().width, 64);
+    }
+
+    #[test]
+    fn cache_miss_returns_none() {
+        let cache = Cache::default();
+        let non_existent_path = Path::new("non_existent.png");
+        assert!(cache.get(non_existent_path).is_none());
+    }
+
+    #[test]
+    fn set_position_updates_coordinates() {
+        let mut icons = Icons::default();
+        icons.set_position(100., 200.);
+        assert_eq!(icons.x, 100.);
+        assert_eq!(icons.y, 200.);
+    }
+}

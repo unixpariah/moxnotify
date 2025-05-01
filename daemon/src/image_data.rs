@@ -169,3 +169,62 @@ impl<'a> TryFrom<Structure<'a>> for ImageData {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use image::{Rgb, RgbImage, RgbaImage};
+
+    #[test]
+    fn converts_rgb_to_rgba() {
+        let mut img = RgbImage::new(2, 2);
+        img.put_pixel(0, 0, Rgb([255, 0, 0]));
+        img.put_pixel(1, 0, Rgb([0, 255, 0]));
+        img.put_pixel(0, 1, Rgb([0, 0, 255]));
+        img.put_pixel(1, 1, Rgb([255, 255, 255]));
+
+        let image_data = ImageData::try_from(DynamicImage::ImageRgb8(img)).unwrap();
+        let converted = image_data.into_rgba(2);
+
+        assert_eq!(converted.channels, 4);
+        assert!(converted.has_alpha);
+        assert_eq!(converted.data.len(), 2 * 2 * 4);
+        assert_eq!(converted.rowstride, 2 * 4);
+    }
+
+    #[test]
+    fn resizes_image_properly() {
+        let img = RgbaImage::from_raw(4, 4, vec![255; 4 * 4 * 4]).unwrap();
+        let image_data = ImageData::try_from(DynamicImage::ImageRgba8(img)).unwrap();
+
+        let resized = image_data.into_rgba(2);
+
+        assert_eq!(resized.width, 2);
+        assert_eq!(resized.height, 2);
+        assert_eq!(resized.rowstride, 2 * 2 * 4);
+    }
+
+    #[test]
+    fn preserves_alpha_channel() {
+        let mut img = RgbaImage::new(2, 2);
+        img.put_pixel(0, 0, image::Rgba([255, 0, 0, 128]));
+        let image_data = ImageData::try_from(DynamicImage::ImageRgba8(img)).unwrap();
+
+        let converted = image_data.into_rgba(2);
+
+        assert_eq!(converted.data[3], 128);
+    }
+
+    #[test]
+    fn converts_from_dynamic_image() {
+        let img = RgbaImage::new(32, 32);
+        let image_data = ImageData::try_from(DynamicImage::ImageRgba8(img)).unwrap();
+
+        assert_eq!(image_data.width, 32);
+        assert_eq!(image_data.height, 32);
+        assert_eq!(image_data.channels, 4);
+        assert!(image_data.has_alpha);
+        assert_eq!(image_data.bits_per_sample, 8);
+        assert_eq!(image_data.rowstride, 32 * 4);
+    }
+}
