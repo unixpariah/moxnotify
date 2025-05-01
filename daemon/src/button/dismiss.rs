@@ -244,9 +244,7 @@ mod tests {
 
         button.click();
 
-        match rx.try_recv() {
-            Ok(id) => assert_eq!(id, test_id, "Button click should send button ID"),
-            Err(_) => panic!("Button click did not send ID through channel"),
-        }
+        let id = rx.try_recv().unwrap();
+        assert_eq!(id, test_id, "Button click should send button ID");
     }
 }

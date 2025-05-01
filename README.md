@@ -1,5 +1,7 @@
 # Moxnotify
 
+[![codecov](https://codecov.io/gh/unixpariah/moxnotify/graph/badge.svg?token=49LRWZ9D1K)](https://codecov.io/gh/unixpariah/moxnotify)
+
 Feature-rich hardware-accelerated keyboard driven Wayland notification daemon.
 
 

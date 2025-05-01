@@ -253,13 +253,9 @@ mod tests {
 
         button.click();
 
-        match rx.try_recv() {
-            Ok((id, action)) => {
-                assert_eq!(id, test_id, "Button click should send button ID");
-                assert_eq!(action, test_action, "Button click should send button ID");
-            }
-            Err(_) => panic!("Button click did not send ID through channel"),
-        }
+        let (id, action) = rx.try_recv().unwrap();
+        assert_eq!(id, test_id, "Button click should send button ID");
+        assert_eq!(action, test_action, "Button click should send button ID");
     }
 
     #[test]
@@ -323,24 +319,16 @@ mod tests {
         };
 
         button1.click();
-        match text_rx1.try_recv() {
-            Ok((id, action)) => {
-                assert_eq!(id, test_id1, "First button ID should be sent");
-                assert_eq!(action, test_action1, "First button action should be sent");
-            }
-            Err(_) => panic!("First button click did not send message"),
-        }
+        let (id, action) = text_rx1.try_recv().unwrap();
+        assert_eq!(id, test_id1, "Button click should send button ID");
+        assert_eq!(action, test_action1, "Button click should send button ID");
 
         assert!(text_rx2.try_recv().is_err());
 
         button2.click();
-        match text_rx2.try_recv() {
-            Ok((id, action)) => {
-                assert_eq!(id, test_id2, "Second button ID should be sent");
-                assert_eq!(action, test_action2, "Second button action should be sent");
-            }
-            Err(_) => panic!("Second button click did not send message"),
-        }
+        let (id, action) = text_rx2.try_recv().unwrap();
+        assert_eq!(id, test_id2, "Button click should send button ID");
+        assert_eq!(action, test_action2, "Button click should send button ID");
 
         assert!(text_rx1.try_recv().is_err());
     }
