@@ -157,7 +157,7 @@ impl Surface {
             occlusion_query_set: None,
         });
 
-        let (instances, text_data, textures) = notifications.data(self.scale);
+        let (instances, text_data, textures) = notifications.data();
 
         self.wgpu_surface
             .shape_renderer

@@ -12,6 +12,7 @@ pub struct TextureRenderer {
     instance_buffer: buffers::InstanceBuffer<buffers::TextureInstance>,
     height: f32,
     max_icon_size: u32,
+    prepared_instances: usize,
 }
 
 #[derive(Clone)]
@@ -181,6 +182,7 @@ impl TextureRenderer {
         let instance_buffer = buffers::InstanceBuffer::new(device, &[]);
 
         Self {
+            prepared_instances: 0,
             max_icon_size,
             instance_buffer,
             projection_uniform,
@@ -213,6 +215,8 @@ impl TextureRenderer {
         queue: &wgpu::Queue,
         textures: &[TextureArea],
     ) {
+        self.prepared_instances = textures.len();
+
         if textures.is_empty() {
             return;
         }
@@ -278,7 +282,7 @@ impl TextureRenderer {
     }
 
     pub fn render(&self, render_pass: &mut wgpu::RenderPass) {
-        if self.instance_buffer.size() == 0 {
+        if self.prepared_instances == 0 {
             return;
         }
 
@@ -294,7 +298,7 @@ impl TextureRenderer {
         render_pass.draw_indexed(
             0..self.index_buffer.size(),
             0,
-            0..self.instance_buffer.size(),
+            0..self.prepared_instances as u32,
         );
     }
 }

@@ -88,7 +88,7 @@ impl NotificationManager {
         &self.notifications
     }
 
-    pub fn data(&self, scale: f32) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
+    pub fn data(&self) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
         let (mut instances, mut text_areas, textures) = self
             .notifications
             .iter()
@@ -118,12 +118,12 @@ impl NotificationManager {
             .max_by(|a, b| a.partial_cmp(b).unwrap())
             .unwrap_or_default();
 
-        if let Some((instance, text_area)) = self.notification_view.prev_data(total_width, scale) {
+        if let Some((instance, text_area)) = self.notification_view.prev_data(total_width) {
             instances.push(instance);
             text_areas.push(text_area);
         }
 
-        if let Some((instance, text_area)) = self.notification_view.next_data(total_width, scale) {
+        if let Some((instance, text_area)) = self.notification_view.next_data(total_width) {
             instances.push(instance);
             text_areas.push(text_area);
         }

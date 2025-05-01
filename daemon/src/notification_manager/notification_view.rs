@@ -145,7 +145,7 @@ impl NotificationView {
         }
     }
 
-    pub fn prev_data(&self, total_width: f32, scale: f32) -> Option<(buffers::Instance, TextArea)> {
+    pub fn prev_data(&self, total_width: f32) -> Option<(buffers::Instance, TextArea)> {
         if let Some(prev) = self.prev.as_ref() {
             let extents = prev.rendered_extents();
             let style = &self.config.styles.prev;
@@ -159,7 +159,7 @@ impl NotificationView {
                 border_radius: style.border.radius.into(),
                 border_size: style.border.size.into(),
                 border_color: style.border.color.to_linear(&crate::Urgency::Low),
-                scale,
+                scale: self.ui_state.borrow().scale,
             };
 
             return Some((instance, prev.text_areas().swap_remove(0)));
@@ -168,7 +168,7 @@ impl NotificationView {
         None
     }
 
-    pub fn next_data(&self, total_width: f32, scale: f32) -> Option<(buffers::Instance, TextArea)> {
+    pub fn next_data(&self, total_width: f32) -> Option<(buffers::Instance, TextArea)> {
         if let Some(next) = self.next.as_ref() {
             let extents = next.rendered_extents();
             let style = &self.config.styles.prev;
@@ -182,7 +182,7 @@ impl NotificationView {
                 border_radius: style.border.radius.into(),
                 border_size: style.border.size.into(),
                 border_color: style.border.color.to_linear(&crate::Urgency::Low),
-                scale,
+                scale: self.ui_state.borrow().scale,
             };
 
             return Some((instance, next.text_areas().swap_remove(0)));

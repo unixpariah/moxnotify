@@ -89,8 +89,6 @@ impl Notification {
             };
         }
 
-        println!("{:?}", data.app_icon.as_ref());
-
         let icons = Icons::new(
             data.id,
             data.hints.image.as_ref(),
