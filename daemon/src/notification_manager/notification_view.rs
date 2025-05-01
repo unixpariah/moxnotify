@@ -7,19 +7,21 @@ pub struct NotificationView {
     pub visible: Range<usize>,
     pub prev: Option<Notification>,
     pub next: Option<Notification>,
-    max_visible: usize,
-    font_system: FontSystem,
+    font_system: Rc<RefCell<FontSystem>>,
     config: Rc<Config>,
     ui_state: Rc<RefCell<UiState>>,
 }
 
 impl NotificationView {
-    pub fn new(max_visible: u32, config: Rc<Config>, ui_state: Rc<RefCell<UiState>>) -> Self {
+    pub fn new(
+        config: Rc<Config>,
+        ui_state: Rc<RefCell<UiState>>,
+        font_system: Rc<RefCell<FontSystem>>,
+    ) -> Self {
         Self {
+            visible: 0..config.general.max_visible,
             config,
-            font_system: FontSystem::new(),
-            max_visible: max_visible as usize,
-            visible: 0..max_visible as usize,
+            font_system,
             prev: None,
             next: None,
             ui_state,
@@ -29,14 +31,14 @@ impl NotificationView {
     pub fn prev(&mut self, total_height: f32, index: usize, notification_count: usize) {
         if index + 1 == notification_count {
             self.visible = (notification_count
-                .max(self.max_visible)
-                .saturating_sub(self.max_visible))
-                ..notification_count.max(self.max_visible);
+                .max(self.config.general.max_visible)
+                .saturating_sub(self.config.general.max_visible))
+                ..notification_count.max(self.config.general.max_visible);
         } else {
             let first_visible = self.visible.start;
             if index < first_visible {
                 let start = index;
-                let end = index + self.max_visible;
+                let end = index + self.config.general.max_visible;
                 self.visible = start..end;
             }
         }
@@ -45,11 +47,11 @@ impl NotificationView {
 
     pub fn next(&mut self, total_height: f32, index: usize, notification_count: usize) {
         if index == 0 {
-            self.visible = 0..self.max_visible;
+            self.visible = 0..self.config.general.max_visible;
         } else {
             let last_visible = self.visible.end.saturating_sub(1);
             if index > last_visible {
-                let start = index + 1 - self.max_visible;
+                let start = index + 1 - self.config.general.max_visible;
                 let end = index + 1;
                 self.visible = start..end;
             }
@@ -58,6 +60,7 @@ impl NotificationView {
     }
 
     pub fn update_notification_count(&mut self, mut total_height: f32, notification_count: usize) {
+        let mut font_system = self.font_system.borrow_mut();
         if self.visible.start > 0 {
             let summary = self
                 .config
@@ -71,7 +74,7 @@ impl NotificationView {
                     .weight(Weight::BOLD);
 
                 notification.text.buffer.set_text(
-                    &mut self.font_system,
+                    &mut font_system,
                     &summary,
                     &attrs,
                     glyphon::Shaping::Advanced,
@@ -79,7 +82,7 @@ impl NotificationView {
             } else {
                 self.prev = Some(Notification::new(
                     Rc::clone(&self.config),
-                    &mut self.font_system,
+                    &mut font_system,
                     NotificationData {
                         summary: summary.into(),
                         ..Default::default()
@@ -116,7 +119,7 @@ impl NotificationView {
                     .weight(Weight::BOLD);
 
                 notification.text.buffer.set_text(
-                    &mut self.font_system,
+                    &mut font_system,
                     &summary,
                     &attrs,
                     glyphon::Shaping::Advanced,
@@ -126,7 +129,7 @@ impl NotificationView {
             } else {
                 let mut next = Notification::new(
                     Rc::clone(&self.config),
-                    &mut self.font_system,
+                    &mut font_system,
                     NotificationData {
                         summary: summary.into(),
                         ..Default::default()

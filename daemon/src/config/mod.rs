@@ -130,7 +130,7 @@ pub struct General {
     pub ignore_sound_file: bool,
     pub scroll_sensitivity: f64,
     pub hint_characters: Box<str>,
-    pub max_visible: u32,
+    pub max_visible: usize,
     pub icon_size: u32,
     pub app_icon_size: u32,
     pub margin: Insets,

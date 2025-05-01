@@ -6,7 +6,7 @@ use crate::{
     wgpu_state, Moxnotify, Output,
 };
 use glyphon::FontSystem;
-use std::{fmt, rc::Rc, sync::Arc};
+use std::{cell::RefCell, fmt, rc::Rc, sync::Arc};
 use wayland_client::{delegate_noop, protocol::wl_surface, Connection, Dispatch, QueueHandle};
 use wayland_protocols::xdg::foreign::zv2::client::zxdg_exporter_v2;
 use wayland_protocols_wlr::layer_shell::v1::client::{
@@ -38,6 +38,7 @@ pub struct Surface {
     configured: bool,
     pub token: Option<Arc<str>>,
     pub focus_reason: Option<FocusReason>,
+    font_system: Rc<RefCell<FontSystem>>,
 }
 
 impl Surface {
@@ -48,6 +49,7 @@ impl Surface {
         qh: &QueueHandle<Moxnotify>,
         outputs: &[Output],
         config: Rc<Config>,
+        font_system: Rc<RefCell<FontSystem>>,
     ) -> anyhow::Result<Self> {
         let output = outputs
             .iter()
@@ -114,6 +116,7 @@ impl Surface {
             wgpu_surface: wgpu_surface::WgpuSurface::new(wgpu_state, &wl_surface, config)?,
             wl_surface,
             layer_surface,
+            font_system,
         })
     }
 
@@ -122,7 +125,6 @@ impl Surface {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         notifications: &NotificationManager,
-        font_system: &mut FontSystem,
     ) -> anyhow::Result<()> {
         if !self.configured {
             return Ok(());
@@ -163,9 +165,12 @@ impl Surface {
         self.wgpu_surface
             .texture_renderer
             .prepare(device, queue, &textures);
-        self.wgpu_surface
-            .text_ctx
-            .prepare(device, queue, text_data, font_system)?;
+        self.wgpu_surface.text_ctx.prepare(
+            device,
+            queue,
+            text_data,
+            &mut self.font_system.borrow_mut(),
+        )?;
 
         self.wgpu_surface.shape_renderer.render(&mut render_pass);
         self.wgpu_surface.texture_renderer.render(&mut render_pass);
@@ -276,7 +281,6 @@ impl Dispatch<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1, ()> for Moxnotify {
                     &state.wgpu_state.device,
                     &state.wgpu_state.queue,
                     &state.notifications,
-                    &mut state.font_system,
                 );
                 log::debug!("Surface configured ({width}x{height}, serial={serial})");
             }
@@ -301,6 +305,7 @@ impl Moxnotify {
                 &self.qh,
                 &self.outputs,
                 Rc::clone(&self.config),
+                Rc::clone(&self.font_system),
             )
             .ok();
 

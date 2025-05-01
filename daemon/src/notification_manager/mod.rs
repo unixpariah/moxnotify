@@ -40,27 +40,31 @@ pub struct NotificationManager {
     waiting: u32,
     config: Rc<Config>,
     loop_handle: LoopHandle<'static, Moxnotify>,
-    pub font_system: FontSystem,
-    notification_view: NotificationView,
+    pub font_system: Rc<RefCell<FontSystem>>,
+    pub notification_view: NotificationView,
     inhibited: bool,
     pub ui_state: Rc<RefCell<UiState>>,
 }
 
 impl NotificationManager {
-    pub fn new(config: Rc<Config>, loop_handle: LoopHandle<'static, Moxnotify>) -> Self {
+    pub fn new(
+        config: Rc<Config>,
+        loop_handle: LoopHandle<'static, Moxnotify>,
+        font_system: Rc<RefCell<FontSystem>>,
+    ) -> Self {
         let ui_state = Rc::new(RefCell::new(UiState::default()));
 
         Self {
             inhibited: false,
             waiting: 0,
-            font_system: FontSystem::new(),
-            loop_handle,
-            notifications: Vec::new(),
             notification_view: NotificationView::new(
-                config.general.max_visible,
                 Rc::clone(&config),
                 Rc::clone(&ui_state),
+                Rc::clone(&font_system),
             ),
+            font_system,
+            loop_handle,
+            notifications: Vec::new(),
             config,
             ui_state: Rc::clone(&ui_state),
         }
@@ -248,7 +252,7 @@ impl NotificationManager {
                 .unwrap_or(0.0);
 
             new_notification.text.buffer.set_size(
-                &mut self.font_system,
+                &mut self.font_system.borrow_mut(),
                 Some(style.width.resolve(0.) - icon_extents.width - dismiss_button),
                 None,
             );
@@ -301,13 +305,8 @@ impl NotificationManager {
             },
         );
 
-        if self.notifications.get(next_notification_index).is_some() {
-            self.notification_view.next(
-                self.height(),
-                next_notification_index,
-                self.notifications.len(),
-            );
-        }
+        self.notification_view
+            .update_notification_count(self.height(), self.notifications.len());
     }
 
     pub fn prev(&mut self) {
@@ -351,13 +350,8 @@ impl NotificationManager {
             },
         );
 
-        if self.notifications.get(notification_index).is_some() {
-            self.notification_view.prev(
-                self.height(),
-                notification_index,
-                self.notifications.len(),
-            );
-        }
+        self.notification_view
+            .update_notification_count(self.height(), self.notifications.len());
     }
 
     pub fn deselect(&mut self) {
@@ -378,7 +372,7 @@ impl NotificationManager {
         data.into_iter().for_each(|data| {
             let mut notification = Notification::new(
                 Rc::clone(&self.config),
-                &mut self.font_system,
+                &mut self.font_system.borrow_mut(),
                 data,
                 Rc::clone(&self.ui_state),
                 None,
@@ -427,7 +421,7 @@ impl NotificationManager {
 
         let mut notification = Notification::new(
             Rc::clone(&self.config),
-            &mut self.font_system,
+            &mut self.font_system.borrow_mut(),
             data,
             Rc::clone(&self.ui_state),
             Some(self.loop_handle.clone()),
@@ -549,8 +543,7 @@ impl NotificationManager {
 
         if self.notification_view.visible.start >= self.notifications.len() {
             self.notification_view.visible = self.notifications.len().saturating_sub(1)
-                ..self.notifications.len().saturating_sub(1)
-                    + self.config.general.max_visible as usize;
+                ..self.notifications.len().saturating_sub(1) + self.config.general.max_visible;
         }
 
         self.notification_view
@@ -703,7 +696,6 @@ impl Moxnotify {
                 &self.wgpu_state.device,
                 &self.wgpu_state.queue,
                 &self.notifications,
-                &mut self.font_system,
             ) {
                 log::error!("Render error: {e}");
             }

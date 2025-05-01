@@ -29,7 +29,7 @@ use notification_manager::{notification::NotificationId, NotificationManager, Re
 use rusqlite::params;
 use seat::Seat;
 use serde::{Deserialize, Serialize};
-use std::{path::Path, rc::Rc, sync::Arc};
+use std::{cell::RefCell, path::Path, rc::Rc, sync::Arc};
 use surface::{FocusReason, Surface};
 use tokio::sync::broadcast;
 use wayland_client::{
@@ -85,7 +85,7 @@ pub struct Moxnotify {
     audio: Option<Audio>,
     db: rusqlite::Connection,
     history: History,
-    font_system: FontSystem,
+    font_system: Rc<RefCell<FontSystem>>,
 }
 
 impl Moxnotify {
@@ -124,14 +124,20 @@ impl Moxnotify {
             (),
         )?;
 
+        let font_system = Rc::new(RefCell::new(FontSystem::new()));
+
         Ok(Self {
-            font_system: FontSystem::new(),
             history: History::Hidden,
             db,
             audio: Audio::new().ok(),
             globals,
             qh,
-            notifications: NotificationManager::new(Rc::clone(&config), loop_handle.clone()),
+            notifications: NotificationManager::new(
+                Rc::clone(&config),
+                loop_handle.clone(),
+                Rc::clone(&font_system),
+            ),
+            font_system,
             config,
             wgpu_state,
             layer_shell,
@@ -445,7 +451,6 @@ impl Moxnotify {
                 &self.wgpu_state.device,
                 &self.wgpu_state.queue,
                 &self.notifications,
-                &mut self.font_system,
             )?;
         }
         Ok(())

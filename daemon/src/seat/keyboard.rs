@@ -245,17 +245,17 @@ impl Moxnotify {
                 KeyAction::NextNotification => self.notifications.next(),
                 KeyAction::PreviousNotification => self.notifications.prev(),
                 KeyAction::FirstNotification => {
-                    while self.notifications.selected_id()
-                        != self.notifications.notifications().first().map(|n| n.id())
-                    {
+                    if let Some(notification) = self.notifications.notifications().first() {
+                        self.notifications.select(notification.id());
                         self.notifications.prev();
+                        self.notifications.next();
                     }
                 }
                 KeyAction::LastNotification => {
-                    while self.notifications.selected_id()
-                        != self.notifications.notifications().last().map(|n| n.id())
-                    {
+                    if let Some(notification) = self.notifications.notifications().last() {
+                        self.notifications.select(notification.id());
                         self.notifications.next();
+                        self.notifications.prev();
                     }
                 }
                 KeyAction::DismissNotification => {
@@ -330,7 +330,6 @@ impl Moxnotify {
                 &self.wgpu_state.device,
                 &self.wgpu_state.queue,
                 &self.notifications,
-                &mut self.font_system,
             );
         }
 
