@@ -2,7 +2,7 @@ pub mod wgpu_surface;
 
 use crate::{
     config::{self, Anchor, Config},
-    notification_manager::NotificationManager,
+    manager::NotificationManager,
     wgpu_state, Moxnotify, Output,
 };
 use glyphon::FontSystem;

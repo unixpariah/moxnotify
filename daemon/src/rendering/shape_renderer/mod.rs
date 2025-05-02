@@ -1,8 +1,7 @@
-use super::{
-    buffers::{self},
+use crate::utils::{
+    buffers::{self, Buffer, DataDescription},
     math::{Mat4, Matrix},
 };
-use crate::buffers::{Buffer, DataDescription};
 
 pub struct ShapeRenderer {
     render_pipeline: wgpu::RenderPipeline,

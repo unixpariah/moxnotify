@@ -1,6 +1,7 @@
-use super::buffers::{self};
-use super::math::{Mat4, Matrix};
-use crate::buffers::{Buffer, DataDescription};
+use crate::utils::{
+    buffers::{self, Buffer, DataDescription},
+    math::{Mat4, Matrix},
+};
 
 pub struct TextureRenderer {
     render_pipeline: wgpu::RenderPipeline,

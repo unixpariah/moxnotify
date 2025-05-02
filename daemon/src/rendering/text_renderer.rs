@@ -1,6 +1,6 @@
 use crate::{
+    components::{icons::get_icon, notification::Extents},
     config::Font,
-    notification_manager::notification::{icons::get_icon, Extents},
 };
 use glyphon::{
     Attrs, Buffer, Cache, Color, FontSystem, Shaping, Style, SwashCache, TextArea, TextAtlas,

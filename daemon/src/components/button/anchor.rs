@@ -1,10 +1,11 @@
 use super::{Button, Component, Hint, State};
 use crate::{
-    buffers,
-    component::Bounds,
+    components::Bounds,
     config::{button::ButtonState, Config},
-    notification_manager::UiState,
-    text::{Anchor, Text},
+    manager::UiState,
+    rendering::text_renderer::{Anchor, Text},
+    rendering::texture_renderer,
+    utils::buffers,
 };
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
@@ -100,7 +101,7 @@ impl Component for AnchorButton {
         self.hint.set_position(bounds.x, bounds.y);
     }
 
-    fn get_textures(&self) -> Vec<crate::texture_renderer::TextureArea> {
+    fn get_textures(&self) -> Vec<texture_renderer::TextureArea> {
         Vec::new()
     }
 }

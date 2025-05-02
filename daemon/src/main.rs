@@ -1,37 +1,33 @@
-mod animation;
 mod audio;
-pub mod buffers;
-pub mod button;
-pub mod component;
+pub mod components;
 mod config;
 mod dbus;
-mod image_data;
-pub mod math;
-mod notification_manager;
-mod seat;
-pub mod shape_renderer;
-mod surface;
-pub mod text;
-pub mod texture_renderer;
-mod wgpu_state;
+mod input;
+mod manager;
+mod rendering;
+pub mod utils;
 
 use audio::Audio;
 use calloop::EventLoop;
 use calloop_wayland_source::WaylandSource;
 use clap::Parser;
+use components::notification::NotificationId;
 use config::Config;
 use dbus::xdg::NotificationData;
 use env_logger::Builder;
 use glyphon::FontSystem;
-use image_data::ImageData;
+use input::Seat;
 use log::LevelFilter;
-use notification_manager::{notification::NotificationId, NotificationManager, Reason};
+use manager::{NotificationManager, Reason};
+use rendering::{
+    surface::{FocusReason, Surface},
+    wgpu_state,
+};
 use rusqlite::params;
-use seat::Seat;
 use serde::{Deserialize, Serialize};
 use std::{cell::RefCell, path::Path, rc::Rc, sync::Arc};
-use surface::{FocusReason, Surface};
 use tokio::sync::broadcast;
+use utils::image_data::ImageData;
 use wayland_client::{
     delegate_noop,
     globals::{registry_queue_init, GlobalList, GlobalListContents},
@@ -40,7 +36,6 @@ use wayland_client::{
 };
 use wayland_protocols::xdg::activation::v1::client::{xdg_activation_token_v1, xdg_activation_v1};
 use wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_shell_v1;
-use wgpu_state::WgpuState;
 use zbus::zvariant::Type;
 
 #[derive(Debug)]
@@ -106,7 +101,7 @@ impl Moxnotify {
 
         let config = Rc::new(Config::load(config_path)?);
 
-        let wgpu_state = WgpuState::new(conn).await?;
+        let wgpu_state = wgpu_state::WgpuState::new(conn).await?;
 
         let db = rusqlite::Connection::open(&config.general.history.path)?;
         db.execute(

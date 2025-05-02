@@ -1,6 +1,6 @@
 use crate::{
     config::keymaps::{Key, KeyAction, KeyWithModifiers, Keys, Mode, Modifiers},
-    notification_manager::Reason,
+    manager::Reason,
     History, Moxnotify,
 };
 use calloop::{

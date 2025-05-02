@@ -1,12 +1,14 @@
-pub mod notification;
-mod notification_view;
+mod view;
 
+use crate::components::button::ButtonType;
 use crate::{
-    buffers,
-    button::ButtonType,
-    component::Component,
-    config::{self, keymaps, Config, Queue},
-    texture_renderer::TextureArea,
+    components::{
+        notification::{Notification, NotificationId},
+        Component,
+    },
+    config::{keymaps, Config, Queue},
+    rendering::texture_renderer::TextureArea,
+    utils::buffers,
     EmitEvent, History, Moxnotify, NotificationData,
 };
 use calloop::{
@@ -14,10 +16,9 @@ use calloop::{
     LoopHandle,
 };
 use glyphon::{FontSystem, TextArea};
-use notification::{Notification, NotificationId};
-use notification_view::NotificationView;
 use rusqlite::params;
 use std::{cell::RefCell, fmt, rc::Rc, time::Duration};
+use view::NotificationView;
 
 #[derive(Clone)]
 pub struct UiState {
@@ -225,10 +226,7 @@ impl NotificationManager {
     }
 
     pub fn select(&mut self, id: NotificationId) {
-        let old_id = self.ui_state.borrow_mut().selected.take();
-        if let Some(old_id) = old_id {
-            self.unhover_notification(old_id);
-        }
+        self.deselect();
 
         if let Some(new_notification) = self.notifications.iter_mut().find(|n| n.id() == id) {
             new_notification.hover();
@@ -349,10 +347,29 @@ impl NotificationManager {
     }
 
     pub fn deselect(&mut self) {
-        let mut ui_state = self.ui_state.borrow_mut();
-        if let Some(old_id) = ui_state.selected.take() {
-            drop(ui_state);
-            self.unhover_notification(old_id);
+        let id = self.ui_state.borrow_mut().selected.take();
+        if let Some(old_id) = id {
+            if let Some(index) = self.notifications.iter().position(|n| n.id() == old_id) {
+                if let Some(notification) = self.notifications.get_mut(index) {
+                    notification.unhover();
+                    let timer = match self.config.general.queue {
+                        Queue::FIFO if index == 0 => notification.timeout(),
+                        Queue::Unordered => notification.timeout(),
+                        _ => None,
+                    }
+                    .map(|t| Timer::from_duration(Duration::from_millis(t)));
+
+                    if let Some(timer) = timer {
+                        notification.registration_token = self
+                            .loop_handle
+                            .insert_source(timer, move |_, _, moxnotify| {
+                                moxnotify.dismiss_by_id(old_id, Some(Reason::Expired));
+                                TimeoutAction::Drop
+                            })
+                            .ok();
+                    }
+                }
+            }
         }
     }
 
@@ -495,30 +512,6 @@ impl NotificationManager {
             .for_each(|n| n.set_position(x_offset, n.y));
 
         Ok(())
-    }
-
-    fn unhover_notification(&mut self, id: NotificationId) {
-        if let Some(index) = self.notifications.iter().position(|n| n.id() == id) {
-            if let Some(notification) = self.notifications.get_mut(index) {
-                notification.unhover();
-                let timer = match self.config.general.queue {
-                    Queue::FIFO if index == 0 => notification.timeout(),
-                    Queue::Unordered => notification.timeout(),
-                    _ => None,
-                }
-                .map(|t| Timer::from_duration(Duration::from_millis(t)));
-
-                if let Some(timer) = timer {
-                    notification.registration_token = self
-                        .loop_handle
-                        .insert_source(timer, move |_, _, moxnotify| {
-                            moxnotify.dismiss_by_id(id, Some(Reason::Expired));
-                            TimeoutAction::Drop
-                        })
-                        .ok();
-                }
-            }
-        }
     }
 
     pub fn dismiss(&mut self, id: NotificationId) {

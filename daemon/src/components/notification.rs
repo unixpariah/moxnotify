@@ -1,18 +1,16 @@
-pub mod icons;
-mod progress;
-
-use super::{config::Config, UiState};
+use super::button::{ButtonManager, ButtonType, Finished};
+use super::icons::Icons;
+use super::progress::Progress;
+use super::UiState;
 use crate::{
-    buffers,
-    button::{ButtonManager, ButtonType, Finished},
-    component::{Component, Data},
+    components::{Component, Data},
     config::{Size, StyleState},
-    text, Moxnotify, NotificationData, Urgency,
+    rendering::text_renderer,
+    utils::buffers,
+    Config, Moxnotify, NotificationData, Urgency,
 };
 use calloop::{LoopHandle, RegistrationToken};
 use glyphon::{FontSystem, TextArea, TextBounds};
-use icons::Icons;
-use progress::Progress;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 #[derive(Debug, Default)]
@@ -28,7 +26,7 @@ pub type NotificationId = u32;
 pub struct Notification {
     pub y: f32,
     pub x: f32,
-    pub text: text::Text,
+    pub text: text_renderer::Text,
     hovered: bool,
     config: Rc<Config>,
     pub icons: Icons,
@@ -59,7 +57,7 @@ impl Notification {
             return Self {
                 y: 0.,
                 x: 0.,
-                text: text::Text::new(&config.styles.default.font, font_system, ""),
+                text: text_renderer::Text::new(&config.styles.default.font, font_system, ""),
                 hovered: false,
                 config: Rc::clone(&config),
                 icons: Icons {
@@ -115,7 +113,7 @@ impl Notification {
             .as_ref()
             .map(|i| i.width as f32 + style.padding.right.resolve(0.))
             .unwrap_or(0.);
-        let text = text::Text::new_notification(
+        let text = text_renderer::Text::new_notification(
             &config.styles.default.font,
             font_system,
             &data.summary,

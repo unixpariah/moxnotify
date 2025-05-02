@@ -3,17 +3,16 @@ mod anchor;
 mod dismiss;
 
 use crate::{
-    buffers,
-    component::{Bounds, Component, Data},
+    components::{Bounds, Component, Data},
     config::{
         self,
         button::ButtonState,
         keymaps::{self, Mode},
         Config,
     },
-    notification_manager::{Reason, UiState},
-    surface::FocusReason,
-    text::{Anchor, Text},
+    manager::{Reason, UiState},
+    rendering::{surface, text_renderer, texture_renderer},
+    utils::buffers,
     EmitEvent, Moxnotify, Urgency,
 };
 use action::ActionButton;
@@ -99,13 +98,17 @@ impl ButtonManager<NotReady> {
         self.internal_add_actions(app_name, actions, font_system)
     }
 
-    pub fn add_anchors(self, anchors: &[Rc<Anchor>], font_system: &mut FontSystem) -> Self {
+    pub fn add_anchors(
+        self,
+        anchors: &[Rc<text_renderer::Anchor>],
+        font_system: &mut FontSystem,
+    ) -> Self {
         self.internal_add_anchors(anchors, font_system)
     }
 
     pub fn add_dismiss(mut self, font_system: &mut FontSystem) -> ButtonManager<Ready> {
         let font = &self.config.styles.default.buttons.dismiss.default.font;
-        let text = Text::new(font, font_system, "X");
+        let text = text_renderer::Text::new(font, font_system, "X");
 
         let tx = if let Some(loop_handle) = self.loop_handle.as_ref() {
             let (tx, rx) = calloop::channel::channel();
@@ -167,7 +170,11 @@ impl ButtonManager<Ready> {
         self.internal_add_actions(app_name, actions, font_system)
     }
 
-    pub fn add_anchors(self, anchors: &[Rc<Anchor>], font_system: &mut FontSystem) -> Self {
+    pub fn add_anchors(
+        self,
+        anchors: &[Rc<text_renderer::Anchor>],
+        font_system: &mut FontSystem,
+    ) -> Self {
         self.internal_add_anchors(anchors, font_system)
     }
 
@@ -341,7 +348,7 @@ impl ButtonManager<Finished> {
 impl<S> ButtonManager<S> {
     fn internal_add_anchors(
         mut self,
-        anchors: &[Rc<Anchor>],
+        anchors: &[Rc<text_renderer::Anchor>],
         font_system: &mut FontSystem,
     ) -> Self {
         if anchors.is_empty() {
@@ -364,7 +371,7 @@ impl<S> ButtonManager<S> {
                                     token,
                                 })
                                 .is_ok()
-                                && surface.focus_reason == Some(FocusReason::MouseEnter)
+                                && surface.focus_reason == Some(surface::FocusReason::MouseEnter)
                             {
                                 moxnotify.notifications.deselect();
                                 moxnotify.notifications.ui_state.borrow_mut().mode = Mode::Normal;
@@ -380,7 +387,7 @@ impl<S> ButtonManager<S> {
         };
 
         self.buttons.extend(anchors.iter().map(|anchor| {
-            let text = Text::new(font, font_system, "");
+            let text = text_renderer::Text::new(font, font_system, "");
             Box::new(AnchorButton {
                 id: self.id,
                 x: 0.,
@@ -454,7 +461,7 @@ impl<S> ButtonManager<S> {
             .cloned()
             .map(|action| {
                 let font = &self.config.styles.default.buttons.action.default.font;
-                let text = Text::new(font, font_system, &action.1);
+                let text = text_renderer::Text::new(font, font_system, &action.1);
 
                 Box::new(ActionButton {
                     id: self.id,
@@ -498,7 +505,7 @@ pub struct Hint {
     id: u32,
     combination: Box<str>,
     app_name: Arc<str>,
-    text: Text,
+    text: text_renderer::Text,
     config: Rc<Config>,
     ui_state: Rc<RefCell<UiState>>,
     x: f32,
@@ -522,7 +529,7 @@ impl Hint {
             app_name,
             combination: combination.as_ref().into(),
             ui_state,
-            text: Text::new(
+            text: text_renderer::Text::new(
                 &config.styles.default.font,
                 font_system,
                 combination.as_ref(),
@@ -657,14 +664,15 @@ impl Component for Hint {
         }]
     }
 
-    fn get_textures(&self) -> Vec<crate::texture_renderer::TextureArea> {
+    fn get_textures(&self) -> Vec<texture_renderer::TextureArea> {
         Vec::new()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{button::ButtonManager, notification_manager::UiState, Urgency};
+    use super::ButtonManager;
+    use crate::{manager::UiState, Urgency};
     use glyphon::FontSystem;
     use std::{cell::RefCell, rc::Rc};
 

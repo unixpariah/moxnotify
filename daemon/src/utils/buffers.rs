@@ -1,4 +1,4 @@
-use crate::math::{Mat4, Matrix};
+use super::math::{Mat4, Matrix};
 use wgpu::util::DeviceExt;
 
 pub trait DataDescription {

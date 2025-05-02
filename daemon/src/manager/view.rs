@@ -1,5 +1,7 @@
-use super::{notification::Notification, UiState};
-use crate::{buffers, config::Config, NotificationData};
+use super::UiState;
+use crate::{
+    components::notification::Notification, config::Config, utils::buffers, NotificationData,
+};
 use glyphon::{Attrs, FontSystem, TextArea, Weight};
 use std::{cell::RefCell, ops::Range, rc::Rc};
 

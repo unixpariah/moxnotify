@@ -1,4 +1,4 @@
-use crate::{config::keymaps::Mode, surface::FocusReason, Moxnotify};
+use crate::{config::keymaps::Mode, rendering::surface::FocusReason, Moxnotify};
 use wayland_client::{
     delegate_noop,
     globals::GlobalList,

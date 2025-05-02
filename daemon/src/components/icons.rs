@@ -1,9 +1,10 @@
 use crate::{
-    component::{Bounds, Component},
+    components::{Bounds, Component},
     config::{Config, StyleState},
-    image_data::ImageData,
-    notification_manager::UiState,
-    texture_renderer::{TextureArea, TextureBounds},
+    manager::UiState,
+    rendering::texture_renderer::{self, TextureArea, TextureBounds},
+    utils::buffers,
+    utils::image_data::ImageData,
     Image,
 };
 use resvg::usvg;
@@ -158,7 +159,7 @@ impl Component for Icons {
         }
     }
 
-    fn get_instances(&self, _: &crate::Urgency) -> Vec<crate::buffers::Instance> {
+    fn get_instances(&self, _: &crate::Urgency) -> Vec<buffers::Instance> {
         Vec::new()
     }
 
@@ -196,7 +197,7 @@ impl Component for Icons {
         self.y = y;
     }
 
-    fn get_textures(&self) -> Vec<crate::texture_renderer::TextureArea> {
+    fn get_textures(&self) -> Vec<texture_renderer::TextureArea> {
         let mut texture_areas = Vec::new();
 
         let style = self.config.find_style(

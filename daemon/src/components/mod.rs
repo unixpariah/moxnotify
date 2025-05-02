@@ -1,8 +1,14 @@
+pub mod button;
+pub mod icons;
+pub mod notification;
+pub mod progress;
+
 use crate::{
-    buffers,
     config::{Config, StyleState},
-    notification_manager::UiState,
-    texture_renderer, Urgency,
+    manager::UiState,
+    rendering::texture_renderer,
+    utils::buffers,
+    Urgency,
 };
 
 pub enum Data<'a> {

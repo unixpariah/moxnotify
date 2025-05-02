@@ -1,38 +1,37 @@
 use super::{Button, ButtonType, Hint, State};
 use crate::{
-    buffers,
-    component::{Bounds, Component},
+    components::{Bounds, Component},
     config::{button::ButtonState, Config},
-    notification_manager::UiState,
-    text::Text,
+    manager::UiState,
+    rendering::text_renderer,
+    rendering::texture_renderer,
+    utils::buffers,
     Urgency,
 };
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
-pub struct ActionButton {
+pub struct DismissButton {
     pub id: u32,
-    pub app_name: Arc<str>,
-    pub ui_state: Rc<RefCell<UiState>>,
     pub x: f32,
     pub y: f32,
     pub hint: Hint,
     pub config: Rc<Config>,
-    pub text: Text,
-    pub action: Arc<str>,
+    pub text: text_renderer::Text,
     pub state: State,
-    pub width: f32,
-    pub tx: Option<calloop::channel::Sender<(u32, Arc<str>)>>,
+    pub ui_state: Rc<RefCell<UiState>>,
+    pub tx: Option<calloop::channel::Sender<u32>>,
+    pub app_name: Arc<str>,
 }
 
-impl Component for ActionButton {
+impl Component for DismissButton {
     type Style = ButtonState;
-
-    fn get_config(&self) -> &Config {
-        &self.config
-    }
 
     fn get_id(&self) -> u32 {
         self.id
+    }
+
+    fn get_config(&self) -> &Config {
+        &self.config
     }
 
     fn get_app_name(&self) -> &str {
@@ -41,6 +40,14 @@ impl Component for ActionButton {
 
     fn get_ui_state(&self) -> std::cell::Ref<'_, UiState> {
         self.ui_state.borrow()
+    }
+
+    fn get_style(&self) -> &Self::Style {
+        let style = self.get_notification_style();
+        match self.state() {
+            State::Unhovered => &style.buttons.dismiss.default,
+            State::Hovered => &style.buttons.dismiss.hover,
+        }
     }
 
     fn get_instances(&self, urgency: &Urgency) -> Vec<buffers::Instance> {
@@ -108,20 +115,11 @@ impl Component for ActionButton {
         }]
     }
 
-    fn get_style(&self) -> &Self::Style {
-        let style = self.get_notification_style();
-
-        match self.state() {
-            State::Unhovered => &style.buttons.action.default,
-            State::Hovered => &style.buttons.action.hover,
-        }
-    }
-
     fn get_bounds(&self) -> Bounds {
         let style = self.get_style();
         let text_extents = self.text.extents();
 
-        let width = style.width.resolve(self.width)
+        let width = style.width.resolve(text_extents.0)
             + style.border.size.left
             + style.border.size.right
             + style.padding.left
@@ -161,24 +159,22 @@ impl Component for ActionButton {
         self.x = x;
         self.y = y;
         self.text.set_buffer_position(x, y);
-
-        let bounds = self.get_render_bounds();
-        self.hint.set_position(bounds.x, bounds.y);
+        self.hint.set_position(x, y);
     }
 
-    fn get_textures(&self) -> Vec<crate::texture_renderer::TextureArea> {
+    fn get_textures(&self) -> Vec<texture_renderer::TextureArea> {
         Vec::new()
     }
 }
 
-impl Button for ActionButton {
+impl Button for DismissButton {
     fn hint(&self) -> &Hint {
         &self.hint
     }
 
     fn click(&self) {
         if let Some(tx) = self.tx.as_ref() {
-            _ = tx.send((self.id, Arc::clone(&self.action)));
+            _ = tx.send(self.id);
         }
     }
 
@@ -187,7 +183,7 @@ impl Button for ActionButton {
     }
 
     fn button_type(&self) -> ButtonType {
-        ButtonType::Action
+        ButtonType::Dismiss
     }
 
     fn state(&self) -> State {
@@ -209,19 +205,18 @@ impl Button for ActionButton {
 
 #[cfg(test)]
 mod tests {
+    use super::DismissButton;
     use crate::{
-        button::{Button, Hint},
+        components::button::{Button, Hint, State},
         config::Config,
-        notification_manager::UiState,
-        text::Text,
+        manager::UiState,
+        rendering::text_renderer::Text,
     };
     use glyphon::FontSystem;
-    use std::{cell::RefCell, rc::Rc, sync::Arc};
-
-    use super::ActionButton;
+    use std::{cell::RefCell, rc::Rc};
 
     #[test]
-    fn test_action_button() {
+    fn test_dismiss_button() {
         let config = Rc::new(Config::default());
         let ui_state = Rc::new(RefCell::new(UiState::default()));
         let hint = Hint::new(
@@ -235,101 +230,22 @@ mod tests {
 
         let (tx, rx) = calloop::channel::channel();
         let test_id = 10;
-        let test_action: Arc<str> = "test".into();
-        let button = ActionButton {
+        let button = DismissButton {
             id: test_id,
+            app_name: "".into(),
             x: 0.,
             y: 0.,
             hint,
             text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
-            state: crate::button::State::Hovered,
+            state: State::Unhovered,
             config: Rc::clone(&config),
             ui_state: Rc::clone(&ui_state),
             tx: Some(tx),
-            width: 100.,
-            action: Arc::clone(&test_action),
-            app_name: "".into(),
         };
 
         button.click();
 
-        let (id, action) = rx.try_recv().unwrap();
+        let id = rx.try_recv().unwrap();
         assert_eq!(id, test_id, "Button click should send button ID");
-        assert_eq!(action, test_action, "Button click should send button ID");
-    }
-
-    #[test]
-    fn test_multiple_action_buttons() {
-        let config = Rc::new(Config::default());
-        let ui_state = Rc::new(RefCell::new(UiState::default()));
-
-        let (tx, text_rx1) = calloop::channel::channel();
-
-        let test_id1 = 1;
-        let test_action1: Arc<str> = "test1".into();
-        let hint = Hint::new(
-            0,
-            "",
-            "".into(),
-            Rc::clone(&config),
-            &mut FontSystem::new(),
-            Rc::clone(&ui_state),
-        );
-
-        let button1 = ActionButton {
-            id: test_id1,
-            x: 0.,
-            y: 0.,
-            hint,
-            text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
-            state: crate::button::State::Hovered,
-            config: Rc::clone(&config),
-            ui_state: Rc::clone(&ui_state),
-            tx: Some(tx.clone()),
-            width: 100.,
-            action: Arc::clone(&test_action1),
-            app_name: "".into(),
-        };
-
-        let (tx, text_rx2) = calloop::channel::channel();
-
-        let test_id2 = 2;
-        let test_action2: Arc<str> = "test2".into();
-        let hint = Hint::new(
-            0,
-            "",
-            "".into(),
-            Rc::clone(&config),
-            &mut FontSystem::new(),
-            Rc::clone(&ui_state),
-        );
-        let button2 = ActionButton {
-            id: test_id2,
-            x: 0.,
-            y: 0.,
-            hint,
-            text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
-            state: crate::button::State::Hovered,
-            config: Rc::clone(&config),
-            ui_state: Rc::clone(&ui_state),
-            tx: Some(tx.clone()),
-            width: 100.,
-            action: Arc::clone(&test_action2),
-            app_name: "".into(),
-        };
-
-        button1.click();
-        let (id, action) = text_rx1.try_recv().unwrap();
-        assert_eq!(id, test_id1, "Button click should send button ID");
-        assert_eq!(action, test_action1, "Button click should send button ID");
-
-        assert!(text_rx2.try_recv().is_err());
-
-        button2.click();
-        let (id, action) = text_rx2.try_recv().unwrap();
-        assert_eq!(id, test_id2, "Button click should send button ID");
-        assert_eq!(action, test_action2, "Button click should send button ID");
-
-        assert!(text_rx1.try_recv().is_err());
     }
 }

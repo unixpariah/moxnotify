@@ -1,8 +1,9 @@
 use crate::{
-    buffers,
-    component::{Bounds, Component},
+    components::{Bounds, Component},
     config::{self, border::BorderRadius, Config, Insets, Size},
-    notification_manager::UiState,
+    manager::UiState,
+    rendering::texture_renderer,
+    utils::buffers,
     Urgency,
 };
 use std::{cell::RefCell, rc::Rc, sync::Arc};
@@ -203,7 +204,7 @@ impl Component for Progress {
         instances
     }
 
-    fn get_textures(&self) -> Vec<crate::texture_renderer::TextureArea> {
+    fn get_textures(&self) -> Vec<texture_renderer::TextureArea> {
         Vec::new()
     }
 }
@@ -236,7 +237,7 @@ impl Progress {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{notification_manager::UiState, Urgency};
+    use crate::Urgency;
     use std::{cell::RefCell, rc::Rc, sync::Arc};
 
     fn create_test_progress(value: i32) -> Progress {
