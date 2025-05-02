@@ -2,6 +2,7 @@ pub mod button;
 pub mod icons;
 pub mod notification;
 pub mod progress;
+pub mod text;
 
 use crate::{
     config::{Config, StyleState},
@@ -16,7 +17,7 @@ pub enum Data<'a> {
     TextArea(glyphon::TextArea<'a>),
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Bounds {
     pub x: f32,
     pub y: f32,

@@ -411,6 +411,12 @@ impl Icon {
         if let Some(border) = partial.border.as_ref() {
             self.border.apply(border);
         }
+        if let Some(margin) = partial.margin.as_ref() {
+            self.margin.apply(margin);
+        }
+        if let Some(padding) = partial.padding.as_ref() {
+            self.padding.apply(padding);
+        }
     }
 }
 

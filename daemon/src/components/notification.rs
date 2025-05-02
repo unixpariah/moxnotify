@@ -108,18 +108,14 @@ impl Notification {
         .add_dismiss(font_system)
         .add_actions(&data.actions, font_system);
 
-        let icon_width = icons
-            .icon
-            .as_ref()
-            .map(|i| i.width as f32 + style.padding.right.resolve(0.))
-            .unwrap_or(0.);
+        let icon_bounds = icons.get_bounds();
         let text = text_renderer::Text::new_notification(
             &config.styles.default.font,
             font_system,
             &data.summary,
             data.body.to_string(),
             config.styles.default.width.resolve(0.)
-                - icon_width
+                - icon_bounds.width
                 - buttons
                     .buttons()
                     .first()
@@ -194,7 +190,6 @@ impl Notification {
     pub fn set_position(&mut self, x: f32, y: f32) {
         self.x = x;
         self.y = y;
-        self.update_text_position();
 
         let extents = self.rendered_extents();
         let hovered = self.hovered();
@@ -336,6 +331,8 @@ impl Notification {
                 .filter(|b| b.button_type() == ButtonType::Anchor)
                 .for_each(|button| button.set_position(base_x + icons_width, extents.y));
         }
+
+        self.update_text_position();
     }
 
     pub fn text_extents(&self) -> Extents {
@@ -553,29 +550,22 @@ impl Notification {
 
         let style = self.style();
 
-        let icon_width_positioning = self
-            .icons
-            .icon
-            .as_ref()
-            .map(|i| i.width as f32 + style.padding.left)
-            .unwrap_or(0.);
+        let icon_bounds = self.icons.get_bounds();
 
         let mut res = vec![TextArea {
             buffer: &self.text.buffer,
-            left: extents.x + style.border.size.left + style.padding.left + icon_width_positioning,
+            left: extents.x + style.border.size.left + style.padding.left + icon_bounds.width,
             top: extents.y + style.border.size.top + style.padding.top,
             scale: self.ui_state.borrow().scale,
             bounds: TextBounds {
-                left: (extents.x
-                    + style.border.size.left
-                    + style.padding.left
-                    + icon_width_positioning) as i32,
+                left: (extents.x + style.border.size.left + style.padding.left + icon_bounds.width)
+                    as i32,
                 top: (extents.y + style.border.size.top + style.padding.top) as i32,
                 right: (extents.x
                     + style.border.size.left
                     + width
                     + style.padding.left
-                    + icon_width_positioning) as i32,
+                    + icon_bounds.width) as i32,
                 bottom: (extents.y
                     + style.border.size.top
                     + height.min(self.height())

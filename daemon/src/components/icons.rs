@@ -159,14 +159,6 @@ impl Component for Icons {
         }
     }
 
-    fn get_instances(&self, _: &crate::Urgency) -> Vec<buffers::Instance> {
-        Vec::new()
-    }
-
-    fn get_text_areas(&self, _: &crate::Urgency) -> Vec<glyphon::TextArea> {
-        Vec::new()
-    }
-
     fn get_render_bounds(&self) -> Bounds {
         let style = self.config.find_style(
             &self.app_name,
@@ -190,6 +182,14 @@ impl Component for Icons {
             width,
             height,
         }
+    }
+
+    fn get_instances(&self, _: &crate::Urgency) -> Vec<buffers::Instance> {
+        Vec::new()
+    }
+
+    fn get_text_areas(&self, _: &crate::Urgency) -> Vec<glyphon::TextArea> {
+        Vec::new()
     }
 
     fn set_position(&mut self, x: f32, y: f32) {
