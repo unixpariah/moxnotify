@@ -33,6 +33,7 @@ in
             "prev_counter"
             "notification"
             "hints"
+            "summary"
           ];
           style.background = {
             urgency_low = base00 + moxnotifyOpacity;
@@ -42,7 +43,10 @@ in
         }
 
         {
-          selector = "notification";
+          selector = [
+            "notification"
+            "summary"
+          ];
           state = "hover";
           style.background = {
             urgency_low = base02 + moxnotifyOpacity;

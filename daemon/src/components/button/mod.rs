@@ -568,7 +568,7 @@ impl Component for Hint {
         let style = self.get_style();
         let text_extents = self.text.extents();
 
-        let width = style.width.resolve(text_extents.0)
+        let width = style.width.resolve(text_extents.width)
             + style.border.size.left
             + style.border.size.right
             + style.padding.left
@@ -576,7 +576,7 @@ impl Component for Hint {
             + style.margin.left
             + style.margin.right;
 
-        let height = style.height.resolve(text_extents.1)
+        let height = style.height.resolve(text_extents.height)
             + style.border.size.top
             + style.border.size.bottom
             + style.padding.top
@@ -629,7 +629,7 @@ impl Component for Hint {
         let text_extents = self.text.extents();
         let bounds = self.get_render_bounds();
 
-        let remaining_padding = style.width.resolve(text_extents.0) - text_extents.0;
+        let remaining_padding = style.width.resolve(text_extents.width) - text_extents.width;
         let (pl, _) = match (style.padding.left.is_auto(), style.padding.right.is_auto()) {
             (true, true) => (remaining_padding / 2., remaining_padding / 2.),
             (true, false) => (remaining_padding, style.padding.right.resolve(0.)),
@@ -638,7 +638,7 @@ impl Component for Hint {
                 style.padding.right.resolve(0.),
             ),
         };
-        let remaining_padding = style.height.resolve(text_extents.1) - text_extents.1;
+        let remaining_padding = style.height.resolve(text_extents.height) - text_extents.height;
         let (pt, _) = match (style.padding.top.is_auto(), style.padding.bottom.is_auto()) {
             (true, true) => (remaining_padding / 2., remaining_padding / 2.),
             (true, false) => (remaining_padding, style.padding.bottom.resolve(0.)),

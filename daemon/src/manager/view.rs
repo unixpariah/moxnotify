@@ -1,8 +1,11 @@
 use super::UiState;
 use crate::{
-    components::notification::Notification, config::Config, utils::buffers, NotificationData,
+    components::{notification::Notification, text::Text, Component},
+    config::Config,
+    utils::buffers,
+    NotificationData,
 };
-use glyphon::{Attrs, FontSystem, TextArea, Weight};
+use glyphon::{FontSystem, TextArea};
 use std::{cell::RefCell, ops::Range, rc::Rc};
 
 pub struct NotificationView {
@@ -62,7 +65,6 @@ impl NotificationView {
     }
 
     pub fn update_notification_count(&mut self, mut total_height: f32, notification_count: usize) {
-        let mut font_system = self.font_system.borrow_mut();
         if self.visible.start > 0 {
             let summary = self
                 .config
@@ -71,17 +73,11 @@ impl NotificationView {
                 .format
                 .replace("{}", &self.visible.start.to_string());
             if let Some(notification) = &mut self.prev {
-                let attrs = Attrs::new()
-                    .family(glyphon::Family::Name(&self.config.styles.next.font.family))
-                    .weight(Weight::BOLD);
-
-                notification.text.buffer.set_text(
-                    &mut font_system,
-                    &summary,
-                    &attrs,
-                    glyphon::Shaping::Advanced,
-                );
+                let mut font_system = self.font_system.borrow_mut();
+                notification.summary.set_text(&mut font_system, &summary);
+                notification.set_position(0., 0.);
             } else {
+                let mut font_system = self.font_system.borrow_mut();
                 self.prev = Some(Notification::new(
                     Rc::clone(&self.config),
                     &mut font_system,
@@ -116,19 +112,12 @@ impl NotificationView {
                     .to_string(),
             );
             if let Some(notification) = &mut self.next {
-                let attrs = Attrs::new()
-                    .family(glyphon::Family::Name(&self.config.styles.prev.font.family))
-                    .weight(Weight::BOLD);
-
-                notification.text.buffer.set_text(
-                    &mut font_system,
-                    &summary,
-                    &attrs,
-                    glyphon::Shaping::Advanced,
-                );
+                let mut font_system = self.font_system.borrow_mut();
+                notification.summary.set_text(&mut font_system, &summary);
                 notification
                     .set_position(notification.x, total_height - notification.extents().height);
             } else {
+                let mut font_system = self.font_system.borrow_mut();
                 let mut next = Notification::new(
                     Rc::clone(&self.config),
                     &mut font_system,
@@ -164,7 +153,12 @@ impl NotificationView {
                 scale: self.ui_state.borrow().scale,
             };
 
-            return Some((instance, prev.text_areas().swap_remove(0)));
+            return Some((
+                instance,
+                prev.summary
+                    .get_text_areas(&crate::Urgency::Low)
+                    .swap_remove(0),
+            ));
         }
 
         None
@@ -187,7 +181,12 @@ impl NotificationView {
                 scale: self.ui_state.borrow().scale,
             };
 
-            return Some((instance, next.text_areas().swap_remove(0)));
+            return Some((
+                instance,
+                next.summary
+                    .get_text_areas(&crate::Urgency::Low)
+                    .swap_remove(0),
+            ));
         }
 
         None

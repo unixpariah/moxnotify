@@ -78,30 +78,18 @@ impl Text {
         }
     }
 
-    pub fn new_notification<T>(
+    pub fn new_notification(
         font: &Font,
         font_system: &mut FontSystem,
-        summary: T,
         mut body: String,
         max_width: f32,
-    ) -> Self
-    where
-        T: AsRef<str>,
-    {
+    ) -> Self {
         let attrs = Attrs::new().family(glyphon::Family::Name(&font.family));
         let mut spans = vec![];
         let mut anchors = Vec::new();
         let mut anchor_stack: Vec<Anchor> = Vec::new();
 
-        if !summary.as_ref().is_empty() {
-            spans.push((summary.as_ref(), attrs.clone().weight(Weight::BOLD)));
-        }
-
-        if !summary.as_ref().is_empty() && !body.is_empty() {
-            spans.push(("\n\n", attrs.clone()));
-        }
-
-        let mut start_pos = summary.as_ref().len();
+        let mut start_pos = 0;
         if !body.is_empty() {
             let mut style_stack = Vec::new();
             let mut current_attrs = attrs.clone();
@@ -247,7 +235,7 @@ impl Text {
         self.y = y;
     }
 
-    pub fn extents(&self) -> (f32, f32) {
+    pub fn extents(&self) -> Extents {
         let (width, total_lines) = self
             .buffer
             .layout_runs()
@@ -255,7 +243,12 @@ impl Text {
                 (run.line_w.max(width), total_lines + 1.0)
             });
 
-        (width, total_lines * self.buffer.metrics().line_height)
+        Extents {
+            x: self.x,
+            y: self.y,
+            width,
+            height: total_lines * self.buffer.metrics().line_height,
+        }
     }
 }
 

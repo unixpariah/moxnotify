@@ -3,6 +3,7 @@ pub mod button;
 pub mod color;
 pub mod keymaps;
 pub mod partial;
+pub mod text;
 
 use border::{Border, BorderRadius};
 use button::{Button, ButtonState, Buttons};
@@ -18,6 +19,7 @@ use std::{
     rc::Rc,
     sync::Arc,
 };
+use text::Summary;
 
 #[derive(Default, Clone)]
 pub struct SoundFile {
@@ -273,6 +275,7 @@ pub enum Selector {
     Progress,
     Icon,
     Hints,
+    Summary,
 }
 
 impl<'de> Deserialize<'de> for Selector {
@@ -291,6 +294,7 @@ impl<'de> Deserialize<'de> for Selector {
             "progress" => Ok(Selector::Progress),
             "icon" => Ok(Selector::Icon),
             "hints" => Ok(Selector::Hints),
+            "summary" => Ok(Selector::Summary),
             _ => {
                 if let Some(notification) = s.strip_prefix("notification:") {
                     Ok(Selector::Notification(notification.into()))
@@ -313,7 +317,7 @@ impl<'de> Deserialize<'de> for Selector {
     }
 }
 
-#[derive(Default, Clone, Copy, Deserialize)]
+#[derive(Default, Clone, Copy, Deserialize, Debug)]
 #[serde(default)]
 pub struct Insets {
     pub left: Size,
@@ -428,7 +432,10 @@ impl Default for Icon {
                 size: Insets::size(Size::Value(0.)),
                 radius: BorderRadius::default(),
             },
-            margin: Insets::default(),
+            margin: Insets {
+                right: Size::Value(10.),
+                ..Default::default()
+            },
             padding: Insets::default(),
         }
     }
@@ -635,6 +642,7 @@ pub struct StyleState {
     pub app_icon: Icon,
     pub progress: Progress,
     pub buttons: Buttons,
+    pub summary: Summary,
 }
 
 impl StyleState {
@@ -679,6 +687,7 @@ impl StyleState {
 impl Default for StyleState {
     fn default() -> Self {
         Self {
+            summary: Summary::default(),
             hint: Hint::default(),
             background: Color {
                 urgency_low: [26, 27, 38, 255],
@@ -742,6 +751,7 @@ impl<'de> Deserialize<'de> for Styles {
                     (Selector::PrevCounter, _) => 20,
                     (Selector::NextCounter, _) => 21,
                     (Selector::Hints, _) => 22,
+                    (Selector::Summary, _) => 23,
                 }
             }
 
@@ -796,6 +806,9 @@ impl<'de> Deserialize<'de> for Styles {
 
                     styles.default.hint.apply(&style.style);
                     styles.hover.hint.apply(&style.style);
+
+                    styles.default.summary.apply(&style.style);
+                    styles.hover.summary.apply(&style.style);
                 }
                 (Selector::Hints, _) => {
                     styles.default.hint.apply(&style.style);
@@ -803,6 +816,32 @@ impl<'de> Deserialize<'de> for Styles {
                 }
                 (Selector::NextCounter, _) => styles.next.apply(&style.style),
                 (Selector::PrevCounter, _) => styles.prev.apply(&style.style),
+                (Selector::Summary, State::ContainerHover) => {
+                    styles.default.summary.apply(&style.style);
+                    styles.hover.summary.apply(&style.style);
+                }
+                (Selector::Summary, State::NamedContainerHover(app_name)) => {
+                    if let Some(notification) = styles
+                        .notification
+                        .iter_mut()
+                        .find(|notification| *notification.app == **app_name)
+                    {
+                        notification.hover.summary.apply(&style.style);
+                    } else {
+                        let mut notification = NotificationStyleEntry {
+                            default: styles.default.clone(),
+                            hover: styles.hover.clone(),
+                            app: (&**app_name).into(),
+                            ..Default::default()
+                        };
+                        notification.hover.summary.apply(&style.style);
+                        styles.notification.push(notification);
+                    }
+                }
+                (Selector::Summary, _) => {
+                    styles.default.summary.apply(&style.style);
+                    styles.hover.summary.apply(&style.style);
+                }
                 (Selector::Progress, State::ContainerHover) => {
                     styles.hover.progress.apply(&style.style);
                 }

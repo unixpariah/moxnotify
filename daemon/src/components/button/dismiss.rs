@@ -73,7 +73,7 @@ impl Component for DismissButton {
         let style = self.get_style();
         let text_extents = self.text.extents();
 
-        let remaining_padding = extents.width - text_extents.0;
+        let remaining_padding = extents.width - text_extents.width;
         let (pl, _) = match (style.padding.left.is_auto(), style.padding.right.is_auto()) {
             (true, true) => (remaining_padding / 2., remaining_padding / 2.),
             (true, false) => (remaining_padding, style.padding.right.resolve(0.)),
@@ -83,7 +83,7 @@ impl Component for DismissButton {
             ),
         };
 
-        let remaining_padding = extents.height - text_extents.1;
+        let remaining_padding = extents.height - text_extents.height;
         let (pt, _) = match (style.padding.top.is_auto(), style.padding.bottom.is_auto()) {
             (true, true) => (remaining_padding / 2., remaining_padding / 2.),
             (true, false) => (remaining_padding, style.padding.bottom.resolve(0.)),
@@ -104,11 +104,11 @@ impl Component for DismissButton {
                 right: (extents.x
                     + style.border.size.left
                     + style.padding.left.resolve(pl)
-                    + text_extents.0) as i32,
+                    + text_extents.width) as i32,
                 bottom: (extents.y
                     + style.border.size.top
                     + style.padding.top.resolve(pt)
-                    + text_extents.1) as i32,
+                    + text_extents.height) as i32,
             },
             custom_glyphs: &[],
             default_color: style.font.color.into_glyphon(urgency),
@@ -119,7 +119,7 @@ impl Component for DismissButton {
         let style = self.get_style();
         let text_extents = self.text.extents();
 
-        let width = style.width.resolve(text_extents.0)
+        let width = style.width.resolve(text_extents.width)
             + style.border.size.left
             + style.border.size.right
             + style.padding.left
@@ -127,7 +127,7 @@ impl Component for DismissButton {
             + style.margin.left
             + style.margin.right;
 
-        let height = style.height.resolve(text_extents.1)
+        let height = style.height.resolve(text_extents.height)
             + style.border.size.top
             + style.border.size.bottom
             + style.padding.top
