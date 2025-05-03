@@ -4,7 +4,8 @@ use super::progress::Progress;
 use super::text::body::Body;
 use super::text::summary::Summary;
 use super::text::Text;
-use super::UiState;
+use super::{Bounds, UiState};
+use crate::rendering::texture_renderer;
 use crate::{
     components::{Component, Data},
     config::{Size, StyleState},
@@ -13,7 +14,7 @@ use crate::{
     Config, Moxnotify, NotificationData, Urgency,
 };
 use calloop::{LoopHandle, RegistrationToken};
-use glyphon::{FontSystem, TextArea};
+use glyphon::FontSystem;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 #[derive(Debug, Default)]
@@ -47,6 +48,286 @@ impl PartialEq for Notification {
     }
 }
 
+impl Component for Notification {
+    type Style = StyleState;
+
+    fn get_config(&self) -> &Config {
+        &self.config
+    }
+
+    fn get_app_name(&self) -> &str {
+        &self.data.app_name
+    }
+
+    fn get_id(&self) -> u32 {
+        self.data.id
+    }
+
+    fn get_ui_state(&self) -> std::cell::Ref<'_, UiState> {
+        self.ui_state.borrow()
+    }
+
+    fn get_style(&self) -> &Self::Style {
+        self.get_notification_style()
+    }
+
+    fn get_bounds(&self) -> Bounds {
+        let style = self.get_style();
+
+        Bounds {
+            x: 0.,
+            y: self.y,
+            width: self.width()
+                + style.border.size.left
+                + style.border.size.right
+                + style.padding.left
+                + style.padding.right
+                + style.margin.left
+                + style.margin.right,
+            height: self.height()
+                + style.border.size.top
+                + style.border.size.bottom
+                + style.padding.top
+                + style.padding.bottom
+                + style.margin.top
+                + style.margin.bottom,
+        }
+    }
+
+    fn get_render_bounds(&self) -> Bounds {
+        let extents = self.get_bounds();
+        let style = self.get_style();
+
+        Bounds {
+            x: extents.x + style.margin.left + self.x + self.data.hints.x as f32,
+            y: extents.y + style.margin.top,
+            width: extents.width - style.margin.left - style.margin.right,
+            height: extents.height - style.margin.top - style.margin.bottom,
+        }
+    }
+
+    fn get_instances(&self, urgency: &Urgency) -> Vec<buffers::Instance> {
+        let extents = self.get_render_bounds();
+        let style = self.get_style();
+
+        vec![buffers::Instance {
+            rect_pos: [extents.x, extents.y],
+            rect_size: [
+                extents.width - style.border.size.left - style.border.size.right,
+                extents.height - style.border.size.top - style.border.size.bottom,
+            ],
+            rect_color: style.background.to_linear(urgency),
+            border_radius: style.border.radius.into(),
+            border_size: style.border.size.into(),
+            border_color: style.border.color.to_linear(urgency),
+            scale: self.ui_state.borrow().scale,
+        }]
+    }
+
+    fn get_text_areas(&self, _: &Urgency) -> Vec<glyphon::TextArea> {
+        Vec::new()
+    }
+
+    fn get_textures(&self) -> Vec<texture_renderer::TextureArea> {
+        Vec::new()
+    }
+
+    fn set_position(&mut self, x: f32, y: f32) {
+        self.x = x;
+        self.y = y;
+
+        let extents = self.get_render_bounds();
+        let hovered = self.hovered();
+        let style = self.config.find_style(&self.data.app_name, hovered);
+
+        // Common offset calculations
+        let x_offset = style.border.size.left + style.padding.left;
+        let y_offset = style.border.size.top + style.padding.top;
+
+        // Get action buttons for reuse
+        let action_buttons_count = self
+            .buttons
+            .buttons()
+            .iter()
+            .filter(|button| button.button_type() == ButtonType::Action)
+            .count();
+
+        let max_action_button_height = self
+            .buttons
+            .buttons()
+            .iter()
+            .filter(|button| button.button_type() == ButtonType::Action)
+            .map(|button| button.get_bounds().height)
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap_or_default();
+
+        // Position icons
+        {
+            let progress_height = self
+                .progress
+                .as_ref()
+                .map(|p| p.get_bounds().height)
+                .unwrap_or_default();
+
+            let available_height = extents.height
+                - style.border.size.top
+                - style.border.size.bottom
+                - style.padding.top
+                - style.padding.bottom
+                - progress_height
+                - max_action_button_height;
+
+            let vertical_offset = (available_height - self.config.general.icon_size as f32) / 2.0;
+            let icon_x = extents.x + x_offset;
+            let icon_y = extents.y + y_offset + vertical_offset;
+
+            self.icons.set_position(icon_x, icon_y);
+        }
+
+        // Position summary
+        self.summary.set_position(
+            extents.x + x_offset + self.icons.get_bounds().width,
+            extents.y + y_offset,
+        );
+
+        // Position progress indicator if present
+        if let Some(progress) = self.progress.as_mut() {
+            let available_width = extents.width
+                - style.border.size.left
+                - style.border.size.right
+                - style.padding.left
+                - style.padding.right
+                - style.progress.margin.left
+                - style.progress.margin.right;
+
+            progress.set_width(available_width);
+
+            // Update style if selected
+            let is_selected = self.ui_state.borrow().selected == Some(self.data.id);
+            let selected_style = self.config.find_style(&self.data.app_name, is_selected);
+
+            // Position progress at the bottom
+            let progress_x =
+                extents.x + selected_style.border.size.left + selected_style.padding.left;
+            let progress_y = extents.y + extents.height
+                - selected_style.border.size.bottom
+                - selected_style.padding.bottom
+                - progress.get_bounds().height;
+
+            progress.set_position(progress_x, progress_y);
+        }
+
+        // Find and position dismiss button if present, get its bottom y-coordinate
+        let dismiss_bottom_y = self
+            .buttons
+            .buttons_mut()
+            .iter_mut()
+            .find(|button| button.button_type() == ButtonType::Dismiss)
+            .map(|button| {
+                let dismiss_x = extents.x + extents.width
+                    - style.border.size.right
+                    - style.padding.right
+                    - button.get_bounds().width;
+
+                let dismiss_y =
+                    extents.y + style.margin.top + style.border.size.top + style.padding.top;
+
+                button.set_position(dismiss_x, dismiss_y);
+                button.get_bounds().y + button.get_bounds().height
+            })
+            .unwrap_or(0.0);
+
+        // Position action buttons
+        if action_buttons_count > 0 {
+            // Get button style once
+            let button_style = self
+                .buttons
+                .buttons()
+                .iter()
+                .find(|button| button.button_type() == ButtonType::Action)
+                .map(|button| button.get_style())
+                .unwrap_or_else(|| &style.buttons.action.default);
+
+            // Calculate widths and positions
+            let side_padding = style.border.size.left
+                + style.border.size.right
+                + style.padding.left
+                + style.padding.right;
+
+            let button_margin = button_style.margin.left + button_style.margin.right;
+            let available_width = extents.width - side_padding - button_margin;
+
+            let action_buttons_f32 = action_buttons_count as f32;
+            let total_spacing = (action_buttons_f32 - 1.0) * button_margin;
+            let button_width = (available_width - total_spacing) / action_buttons_f32;
+
+            // Set all action button widths
+            self.buttons.set_action_widths(button_width);
+
+            // Calculate base position
+            let progress_height = self
+                .progress
+                .as_ref()
+                .map(|p| p.get_bounds().height)
+                .unwrap_or_default();
+
+            let base_x = extents.x + style.border.size.left + style.padding.left;
+            let bottom_padding = style.border.size.bottom + style.padding.bottom + progress_height;
+
+            // Position each action button
+            self.buttons
+                .buttons_mut()
+                .iter_mut()
+                .filter(|b| b.button_type() == ButtonType::Action)
+                .enumerate()
+                .for_each(|(i, button)| {
+                    let x_position = base_x + (button_width + button_margin) * i as f32;
+                    let y_position =
+                        (extents.y + extents.height - bottom_padding - button.get_bounds().height)
+                            .max(dismiss_bottom_y);
+
+                    button.set_position(x_position, y_position);
+                });
+
+            // Position anchor buttons
+            self.buttons
+                .buttons_mut()
+                .iter_mut()
+                .filter(|b| b.button_type() == ButtonType::Anchor)
+                .for_each(|button| {
+                    button.set_position(self.body.get_bounds().x, self.summary.get_bounds().y)
+                });
+        }
+
+        // Position body
+        let bounds = self.get_render_bounds();
+        self.body.set_position(
+            bounds.x + x_offset + self.icons.get_bounds().width,
+            bounds.y + y_offset + self.summary.get_bounds().height,
+        );
+    }
+
+    fn get_data(&self, urgency: &Urgency) -> Vec<Data> {
+        let mut data = self
+            .get_instances(urgency)
+            .into_iter()
+            .map(Data::Instance)
+            .chain(self.get_text_areas(urgency).into_iter().map(Data::TextArea))
+            .collect::<Vec<_>>();
+
+        if let Some(progress) = self.progress.as_ref() {
+            data.extend(progress.get_data(urgency));
+        }
+
+        data.extend(self.icons.get_data(urgency));
+        data.extend(self.buttons.data());
+        data.extend(self.summary.get_data(urgency));
+        data.extend(self.body.get_data(urgency));
+
+        data
+    }
+}
+
 impl Notification {
     pub fn new(
         config: Rc<Config>,
@@ -55,6 +336,22 @@ impl Notification {
         ui_state: Rc<RefCell<UiState>>,
         loop_handle: Option<LoopHandle<'static, Moxnotify>>,
     ) -> Self {
+        let mut body = Body::new(
+            data.id,
+            Rc::clone(&config),
+            Arc::clone(&data.app_name),
+            Rc::clone(&ui_state),
+            font_system,
+        );
+
+        let mut summary = Summary::new(
+            data.id,
+            Rc::clone(&config),
+            Arc::clone(&data.app_name),
+            Rc::clone(&ui_state),
+            font_system,
+        );
+
         if data.app_name == "next_notification_count".into()
             || data.app_name == "prev_notification_count".into()
         {
@@ -86,21 +383,8 @@ impl Notification {
                 .add_dismiss(font_system)
                 .finish(font_system),
                 ui_state: Rc::clone(&ui_state),
-                summary: Summary::new(
-                    data.id,
-                    Rc::clone(&config),
-                    Arc::clone(&data.app_name),
-                    Rc::clone(&ui_state),
-                    font_system,
-                    &data.summary,
-                ),
-                body: Body::new(
-                    data.id,
-                    Rc::clone(&config),
-                    Arc::clone(&data.app_name),
-                    Rc::clone(&ui_state),
-                    font_system,
-                ),
+                summary,
+                body,
                 data,
             };
         }
@@ -130,7 +414,7 @@ impl Notification {
             &config.styles.default.font,
             font_system,
             data.body.to_string(),
-            config.styles.default.width.resolve(0.)
+            config.styles.default.width
                 - icon_bounds.width
                 - buttons
                     .buttons()
@@ -139,25 +423,32 @@ impl Notification {
                     .unwrap_or_default(),
         );
 
-        let mut body = Body::new(
-            data.id,
-            Rc::clone(&config),
-            Arc::clone(&data.app_name),
-            Rc::clone(&ui_state),
-            font_system,
-        );
         body.set_text(font_system, &data.body);
+        summary.set_text(font_system, &data.summary);
+
+        let dismiss_button = buttons
+            .buttons()
+            .iter()
+            .find(|button| button.button_type() == ButtonType::Dismiss)
+            .map(|button| button.get_render_bounds().width)
+            .unwrap_or(0.0);
+
+        let style = config.find_style(&data.app_name, false);
+        body.set_size(
+            font_system,
+            Some(style.width - icons.get_bounds().width - dismiss_button),
+            None,
+        );
+
+        summary.set_size(
+            font_system,
+            Some(style.width - icons.get_bounds().width - dismiss_button),
+            None,
+        );
 
         Self {
             body,
-            summary: Summary::new(
-                data.id,
-                Rc::clone(&config),
-                Arc::clone(&data.app_name),
-                Rc::clone(&ui_state),
-                font_system,
-                &data.summary,
-            ),
+            summary,
             progress: data.hints.value.map(|value| {
                 Progress::new(
                     data.id,
@@ -179,15 +470,6 @@ impl Notification {
             registration_token: None,
             ui_state: Rc::clone(&ui_state),
         }
-    }
-
-    pub fn data(&self) -> Vec<Data> {
-        let mut data = self.buttons.data();
-        if let Some(progress) = self.progress.as_ref() {
-            data.extend(progress.get_data(self.urgency()));
-        }
-
-        data
     }
 
     pub fn timeout(&self) -> Option<u64> {
@@ -220,208 +502,8 @@ impl Notification {
         }
     }
 
-    pub fn set_position(&mut self, font_system: &mut FontSystem, x: f32, y: f32) {
-        self.x = x;
-        self.y = y;
-
-        let extents = self.rendered_extents();
-        let hovered = self.hovered();
-        let style = self.config.find_style(&self.data.app_name, hovered);
-
-        {
-            // Icons
-            let available_height = extents.height
-                - style.border.size.top
-                - style.border.size.bottom
-                - style.padding.top
-                - style.padding.bottom
-                - self
-                    .progress
-                    .as_ref()
-                    .map(|p| p.get_bounds().height)
-                    .unwrap_or_default()
-                - self
-                    .buttons
-                    .buttons()
-                    .iter()
-                    .filter_map(|button| {
-                        if button.button_type() == ButtonType::Action {
-                            Some(button.get_bounds().height)
-                        } else {
-                            None
-                        }
-                    })
-                    .max_by(|a, b| a.partial_cmp(b).unwrap())
-                    .unwrap_or_default();
-
-            let vertical_offset = (available_height - self.config.general.icon_size as f32) / 2.0;
-
-            let x = extents.x + style.border.size.left + style.padding.left;
-            let y = extents.y + style.border.size.top + style.padding.top + vertical_offset;
-
-            self.icons.set_position(x, y);
-        }
-
-        self.summary.set_position(
-            extents.x + style.padding.left + style.border.size.left + self.icons.get_bounds().width,
-            extents.y + style.padding.top + style.border.size.top,
-        );
-
-        if let Some(progress) = self.progress.as_mut() {
-            let available_width = extents.width
-                - style.border.size.left
-                - style.border.size.right
-                - style.padding.left
-                - style.padding.right
-                - style.progress.margin.left
-                - style.progress.margin.right;
-            progress.set_width(available_width);
-
-            let style = self.config.find_style(
-                &self.data.app_name,
-                self.ui_state.borrow().selected == Some(self.data.id),
-            );
-
-            let x = extents.x + style.border.size.left + style.padding.left;
-            let y = extents.y + extents.height
-                - style.border.size.bottom.resolve(0.)
-                - style.padding.bottom.resolve(0.)
-                - progress.get_bounds().height;
-
-            progress.set_position(x, y);
-        }
-
-        let extents = self.rendered_extents();
-
-        let dismiss_bottom_y = self
-            .buttons
-            .buttons_mut()
-            .iter_mut()
-            .find(|button| button.button_type() == ButtonType::Dismiss)
-            .map(|button| {
-                let x = extents.x + extents.width
-                    - style.border.size.right
-                    - style.padding.right
-                    - button.get_bounds().width;
-                let y = extents.y + style.margin.top + style.border.size.top + style.padding.top;
-                button.set_position(x, y);
-                let button_extents = button.get_bounds();
-                button_extents.y + button_extents.height
-            })
-            .unwrap_or(0.0);
-
-        let action_buttons = self
-            .buttons
-            .buttons()
-            .iter()
-            .filter(|button| button.button_type() == ButtonType::Action)
-            .count();
-
-        if action_buttons > 0 {
-            let button_style = self
-                .buttons
-                .buttons()
-                .iter()
-                .find(|button| button.button_type() == ButtonType::Action)
-                .map(|button| button.get_style())
-                .unwrap_or_else(|| &style.buttons.action.default);
-
-            let side_padding = style.border.size.left
-                + style.border.size.right
-                + style.padding.left
-                + style.padding.right;
-            let button_margin = button_style.margin.left + button_style.margin.right;
-            let available_width = extents.width - side_padding - button_margin;
-
-            let action_buttons_f32 = action_buttons as f32;
-            let total_spacing = (action_buttons_f32 - 1.0) * button_margin;
-            let button_width = (available_width - total_spacing) / action_buttons_f32;
-
-            let progress_height = self
-                .progress
-                .as_ref()
-                .map(|p| p.get_bounds().height)
-                .unwrap_or_default();
-
-            let base_x = extents.x + style.border.size.left + style.padding.left;
-            let bottom_padding = style.border.size.bottom + style.padding.bottom + progress_height;
-
-            self.buttons.set_action_widths(button_width);
-
-            self.buttons
-                .buttons_mut()
-                .iter_mut()
-                .filter(|b| b.button_type() == ButtonType::Action)
-                .enumerate()
-                .for_each(|(i, button)| {
-                    let x_position = base_x + (button_width + button_margin) * i as f32;
-                    let y_position =
-                        (extents.y + extents.height - bottom_padding - button.get_bounds().height)
-                            .max(dismiss_bottom_y);
-
-                    button.set_position(x_position, y_position);
-                });
-
-            let icons_width = self.icons.get_bounds().width;
-            self.buttons
-                .buttons_mut()
-                .iter_mut()
-                .filter(|b| b.button_type() == ButtonType::Anchor)
-                .for_each(|button| button.set_position(base_x + icons_width, extents.y));
-        }
-
-        let dismiss_button = self
-            .buttons
-            .buttons()
-            .iter()
-            .find(|button| button.button_type() == ButtonType::Dismiss)
-            .map(|button| button.get_render_bounds().width)
-            .unwrap_or(0.0);
-
-        self.body.set_size(
-            font_system,
-            Some(style.width.resolve(0.) - self.icons.get_bounds().width - dismiss_button),
-            None,
-        );
-
-        self.summary.set_size(
-            font_system,
-            Some(style.width.resolve(0.) - self.icons.get_bounds().width - dismiss_button),
-            None,
-        );
-
-        self.update_text_position();
-    }
-
-    pub fn text_extents(&self) -> Extents {
-        let style = self.style();
-        let icon_extents = self.icons.get_bounds();
-
-        let dismiss_button = self
-            .buttons
-            .buttons()
-            .iter()
-            .find(|button| button.button_type() == ButtonType::Dismiss);
-
-        let extents = self.rendered_extents();
-
-        Extents {
-            x: extents.x
-                + style.padding.left.resolve(0.)
-                + style.border.size.left.resolve(0.)
-                + icon_extents.width,
-            y: extents.y + style.border.size.top.resolve(0.) + style.padding.top.resolve(0.),
-            width: style.width.resolve(0.)
-                - icon_extents.width
-                - dismiss_button
-                    .map(|b| b.get_bounds().width)
-                    .unwrap_or_default(),
-            height: 0.,
-        }
-    }
-
     pub fn height(&self) -> f32 {
-        let style = self.style();
+        let style = self.get_style();
 
         let dismiss_button = self
             .buttons
@@ -447,9 +529,7 @@ impl Notification {
             .unwrap_or_default();
 
         let progress = if self.progress.is_some() {
-            style.progress.height.resolve(0.)
-                + style.progress.margin.top.resolve(0.)
-                + style.progress.margin.bottom.resolve(0.)
+            style.progress.height + style.progress.margin.top + style.progress.margin.bottom
         } else {
             0.0
         };
@@ -473,7 +553,7 @@ impl Notification {
                 let base_height = (text_height.max(icon_height).max(dismiss_button)
                     + action_button.height)
                     .max(dismiss_button + action_button.height)
-                    + style.padding.bottom.resolve(0.);
+                    + style.padding.bottom;
                 base_height.clamp(min_height, max_height)
             }
         }
@@ -494,126 +574,15 @@ impl Notification {
         self.hovered
     }
 
-    fn update_text_position(&mut self) {
-        let style = self.style();
-        let extents = self.rendered_extents();
-        self.body.set_position(
-            extents.x + style.padding.left + style.border.size.left + self.icons.get_bounds().width,
-            extents.y
-                + style.padding.top
-                + style.border.size.top
-                + self.summary.get_bounds().height,
-        );
-    }
-
     pub fn hover(&mut self) {
         self.hovered = true;
-        self.update_text_position();
     }
 
     pub fn unhover(&mut self) {
         self.hovered = false;
-        self.update_text_position();
     }
 
     pub fn id(&self) -> NotificationId {
         self.data.id
-    }
-
-    fn background_instance(&self) -> buffers::Instance {
-        let extents = self.rendered_extents();
-        let style = self.style();
-
-        buffers::Instance {
-            rect_pos: [extents.x, extents.y],
-            rect_size: [
-                extents.width - style.border.size.left - style.border.size.right,
-                extents.height - style.border.size.top - style.border.size.bottom,
-            ],
-            rect_color: style.background.to_linear(self.urgency()),
-            border_radius: style.border.radius.into(),
-            border_size: style.border.size.into(),
-            border_color: style.border.color.to_linear(self.urgency()),
-            scale: self.ui_state.borrow().scale,
-        }
-    }
-
-    pub fn instances(&self) -> Vec<buffers::Instance> {
-        let mut instances = vec![self.background_instance()];
-        if let Some(progress) = self.progress.as_ref() {
-            instances.extend_from_slice(&progress.get_instances(&self.data.hints.urgency));
-        }
-
-        let button_instances = self.buttons.instances();
-        let summary_instance = self.summary.get_instances(self.urgency());
-
-        instances.extend_from_slice(&button_instances);
-        instances.extend_from_slice(&summary_instance);
-
-        instances
-    }
-
-    pub fn extents(&self) -> Extents {
-        let style = self.style();
-
-        Extents {
-            x: 0.,
-            y: self.y,
-            width: self.width()
-                + style.border.size.left
-                + style.border.size.right
-                + style.padding.left
-                + style.padding.right
-                + style.margin.left
-                + style.margin.right,
-            height: self.height()
-                + style.border.size.top
-                + style.border.size.bottom
-                + style.padding.top
-                + style.padding.bottom
-                + style.margin.top
-                + style.margin.bottom,
-        }
-    }
-
-    pub fn style(&self) -> &StyleState {
-        self.config
-            .styles
-            .notification
-            .iter()
-            .find(|n| n.app == self.data.app_name)
-            .map(|c| if self.hovered() { &c.hover } else { &c.default })
-            .unwrap_or_else(|| {
-                if self.hovered() {
-                    &self.config.styles.hover
-                } else {
-                    &self.config.styles.default
-                }
-            })
-    }
-
-    pub fn rendered_extents(&self) -> Extents {
-        let extents = self.extents();
-        let style = self.style();
-
-        Extents {
-            x: extents.x + style.margin.left + self.x + self.data.hints.x as f32,
-            y: extents.y + style.margin.top,
-            width: extents.width - style.margin.left - style.margin.right,
-            height: extents.height - style.margin.top - style.margin.bottom,
-        }
-    }
-
-    pub fn text_areas(&self) -> Vec<TextArea> {
-        let mut text_areas = Vec::new();
-
-        let button_areas = self.buttons.text_areas();
-        let summary = self.summary.get_text_areas(self.urgency());
-        let body = self.body.get_text_areas(self.urgency());
-
-        text_areas.extend_from_slice(&summary);
-        text_areas.extend_from_slice(&body);
-        text_areas.extend_from_slice(&button_areas);
-        text_areas
     }
 }

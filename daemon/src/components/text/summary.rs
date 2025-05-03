@@ -7,7 +7,7 @@ use crate::{
     utils::buffers,
     Urgency,
 };
-use glyphon::{Attrs, Buffer, FontSystem, Shaping, Weight};
+use glyphon::{Attrs, Buffer, FontSystem, Weight};
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 pub struct Summary {
@@ -190,21 +190,13 @@ impl Component for Summary {
 }
 
 impl Summary {
-    pub fn new<T>(
+    pub fn new(
         id: NotificationId,
         config: Rc<Config>,
         app_name: Arc<str>,
         ui_state: Rc<RefCell<UiState>>,
         font_system: &mut FontSystem,
-        body: T,
-    ) -> Self
-    where
-        T: AsRef<str>,
-    {
-        let attrs = Attrs::new()
-            .family(glyphon::Family::Name(&config.styles.default.font.family))
-            .weight(Weight::BOLD);
-
+    ) -> Self {
         let dpi = 96.0;
         let font_size = config.styles.default.font.size * dpi / 72.0;
         let mut buffer = Buffer::new(
@@ -213,7 +205,6 @@ impl Summary {
         );
         buffer.shape_until_scroll(font_system, true);
         buffer.set_size(font_system, None, None);
-        buffer.set_text(font_system, body.as_ref(), &attrs, Shaping::Advanced);
 
         Self {
             id,

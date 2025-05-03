@@ -15,6 +15,7 @@ use crate::{
 pub enum Data<'a> {
     Instance(buffers::Instance),
     TextArea(glyphon::TextArea<'a>),
+    Texture(texture_renderer::TextureArea<'a>),
 }
 
 #[derive(Default, Debug)]

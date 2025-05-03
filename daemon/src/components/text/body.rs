@@ -56,7 +56,7 @@ impl Text for Body {
         let family = Rc::clone(&self.get_style().family);
 
         let attrs = Attrs::new().family(glyphon::Family::Name(&family));
-        let mut spans = vec![];
+        let mut spans = Vec::new();
         let mut anchors = Vec::new();
         let mut anchor_stack: Vec<Anchor> = Vec::new();
 
@@ -88,7 +88,7 @@ impl Text for Body {
 
             if full_match.start() > last_pos {
                 let text = &body[last_pos..full_match.start()];
-                start_pos += text.chars().filter(|char| *char != '\n').count();
+                start_pos += text.len();
                 spans.push((text, current_attrs.clone()));
             }
 
@@ -151,41 +151,50 @@ impl Text for Body {
             spans.push((text, current_attrs));
         }
 
-        let mut total = 0;
-        anchors.iter_mut().for_each(|anchor| {
-            total = 0;
-            self.buffer.lines.iter().enumerate().for_each(|(i, line)| {
-                line.text()
-                    .match_indices(&*anchor.text)
-                    .for_each(|(start, _)| {
-                        if total + start == anchor.start {
-                            anchor.start = start;
-                            anchor.end = start + anchor.text.len();
-                            anchor.line = i;
-                            anchor.bounds = match self.buffer.layout_runs().nth(anchor.line) {
-                                Some(line) => {
-                                    let first = line.glyphs.get(anchor.start);
-                                    let last = line.glyphs.get(anchor.end.saturating_sub(1));
-                                    match (first, last) {
-                                        (Some(first), Some(last)) => Bounds {
-                                            x: first.x + first.w,
-                                            y: line.line_top + line.line_height,
-                                            width: (last.x + last.w) - first.x,
-                                            height: line.line_height,
-                                        },
-                                        _ => Bounds::default(),
-                                    }
-                                }
-                                None => Bounds::default(),
-                            };
-                        }
-                    });
-                total += line.text().len();
-            });
-        });
-
         self.buffer
             .set_rich_text(font_system, spans, &attrs, Shaping::Advanced, None);
+
+        anchors.iter_mut().for_each(|anchor| {
+            let mut total_bytes = 0;
+
+            for (line_idx, layout_run) in self.buffer.layout_runs().enumerate() {
+                let line_text = &self.buffer.lines[line_idx].text();
+                let line_start = total_bytes;
+                let line_end = line_start + line_text.len();
+
+                if anchor.start >= line_start && anchor.start < line_end {
+                    let local_start = anchor.start - line_start;
+                    let local_end = local_start + anchor.text.len();
+
+                    if line_text.get(local_start..local_end) == Some(&*anchor.text) {
+                        anchor.line = line_idx;
+
+                        let mut first_glyph = None;
+                        let mut last_glyph = None;
+
+                        for glyph in layout_run.glyphs.iter() {
+                            if glyph.start <= local_start && glyph.end > local_start {
+                                first_glyph.get_or_insert(glyph);
+                            }
+                            if glyph.start < local_end && glyph.end >= local_end {
+                                last_glyph = Some(glyph);
+                                break;
+                            }
+                        }
+
+                        if let (Some(first), Some(last)) = (first_glyph, last_glyph) {
+                            anchor.bounds = Bounds {
+                                x: first.x,
+                                y: layout_run.line_top,
+                                width: last.x + last.w - first.x,
+                                height: layout_run.line_height,
+                            };
+                        }
+                    }
+                }
+                total_bytes = line_end;
+            }
+        });
     }
 }
 

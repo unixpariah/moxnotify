@@ -16,6 +16,8 @@ use std::{
     sync::{Arc, LazyLock, Mutex},
 };
 
+use super::Data;
+
 static ICON_CACHE: LazyLock<Cache> = LazyLock::new(Cache::default);
 type IconMap = BTreeMap<Box<Path>, ImageData>;
 
@@ -251,6 +253,10 @@ impl Component for Icons {
         }
 
         texture_areas
+    }
+
+    fn get_data(&self, _: &crate::Urgency) -> Vec<Data> {
+        self.get_textures().into_iter().map(Data::Texture).collect()
     }
 }
 

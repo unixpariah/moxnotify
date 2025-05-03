@@ -2,8 +2,10 @@ mod view;
 
 use crate::{
     components::{
+        button::ButtonType,
         notification::{Notification, NotificationId},
-        Component,
+        text::Text,
+        Component, Data,
     },
     config::{keymaps, Config, Queue},
     rendering::texture_renderer::TextureArea,
@@ -89,31 +91,31 @@ impl NotificationManager {
     }
 
     pub fn data(&self) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
-        let (mut instances, mut text_areas, textures) = self
+        let mut instances = Vec::new();
+        let mut text_areas = Vec::new();
+        let mut textures = Vec::new();
+
+        let all_data: Vec<Data> = self
             .notifications
             .iter()
             .enumerate()
             .filter(|(i, _)| self.notification_view.visible.contains(i))
-            .fold(
-                (Vec::new(), Vec::new(), Vec::new()),
-                |(mut instances, mut text_areas, mut textures), (_, notification)| {
-                    let instance = notification.instances();
-                    let text = notification.text_areas();
-                    let texture = notification.icons.get_textures();
+            .flat_map(|(_, notification)| notification.get_data(notification.urgency()))
+            .collect();
 
-                    textures.extend_from_slice(&texture);
-                    text_areas.extend_from_slice(&text);
-                    instances.extend_from_slice(&instance);
-
-                    (instances, text_areas, textures)
-                },
-            );
+        for data_item in all_data {
+            match data_item {
+                Data::Instance(instance) => instances.push(instance),
+                Data::TextArea(text_area) => text_areas.push(text_area),
+                Data::Texture(texture) => textures.push(texture),
+            }
+        }
 
         let total_width = self
             .notifications
             .iter()
             .map(|notification| {
-                notification.rendered_extents().x + notification.rendered_extents().width
+                notification.get_render_bounds().x + notification.get_render_bounds().width
             })
             .max_by(|a, b| a.partial_cmp(b).unwrap())
             .unwrap_or_default();
@@ -137,7 +139,7 @@ impl NotificationManager {
             .clone()
             .filter_map(|index| {
                 if let Some(notification) = self.notifications.get(index) {
-                    let extents = notification.rendered_extents();
+                    let extents = notification.get_render_bounds();
                     let x_within_bounds =
                         x >= extents.x as f64 && x < (extents.x + extents.width) as f64;
                     let y_within_bounds =
@@ -176,13 +178,13 @@ impl NotificationManager {
             .notification_view
             .prev
             .as_ref()
-            .map_or(0., |n| n.extents().height);
+            .map_or(0., |n| n.get_bounds().height);
         self.notification_view
             .visible
             .clone()
             .fold(height, |acc, i| {
                 if let Some(notification) = self.notifications.get(i) {
-                    let extents = notification.extents();
+                    let extents = notification.get_bounds();
                     return acc + extents.height;
                 };
 
@@ -192,7 +194,7 @@ impl NotificationManager {
                 .notification_view
                 .next
                 .as_ref()
-                .map_or(0., |n| n.extents().height)
+                .map_or(0., |n| n.get_bounds().height)
     }
 
     pub fn width(&self) -> f32 {
@@ -200,7 +202,7 @@ impl NotificationManager {
             self.notifications
                 .iter()
                 .fold((f32::MAX, f32::MIN), |(min_x, max_x), notification| {
-                    let extents = notification.extents();
+                    let extents = notification.get_bounds();
                     let left = extents.x + notification.data.hints.x as f32;
                     let right = extents.x + extents.width + notification.data.hints.x as f32;
                     (min_x.min(left), max_x.max(right))
@@ -227,13 +229,41 @@ impl NotificationManager {
     pub fn select(&mut self, id: NotificationId) {
         self.deselect();
 
-        if let Some(new_notification) = self.notifications.iter_mut().find(|n| n.id() == id) {
-            new_notification.hover();
+        if let Some(notification) = self.notifications.iter_mut().find(|n| n.id() == id) {
+            notification.hover();
 
             self.ui_state.borrow_mut().selected = Some(id);
-            if let Some(token) = new_notification.registration_token.take() {
+            if let Some(token) = notification.registration_token.take() {
                 self.loop_handle.remove(token);
             }
+
+            let dismiss_button = notification
+                .buttons
+                .buttons()
+                .iter()
+                .find(|button| button.button_type() == ButtonType::Dismiss)
+                .map(|button| button.get_render_bounds().width)
+                .unwrap_or(0.0);
+
+            notification.body.set_size(
+                &mut self.font_system.borrow_mut(),
+                Some(
+                    notification.get_style().width
+                        - notification.icons.get_bounds().width
+                        - dismiss_button,
+                ),
+                None,
+            );
+
+            notification.summary.set_size(
+                &mut self.font_system.borrow_mut(),
+                Some(
+                    notification.get_style().width
+                        - notification.icons.get_bounds().width
+                        - dismiss_button,
+                ),
+                None,
+            );
         }
     }
 
@@ -266,16 +296,12 @@ impl NotificationManager {
             self.notification_view
                 .prev
                 .as_ref()
-                .map(|p| p.extents().height)
+                .map(|p| p.get_bounds().height)
                 .unwrap_or(0.),
             |acc, i| {
                 if let Some(notification) = self.notifications.get_mut(i) {
-                    notification.set_position(
-                        &mut self.font_system.borrow_mut(),
-                        notification.x,
-                        acc,
-                    );
-                    acc + notification.extents().height
+                    notification.set_position(notification.x, acc);
+                    acc + notification.get_bounds().height
                 } else {
                     acc
                 }
@@ -315,16 +341,12 @@ impl NotificationManager {
             self.notification_view
                 .prev
                 .as_ref()
-                .map(|p| p.extents().height)
+                .map(|p| p.get_bounds().height)
                 .unwrap_or(0.),
             |acc, i| {
                 if let Some(notification) = self.notifications.get_mut(i) {
-                    notification.set_position(
-                        &mut self.font_system.borrow_mut(),
-                        notification.x,
-                        acc,
-                    );
-                    acc + notification.extents().height
+                    notification.set_position(notification.x, acc);
+                    acc + notification.get_bounds().height
                 } else {
                     acc
                 }
@@ -377,8 +399,8 @@ impl NotificationManager {
                 Rc::clone(&self.ui_state),
                 None,
             );
-            notification.set_position(&mut self.font_system.borrow_mut(), 0.0, y);
-            let height = notification.extents().height;
+            notification.set_position(0.0, y);
+            let height = notification.get_bounds().height;
             y += height;
 
             self.notifications.push(notification);
@@ -399,7 +421,7 @@ impl NotificationManager {
 
         self.notifications
             .iter_mut()
-            .for_each(|n| n.set_position(&mut self.font_system.borrow_mut(), x_offset, n.y));
+            .for_each(|n| n.set_position(x_offset, n.y));
 
         Ok(())
     }
@@ -413,7 +435,7 @@ impl NotificationManager {
         let id = data.id;
         let (y, existing_index) =
             if let Some(index) = self.notifications.iter().position(|n| n.id() == id) {
-                let y = self.notifications[index].extents().y;
+                let y = self.notifications[index].get_bounds().y;
                 (y, Some(index))
             } else {
                 (self.height(), None)
@@ -426,7 +448,7 @@ impl NotificationManager {
             Rc::clone(&self.ui_state),
             Some(self.loop_handle.clone()),
         );
-        notification.set_position(&mut self.font_system.borrow_mut(), 0.0, y);
+        notification.set_position(0.0, y);
 
         if let Some(timeout) = notification.timeout() {
             let should_set_timer = match self.config.general.queue {
@@ -452,8 +474,8 @@ impl NotificationManager {
                     self.loop_handle.remove(token);
                 }
 
-                let replaced_height_differs =
-                    self.notifications[index].extents().height != notification.extents().height;
+                let replaced_height_differs = self.notifications[index].get_bounds().height
+                    != notification.get_bounds().height;
 
                 self.notifications[index] = notification;
 
@@ -462,16 +484,12 @@ impl NotificationManager {
                         self.notification_view
                             .prev
                             .as_ref()
-                            .map(|p| p.extents().height)
+                            .map(|p| p.get_bounds().height)
                             .unwrap_or(0.),
                         |acc, i| {
                             if let Some(notification) = self.notifications.get_mut(i) {
-                                notification.set_position(
-                                    &mut self.font_system.borrow_mut(),
-                                    notification.x,
-                                    acc,
-                                );
-                                acc + notification.extents().height
+                                notification.set_position(notification.x, acc);
+                                acc + notification.get_bounds().height
                             } else {
                                 acc
                             }
@@ -502,7 +520,7 @@ impl NotificationManager {
 
         self.notifications
             .iter_mut()
-            .for_each(|n| n.set_position(&mut self.font_system.borrow_mut(), x_offset, n.y));
+            .for_each(|n| n.set_position(x_offset, n.y));
 
         Ok(())
     }
@@ -555,16 +573,12 @@ impl NotificationManager {
             self.notification_view
                 .prev
                 .as_ref()
-                .map(|p| p.extents().height)
+                .map(|p| p.get_bounds().height)
                 .unwrap_or(0.),
             |acc, i| {
                 if let Some(notification) = self.notifications.get_mut(i) {
-                    notification.set_position(
-                        &mut self.font_system.borrow_mut(),
-                        notification.x,
-                        acc,
-                    );
-                    acc + notification.extents().height
+                    notification.set_position(notification.x, acc);
+                    acc + notification.get_bounds().height
                 } else {
                     acc
                 }
@@ -578,13 +592,9 @@ impl NotificationManager {
             .min()
             .unwrap_or_default()
             .abs();
-        self.notifications.iter_mut().for_each(|notification| {
-            notification.set_position(
-                &mut self.font_system.borrow_mut(),
-                x_offset as f32,
-                notification.y,
-            )
-        });
+        self.notifications
+            .iter_mut()
+            .for_each(|notification| notification.set_position(x_offset as f32, notification.y));
     }
 }
 

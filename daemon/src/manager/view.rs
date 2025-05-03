@@ -75,12 +75,11 @@ impl NotificationView {
             if let Some(notification) = &mut self.prev {
                 let mut font_system = self.font_system.borrow_mut();
                 notification.summary.set_text(&mut font_system, &summary);
-                notification.set_position(&mut font_system, 0., 0.);
+                notification.set_position(0., 0.);
             } else {
-                let mut font_system = self.font_system.borrow_mut();
                 self.prev = Some(Notification::new(
                     Rc::clone(&self.config),
-                    &mut font_system,
+                    &mut self.font_system.borrow_mut(),
                     NotificationData {
                         summary: summary.into(),
                         ..Default::default()
@@ -92,14 +91,14 @@ impl NotificationView {
                 total_height += self
                     .prev
                     .as_ref()
-                    .map(|p| p.extents().height)
+                    .map(|p| p.get_bounds().height)
                     .unwrap_or_default();
             }
         } else {
             total_height -= self
                 .prev
                 .as_ref()
-                .map(|p| p.extents().height)
+                .map(|p| p.get_bounds().height)
                 .unwrap_or_default();
             self.prev = None;
         };
@@ -115,15 +114,13 @@ impl NotificationView {
                 let mut font_system = self.font_system.borrow_mut();
                 notification.summary.set_text(&mut font_system, &summary);
                 notification.set_position(
-                    &mut font_system,
                     notification.x,
-                    total_height - notification.extents().height,
+                    total_height - notification.get_bounds().height,
                 );
             } else {
-                let mut font_system = self.font_system.borrow_mut();
                 let mut next = Notification::new(
                     Rc::clone(&self.config),
-                    &mut font_system,
+                    &mut self.font_system.borrow_mut(),
                     NotificationData {
                         summary: summary.into(),
                         ..Default::default()
@@ -131,7 +128,7 @@ impl NotificationView {
                     Rc::clone(&self.ui_state),
                     None,
                 );
-                next.set_position(&mut font_system, next.x, total_height);
+                next.set_position(next.x, total_height);
                 self.next = Some(next);
             }
         } else {
@@ -141,7 +138,7 @@ impl NotificationView {
 
     pub fn prev_data(&self, total_width: f32) -> Option<(buffers::Instance, TextArea)> {
         if let Some(prev) = self.prev.as_ref() {
-            let extents = prev.rendered_extents();
+            let extents = prev.get_render_bounds();
             let style = &self.config.styles.prev;
             let instance = buffers::Instance {
                 rect_pos: [extents.x, extents.y],
@@ -169,7 +166,7 @@ impl NotificationView {
 
     pub fn next_data(&self, total_width: f32) -> Option<(buffers::Instance, TextArea)> {
         if let Some(next) = self.next.as_ref() {
-            let extents = next.rendered_extents();
+            let extents = next.get_render_bounds();
             let style = &self.config.styles.prev;
             let instance = buffers::Instance {
                 rect_pos: [extents.x, extents.y],
