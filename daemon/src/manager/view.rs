@@ -75,7 +75,7 @@ impl NotificationView {
             if let Some(notification) = &mut self.prev {
                 let mut font_system = self.font_system.borrow_mut();
                 notification.summary.set_text(&mut font_system, &summary);
-                notification.set_position(0., 0.);
+                notification.set_position(&mut font_system, 0., 0.);
             } else {
                 let mut font_system = self.font_system.borrow_mut();
                 self.prev = Some(Notification::new(
@@ -114,8 +114,11 @@ impl NotificationView {
             if let Some(notification) = &mut self.next {
                 let mut font_system = self.font_system.borrow_mut();
                 notification.summary.set_text(&mut font_system, &summary);
-                notification
-                    .set_position(notification.x, total_height - notification.extents().height);
+                notification.set_position(
+                    &mut font_system,
+                    notification.x,
+                    total_height - notification.extents().height,
+                );
             } else {
                 let mut font_system = self.font_system.borrow_mut();
                 let mut next = Notification::new(
@@ -128,7 +131,7 @@ impl NotificationView {
                     Rc::clone(&self.ui_state),
                     None,
                 );
-                next.set_position(next.x, total_height);
+                next.set_position(&mut font_system, next.x, total_height);
                 self.next = Some(next);
             }
         } else {

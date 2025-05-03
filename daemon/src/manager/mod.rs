@@ -1,6 +1,5 @@
 mod view;
 
-use crate::components::button::ButtonType;
 use crate::{
     components::{
         notification::{Notification, NotificationId},
@@ -231,24 +230,6 @@ impl NotificationManager {
         if let Some(new_notification) = self.notifications.iter_mut().find(|n| n.id() == id) {
             new_notification.hover();
 
-            let style = new_notification.style();
-
-            let icon_extents = new_notification.icons.get_bounds();
-
-            let dismiss_button = new_notification
-                .buttons
-                .buttons()
-                .iter()
-                .find(|button| button.button_type() == ButtonType::Dismiss)
-                .map(|button| button.get_render_bounds().width)
-                .unwrap_or(0.0);
-
-            new_notification.text.buffer.set_size(
-                &mut self.font_system.borrow_mut(),
-                Some(style.width.resolve(0.) - icon_extents.width - dismiss_button),
-                None,
-            );
-
             self.ui_state.borrow_mut().selected = Some(id);
             if let Some(token) = new_notification.registration_token.take() {
                 self.loop_handle.remove(token);
@@ -289,7 +270,11 @@ impl NotificationManager {
                 .unwrap_or(0.),
             |acc, i| {
                 if let Some(notification) = self.notifications.get_mut(i) {
-                    notification.set_position(notification.x, acc);
+                    notification.set_position(
+                        &mut self.font_system.borrow_mut(),
+                        notification.x,
+                        acc,
+                    );
                     acc + notification.extents().height
                 } else {
                     acc
@@ -334,7 +319,11 @@ impl NotificationManager {
                 .unwrap_or(0.),
             |acc, i| {
                 if let Some(notification) = self.notifications.get_mut(i) {
-                    notification.set_position(notification.x, acc);
+                    notification.set_position(
+                        &mut self.font_system.borrow_mut(),
+                        notification.x,
+                        acc,
+                    );
                     acc + notification.extents().height
                 } else {
                     acc
@@ -388,7 +377,7 @@ impl NotificationManager {
                 Rc::clone(&self.ui_state),
                 None,
             );
-            notification.set_position(0.0, y);
+            notification.set_position(&mut self.font_system.borrow_mut(), 0.0, y);
             let height = notification.extents().height;
             y += height;
 
@@ -410,7 +399,7 @@ impl NotificationManager {
 
         self.notifications
             .iter_mut()
-            .for_each(|n| n.set_position(x_offset, n.y));
+            .for_each(|n| n.set_position(&mut self.font_system.borrow_mut(), x_offset, n.y));
 
         Ok(())
     }
@@ -437,7 +426,7 @@ impl NotificationManager {
             Rc::clone(&self.ui_state),
             Some(self.loop_handle.clone()),
         );
-        notification.set_position(0.0, y);
+        notification.set_position(&mut self.font_system.borrow_mut(), 0.0, y);
 
         if let Some(timeout) = notification.timeout() {
             let should_set_timer = match self.config.general.queue {
@@ -477,7 +466,11 @@ impl NotificationManager {
                             .unwrap_or(0.),
                         |acc, i| {
                             if let Some(notification) = self.notifications.get_mut(i) {
-                                notification.set_position(notification.x, acc);
+                                notification.set_position(
+                                    &mut self.font_system.borrow_mut(),
+                                    notification.x,
+                                    acc,
+                                );
                                 acc + notification.extents().height
                             } else {
                                 acc
@@ -509,7 +502,7 @@ impl NotificationManager {
 
         self.notifications
             .iter_mut()
-            .for_each(|n| n.set_position(x_offset, n.y));
+            .for_each(|n| n.set_position(&mut self.font_system.borrow_mut(), x_offset, n.y));
 
         Ok(())
     }
@@ -566,7 +559,11 @@ impl NotificationManager {
                 .unwrap_or(0.),
             |acc, i| {
                 if let Some(notification) = self.notifications.get_mut(i) {
-                    notification.set_position(notification.x, acc);
+                    notification.set_position(
+                        &mut self.font_system.borrow_mut(),
+                        notification.x,
+                        acc,
+                    );
                     acc + notification.extents().height
                 } else {
                     acc
@@ -581,9 +578,13 @@ impl NotificationManager {
             .min()
             .unwrap_or_default()
             .abs();
-        self.notifications
-            .iter_mut()
-            .for_each(|notification| notification.set_position(x_offset as f32, notification.y));
+        self.notifications.iter_mut().for_each(|notification| {
+            notification.set_position(
+                &mut self.font_system.borrow_mut(),
+                x_offset as f32,
+                notification.y,
+            )
+        });
     }
 }
 

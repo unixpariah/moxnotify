@@ -1,18 +1,14 @@
-use std::{cell::RefCell, rc::Rc, sync::Arc};
-
 use super::Text;
 use crate::{
     components::{notification::NotificationId, Bounds, Component, Data},
     config::{self, Config},
     manager::UiState,
+    rendering::texture_renderer,
     utils::buffers,
     Urgency,
 };
-use glyphon::{
-    Attrs, Buffer, Cache, FontSystem, Shaping, SwashCache, TextAtlas, TextRenderer, Viewport,
-    Weight,
-};
-use wgpu::{MultisampleState, TextureFormat};
+use glyphon::{Attrs, Buffer, FontSystem, Shaping, Weight};
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 pub struct Summary {
     id: NotificationId,
@@ -25,6 +21,10 @@ pub struct Summary {
 }
 
 impl Text for Summary {
+    fn set_size(&mut self, font_system: &mut FontSystem, width: Option<f32>, height: Option<f32>) {
+        self.buffer.set_size(font_system, width, height);
+    }
+
     fn set_text<T>(&mut self, font_system: &mut FontSystem, text: T)
     where
         T: AsRef<str>,
@@ -85,22 +85,26 @@ impl Component for Summary {
 
     fn get_text_areas(&self, urgency: &crate::Urgency) -> Vec<glyphon::TextArea> {
         let style = self.get_style();
-        let render_bounds = self.get_render_bounds();
+        let bounds = self.get_render_bounds();
 
-        let content_width = render_bounds.width
+        if bounds.width == 0. {
+            return Vec::new();
+        }
+
+        let content_width = bounds.width
             - style.border.size.left
             - style.border.size.right
             - style.padding.left
             - style.padding.right;
 
-        let content_height = render_bounds.height
+        let content_height = bounds.height
             - style.border.size.top
             - style.border.size.bottom
             - style.padding.top
             - style.padding.bottom;
 
-        let left = render_bounds.x + style.border.size.left + style.padding.left;
-        let top = render_bounds.y + style.border.size.top + style.padding.top;
+        let left = bounds.x + style.border.size.left + style.padding.left;
+        let top = bounds.y + style.border.size.top + style.padding.top;
 
         vec![glyphon::TextArea {
             buffer: &self.buffer,
@@ -118,7 +122,7 @@ impl Component for Summary {
         }]
     }
 
-    fn get_textures(&self) -> Vec<crate::rendering::texture_renderer::TextureArea> {
+    fn get_textures(&self) -> Vec<texture_renderer::TextureArea> {
         Vec::new()
     }
 
@@ -130,6 +134,15 @@ impl Component for Summary {
             .fold((0.0, 0.0), |(width, total_lines), run| {
                 (run.line_w.max(width), total_lines + 1.0)
             });
+
+        if width == 0. || total_lines == 0. {
+            return Bounds {
+                x: 0.,
+                y: 0.,
+                width: 0.,
+                height: 0.,
+            };
+        }
 
         Bounds {
             x: self.x,
@@ -211,59 +224,5 @@ impl Summary {
             ui_state,
             app_name,
         }
-    }
-}
-
-pub struct TextContext {
-    pub swash_cache: glyphon::SwashCache,
-    pub viewport: glyphon::Viewport,
-    pub atlas: glyphon::TextAtlas,
-    pub renderer: glyphon::TextRenderer,
-}
-
-impl TextContext {
-    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, texture_format: TextureFormat) -> Self {
-        let swash_cache = SwashCache::new();
-        let cache = Cache::new(device);
-        let mut atlas = TextAtlas::new(device, queue, &cache, texture_format);
-        let renderer = TextRenderer::new(&mut atlas, device, MultisampleState::default(), None);
-
-        Self {
-            swash_cache,
-            viewport: Viewport::new(device, &cache),
-            atlas,
-            renderer,
-        }
-    }
-
-    pub fn prepare(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        text: Vec<glyphon::TextArea>,
-        font_system: &mut FontSystem,
-    ) -> anyhow::Result<()> {
-        if text.is_empty() {
-            return Ok(());
-        }
-
-        self.renderer.prepare(
-            device,
-            queue,
-            font_system,
-            &mut self.atlas,
-            &self.viewport,
-            text,
-            &mut self.swash_cache,
-        )?;
-
-        Ok(())
-    }
-
-    pub fn render(&mut self, render_pass: &mut wgpu::RenderPass) -> anyhow::Result<()> {
-        self.renderer
-            .render(&self.atlas, &self.viewport, render_pass)?;
-
-        Ok(())
     }
 }

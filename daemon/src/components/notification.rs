@@ -1,7 +1,9 @@
 use super::button::{ButtonManager, ButtonType, Finished};
 use super::icons::Icons;
 use super::progress::Progress;
+use super::text::body::Body;
 use super::text::summary::Summary;
+use super::text::Text;
 use super::UiState;
 use crate::{
     components::{Component, Data},
@@ -11,7 +13,7 @@ use crate::{
     Config, Moxnotify, NotificationData, Urgency,
 };
 use calloop::{LoopHandle, RegistrationToken};
-use glyphon::{FontSystem, TextArea, TextBounds};
+use glyphon::{FontSystem, TextArea};
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 #[derive(Debug, Default)]
@@ -27,7 +29,6 @@ pub type NotificationId = u32;
 pub struct Notification {
     pub y: f32,
     pub x: f32,
-    pub text: text_renderer::Text,
     hovered: bool,
     config: Rc<Config>,
     pub icons: Icons,
@@ -37,6 +38,7 @@ pub struct Notification {
     pub data: NotificationData,
     ui_state: Rc<RefCell<UiState>>,
     pub summary: Summary,
+    pub body: Body,
 }
 
 impl PartialEq for Notification {
@@ -59,7 +61,6 @@ impl Notification {
             return Self {
                 y: 0.,
                 x: 0.,
-                text: text_renderer::Text::new(&config.styles.default.font, font_system, ""),
                 hovered: false,
                 config: Rc::clone(&config),
                 icons: Icons {
@@ -92,6 +93,13 @@ impl Notification {
                     Rc::clone(&ui_state),
                     font_system,
                     &data.summary,
+                ),
+                body: Body::new(
+                    data.id,
+                    Rc::clone(&config),
+                    Arc::clone(&data.app_name),
+                    Rc::clone(&ui_state),
+                    font_system,
                 ),
                 data,
             };
@@ -131,7 +139,17 @@ impl Notification {
                     .unwrap_or_default(),
         );
 
+        let mut body = Body::new(
+            data.id,
+            Rc::clone(&config),
+            Arc::clone(&data.app_name),
+            Rc::clone(&ui_state),
+            font_system,
+        );
+        body.set_text(font_system, &data.body);
+
         Self {
+            body,
             summary: Summary::new(
                 data.id,
                 Rc::clone(&config),
@@ -156,7 +174,6 @@ impl Notification {
                 .add_anchors(&text.anchors, font_system)
                 .finish(font_system),
             data,
-            text,
             config,
             hovered: false,
             registration_token: None,
@@ -203,7 +220,7 @@ impl Notification {
         }
     }
 
-    pub fn set_position(&mut self, x: f32, y: f32) {
+    pub fn set_position(&mut self, font_system: &mut FontSystem, x: f32, y: f32) {
         self.x = x;
         self.y = y;
 
@@ -353,6 +370,26 @@ impl Notification {
                 .for_each(|button| button.set_position(base_x + icons_width, extents.y));
         }
 
+        let dismiss_button = self
+            .buttons
+            .buttons()
+            .iter()
+            .find(|button| button.button_type() == ButtonType::Dismiss)
+            .map(|button| button.get_render_bounds().width)
+            .unwrap_or(0.0);
+
+        self.body.set_size(
+            font_system,
+            Some(style.width.resolve(0.) - self.icons.get_bounds().width - dismiss_button),
+            None,
+        );
+
+        self.summary.set_size(
+            font_system,
+            Some(style.width.resolve(0.) - self.icons.get_bounds().width - dismiss_button),
+            None,
+        );
+
         self.update_text_position();
     }
 
@@ -431,7 +468,7 @@ impl Notification {
             Size::Value(height) => height.clamp(min_height, max_height),
             Size::Auto => {
                 let text_height =
-                    self.text.extents().height + self.summary.get_bounds().height + progress;
+                    self.body.get_bounds().height + self.summary.get_bounds().height + progress;
                 let icon_height = self.icons.get_bounds().height + progress;
                 let base_height = (text_height.max(icon_height).max(dismiss_button)
                     + action_button.height)
@@ -460,7 +497,7 @@ impl Notification {
     fn update_text_position(&mut self) {
         let style = self.style();
         let extents = self.rendered_extents();
-        self.text.set_buffer_position(
+        self.body.set_position(
             extents.x + style.padding.left + style.border.size.left + self.icons.get_bounds().width,
             extents.y
                 + style.padding.top
@@ -568,31 +605,15 @@ impl Notification {
     }
 
     pub fn text_areas(&self) -> Vec<TextArea> {
-        let text_extents = self.text.extents();
-
-        let style = self.style();
-
-        let mut res = vec![TextArea {
-            buffer: &self.text.buffer,
-            left: text_extents.x,
-            top: text_extents.y,
-            scale: self.ui_state.borrow().scale,
-            bounds: TextBounds {
-                left: text_extents.x as i32,
-                top: (text_extents.y) as i32,
-                right: (text_extents.x + text_extents.width) as i32,
-                bottom: (text_extents.y + text_extents.height) as i32,
-            },
-            default_color: style.font.color.into_glyphon(self.urgency()),
-            custom_glyphs: &[],
-        }];
+        let mut text_areas = Vec::new();
 
         let button_areas = self.buttons.text_areas();
-
         let summary = self.summary.get_text_areas(self.urgency());
+        let body = self.body.get_text_areas(self.urgency());
 
-        res.extend_from_slice(&summary);
-        res.extend_from_slice(&button_areas);
-        res
+        text_areas.extend_from_slice(&summary);
+        text_areas.extend_from_slice(&body);
+        text_areas.extend_from_slice(&button_areas);
+        text_areas
     }
 }

@@ -19,7 +19,7 @@ use std::{
     rc::Rc,
     sync::Arc,
 };
-use text::Summary;
+use text::{Body, Summary};
 
 #[derive(Default, Clone)]
 pub struct SoundFile {
@@ -276,6 +276,7 @@ pub enum Selector {
     Icon,
     Hints,
     Summary,
+    Body,
 }
 
 impl<'de> Deserialize<'de> for Selector {
@@ -295,6 +296,7 @@ impl<'de> Deserialize<'de> for Selector {
             "icon" => Ok(Selector::Icon),
             "hints" => Ok(Selector::Hints),
             "summary" => Ok(Selector::Summary),
+            "body" => Ok(Selector::Body),
             _ => {
                 if let Some(notification) = s.strip_prefix("notification:") {
                     Ok(Selector::Notification(notification.into()))
@@ -643,6 +645,7 @@ pub struct StyleState {
     pub progress: Progress,
     pub buttons: Buttons,
     pub summary: Summary,
+    pub body: Body,
 }
 
 impl StyleState {
@@ -687,6 +690,7 @@ impl StyleState {
 impl Default for StyleState {
     fn default() -> Self {
         Self {
+            body: Body::default(),
             summary: Summary::default(),
             hint: Hint::default(),
             background: Color {
@@ -752,6 +756,7 @@ impl<'de> Deserialize<'de> for Styles {
                     (Selector::NextCounter, _) => 21,
                     (Selector::Hints, _) => 22,
                     (Selector::Summary, _) => 23,
+                    (Selector::Body, _) => 24,
                 }
             }
 
@@ -809,6 +814,9 @@ impl<'de> Deserialize<'de> for Styles {
 
                     styles.default.summary.apply(&style.style);
                     styles.hover.summary.apply(&style.style);
+
+                    styles.default.body.apply(&style.style);
+                    styles.hover.body.apply(&style.style);
                 }
                 (Selector::Hints, _) => {
                     styles.default.hint.apply(&style.style);
@@ -841,6 +849,32 @@ impl<'de> Deserialize<'de> for Styles {
                 (Selector::Summary, _) => {
                     styles.default.summary.apply(&style.style);
                     styles.hover.summary.apply(&style.style);
+                }
+                (Selector::Body, State::ContainerHover) => {
+                    styles.default.body.apply(&style.style);
+                    styles.hover.body.apply(&style.style);
+                }
+                (Selector::Body, State::NamedContainerHover(app_name)) => {
+                    if let Some(notification) = styles
+                        .notification
+                        .iter_mut()
+                        .find(|notification| *notification.app == **app_name)
+                    {
+                        notification.hover.body.apply(&style.style);
+                    } else {
+                        let mut notification = NotificationStyleEntry {
+                            default: styles.default.clone(),
+                            hover: styles.hover.clone(),
+                            app: (&**app_name).into(),
+                            ..Default::default()
+                        };
+                        notification.hover.body.apply(&style.style);
+                        styles.notification.push(notification);
+                    }
+                }
+                (Selector::Body, _) => {
+                    styles.default.body.apply(&style.style);
+                    styles.hover.body.apply(&style.style);
                 }
                 (Selector::Progress, State::ContainerHover) => {
                     styles.hover.progress.apply(&style.style);
