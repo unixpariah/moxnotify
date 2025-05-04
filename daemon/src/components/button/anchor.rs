@@ -1,10 +1,9 @@
 use super::{Button, Component, Hint, State};
 use crate::{
-    components::Bounds,
+    components::{text::body::Anchor, Bounds},
     config::{button::ButtonState, Config},
     manager::UiState,
-    rendering::text_renderer::{Anchor, Text},
-    rendering::texture_renderer,
+    rendering::{text_renderer::Text, texture_renderer},
     utils::buffers,
 };
 use std::{cell::RefCell, rc::Rc, sync::Arc};
@@ -57,6 +56,7 @@ impl Component for AnchorButton {
             border_size: style.border.size.into(),
             border_color: style.border.color.to_linear(urgency),
             scale: 0.,
+            depth: 0.8,
         }]
     }
 
@@ -79,7 +79,7 @@ impl Component for AnchorButton {
     }
 
     fn get_bounds(&self) -> Bounds {
-        let anchor_extents = self.anchor.extents();
+        let anchor_extents = self.anchor.bounds();
 
         Bounds {
             x: self.x + anchor_extents.x,

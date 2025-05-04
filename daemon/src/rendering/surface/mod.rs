@@ -3,6 +3,7 @@ pub mod wgpu_surface;
 use crate::{
     config::{self, Anchor, Config},
     manager::NotificationManager,
+    utils::buffers,
     wgpu_state, Moxnotify, Output,
 };
 use glyphon::FontSystem;
@@ -152,7 +153,14 @@ impl Surface {
                     store: wgpu::StoreOp::Store,
                 },
             })],
-            depth_stencil_attachment: None,
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: self.wgpu_surface.depth_buffer.view(),
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: wgpu::StoreOp::Store,
+                }),
+                stencil_ops: None,
+            }),
             timestamp_writes: None,
             occlusion_query_set: None,
         });
@@ -192,6 +200,7 @@ impl Surface {
         {
             return;
         }
+        self.wgpu_surface.depth_buffer = buffers::DepthBuffer::new(device, width, height);
         self.wgpu_surface.config.width = width;
         self.wgpu_surface.config.height = height;
         self.wgpu_surface

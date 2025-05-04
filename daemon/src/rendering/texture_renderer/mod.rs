@@ -27,6 +27,7 @@ pub struct TextureArea<'a> {
     pub width: f32,
     pub height: f32,
     pub border_size: [f32; 4],
+    pub depth: f32,
 }
 
 #[derive(Clone)]
@@ -154,7 +155,13 @@ impl TextureRenderer {
                 cull_mode: Some(wgpu::Face::Back),
                 ..Default::default()
             },
-            depth_stencil: None,
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
             multisample: wgpu::MultisampleState::default(),
             multiview: None,
             cache: None,
@@ -237,6 +244,7 @@ impl TextureRenderer {
                     texture.bounds.right as f32,
                     self.height - texture.bounds.bottom as f32,
                 ],
+                depth: texture.depth,
             });
 
             let bytes_per_row = (4 * self.max_icon_size).div_ceil(256) * 256;

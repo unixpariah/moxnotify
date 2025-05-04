@@ -22,6 +22,8 @@ use dismiss::DismissButton;
 use glyphon::{FontSystem, TextArea};
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
+use super::text::body;
+
 #[derive(Clone, Copy, Debug)]
 pub enum State {
     Unhovered,
@@ -98,11 +100,7 @@ impl ButtonManager<NotReady> {
         self.internal_add_actions(app_name, actions, font_system)
     }
 
-    pub fn add_anchors(
-        self,
-        anchors: &[Rc<text_renderer::Anchor>],
-        font_system: &mut FontSystem,
-    ) -> Self {
+    pub fn add_anchors(self, anchors: &[Rc<body::Anchor>], font_system: &mut FontSystem) -> Self {
         self.internal_add_anchors(anchors, font_system)
     }
 
@@ -170,11 +168,7 @@ impl ButtonManager<Ready> {
         self.internal_add_actions(app_name, actions, font_system)
     }
 
-    pub fn add_anchors(
-        self,
-        anchors: &[Rc<text_renderer::Anchor>],
-        font_system: &mut FontSystem,
-    ) -> Self {
+    pub fn add_anchors(self, anchors: &[Rc<body::Anchor>], font_system: &mut FontSystem) -> Self {
         self.internal_add_anchors(anchors, font_system)
     }
 
@@ -348,7 +342,7 @@ impl ButtonManager<Finished> {
 impl<S> ButtonManager<S> {
     fn internal_add_anchors(
         mut self,
-        anchors: &[Rc<text_renderer::Anchor>],
+        anchors: &[Rc<body::Anchor>],
         font_system: &mut FontSystem,
     ) -> Self {
         if anchors.is_empty() {
@@ -616,6 +610,7 @@ impl Component for Hint {
             border_size: style.border.size.into(),
             border_color: style.border.color.to_linear(urgency),
             scale: self.ui_state.borrow().scale,
+            depth: 0.7,
         }]
     }
 

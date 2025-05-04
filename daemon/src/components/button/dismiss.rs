@@ -65,6 +65,7 @@ impl Component for DismissButton {
             border_size: style.border.size.into(),
             border_color: style.border.color.to_linear(urgency),
             scale: self.get_ui_state().scale,
+            depth: 0.8,
         }]
     }
 

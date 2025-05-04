@@ -1,5 +1,5 @@
 use super::math::{Mat4, Matrix};
-use wgpu::util::DeviceExt;
+use wgpu::{util::DeviceExt, Texture, TextureView};
 
 pub trait DataDescription {
     const ATTRIBS: &'static [wgpu::VertexAttribute];
@@ -85,6 +85,7 @@ pub struct TextureInstance {
     pub container_rect: [f32; 4],
     pub border_width: [f32; 4],
     pub scale: f32,
+    pub depth: f32,
 }
 
 impl DataDescription for TextureInstance {
@@ -95,6 +96,7 @@ impl DataDescription for TextureInstance {
         5 => Float32x4,
         6 => Float32x4,
         7 => Float32,
+        8 => Float32,
     ];
     const STEP_MODE: wgpu::VertexStepMode = wgpu::VertexStepMode::Instance;
 }
@@ -109,6 +111,7 @@ pub struct Instance {
     pub border_size: [f32; 4],
     pub border_color: [f32; 4],
     pub scale: f32,
+    pub depth: f32,
 }
 
 impl DataDescription for Instance {
@@ -120,6 +123,7 @@ impl DataDescription for Instance {
         5 => Float32x4,
         6 => Float32x4,
         7 => Float32,
+        8 => Float32,
     ];
     const STEP_MODE: wgpu::VertexStepMode = wgpu::VertexStepMode::Instance;
 }
@@ -168,6 +172,43 @@ where
 
     fn slice(&self, bounds: impl std::ops::RangeBounds<wgpu::BufferAddress>) -> wgpu::BufferSlice {
         self.buffer.slice(bounds)
+    }
+}
+
+pub struct DepthBuffer {
+    _texture: Texture,
+    view: TextureView,
+}
+
+impl DepthBuffer {
+    pub fn new(device: &wgpu::Device, width: u32, height: u32) -> Self {
+        let size = wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        };
+        let desc = wgpu::TextureDescriptor {
+            label: Some("Depth Buffer"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Depth32Float,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        };
+        let texture = device.create_texture(&desc);
+
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        Self {
+            _texture: texture,
+            view,
+        }
+    }
+
+    pub fn view(&self) -> &TextureView {
+        &self.view
     }
 }
 

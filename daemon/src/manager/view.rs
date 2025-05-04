@@ -151,6 +151,7 @@ impl NotificationView {
                 border_size: style.border.size.into(),
                 border_color: style.border.color.to_linear(&crate::Urgency::Low),
                 scale: self.ui_state.borrow().scale,
+                depth: 0.9,
             };
 
             return Some((
@@ -179,6 +180,7 @@ impl NotificationView {
                 border_size: style.border.size.into(),
                 border_color: style.border.color.to_linear(&crate::Urgency::Low),
                 scale: self.ui_state.borrow().scale,
+                depth: 0.9,
             };
 
             return Some((

@@ -33,7 +33,7 @@ struct Playback {
 impl Playback {
     fn new<T>(
         path: T,
-        context: Arc<Mutex<Context>>,
+        context: &mut Context,
         mainloop: Rc<RefCell<Mainloop>>,
         stream: Option<Arc<Mutex<Stream>>>,
     ) -> anyhow::Result<Self>
@@ -84,10 +84,8 @@ impl Playback {
             .sample_rate
             .ok_or(anyhow::anyhow!("Unable to determine sample rate"))?;
 
-        let mut context = context.lock().unwrap();
-
         let mut stream = Stream::new(
-            &mut context,
+            context,
             "moxnotify",
             &Spec {
                 format: libpulse_binding::sample::Format::FLOAT32NE,
@@ -98,20 +96,23 @@ impl Playback {
         )
         .ok_or(anyhow::anyhow!("Failed to create audio stream"))?;
 
-        mainloop.borrow_mut().lock();
-        stream.connect_playback(
-            None,
-            None,
-            stream::FlagSet::INTERPOLATE_TIMING
-                | stream::FlagSet::AUTO_TIMING_UPDATE
-                | stream::FlagSet::EARLY_REQUESTS,
-            None,
-            None,
-        )?;
-        mainloop.borrow_mut().unlock();
+        {
+            let mainloop = &mut mainloop.borrow_mut();
+            mainloop.lock();
+            stream.connect_playback(
+                None,
+                None,
+                stream::FlagSet::INTERPOLATE_TIMING
+                    | stream::FlagSet::AUTO_TIMING_UPDATE
+                    | stream::FlagSet::EARLY_REQUESTS,
+                None,
+                None,
+            )?;
+            mainloop.unlock();
 
-        while stream.get_state() != stream::State::Ready {
-            mainloop.borrow_mut().wait();
+            while stream.get_state() != stream::State::Ready {
+                mainloop.wait();
+            }
         }
 
         Ok(Self {
@@ -148,6 +149,7 @@ impl Playback {
 
             let track_id = track.id;
 
+            let mut stream = stream.lock().unwrap();
             while let Ok(packet) = format.next_packet() {
                 if rx.try_recv().is_ok() {
                     break;
@@ -166,12 +168,10 @@ impl Playback {
                     SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
                 sample_buf.copy_interleaved_ref(decoded);
 
-                let writable = stream.lock().unwrap().writable_size();
+                let writable = stream.writable_size();
                 let samples: &[u8] = bytemuck::cast_slice(sample_buf.samples());
 
                 stream
-                    .lock()
-                    .unwrap()
                     .write(
                         if samples.len() > writable.unwrap_or_default() {
                             &samples[..writable.unwrap_or_default()]
@@ -191,7 +191,7 @@ impl Playback {
         Ok(())
     }
 
-    fn stop(&mut self) -> Arc<Mutex<Stream>> {
+    fn stop(&mut self) {
         _ = self.shutdown_channel.0.send(());
         if let Some(handle) = self.handle.take() {
             _ = handle.join();
@@ -200,8 +200,6 @@ impl Playback {
         self.mainloop.borrow_mut().lock();
         self.stream.lock().unwrap().flush(None);
         self.mainloop.borrow_mut().unlock();
-
-        Arc::clone(&self.stream)
     }
 }
 
@@ -243,20 +241,22 @@ impl Audio {
             return Ok(());
         }
 
+        let mut context = self.context.lock().unwrap();
         if let Some(mut playback) = self.playback.take() {
-            self.stream = Some(playback.stop());
-            while self.context.lock().unwrap().get_state() != State::Ready {
+            playback.stop();
+            self.stream = Some(playback.stream);
+            while context.get_state() != State::Ready {
                 self.mainloop.borrow_mut().wait();
             }
         }
 
         let mut playback = Playback::new(
             path,
-            self.context.clone(),
+            &mut context,
             Rc::clone(&self.mainloop),
             self.stream.as_ref().map(Arc::clone),
         )?;
-        while self.context.lock().unwrap().get_state() != State::Ready {
+        while context.get_state() != State::Ready {
             self.mainloop.borrow_mut().wait();
         }
         playback.play()?;

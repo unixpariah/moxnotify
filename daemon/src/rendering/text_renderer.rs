@@ -1,44 +1,9 @@
-use crate::{
-    components::{icons::get_icon, notification::Extents},
-    config::Font,
-};
+use crate::{components::notification::Extents, config::Font};
 use glyphon::{
-    Attrs, Buffer, Cache, Color, FontSystem, Shaping, Style, SwashCache, TextArea, TextAtlas,
-    TextRenderer, Viewport, Weight,
-};
-use regex::Regex;
-use std::{
-    path::Path,
-    rc::Rc,
-    sync::{Arc, LazyLock},
+    Attrs, Buffer, Cache, FontSystem, Shaping, SwashCache, TextArea, TextAtlas, TextRenderer,
+    Viewport, Weight,
 };
 use wgpu::{MultisampleState, TextureFormat};
-
-static REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"<(/?)(b|i|a|u|img)\b[^>]*>").unwrap());
-static HREF_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"href\s*=\s*["']([^"']*)["']"#).unwrap());
-static ALT_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"alt\s*=\s*["']([^"']*)["']"#).unwrap());
-static URL_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)\b(https?://|ftp://|www\.)\S+\b").unwrap());
-static SPLIT_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(<[^>]+>)|([^<]+)").unwrap());
-
-#[derive(Debug)]
-pub struct Anchor {
-    text: Rc<str>,
-    pub href: Arc<str>,
-    pub line: usize,
-    pub start: usize,
-    pub end: usize,
-    pub extents: Extents,
-}
-
-impl Anchor {
-    pub fn extents(&self) -> Extents {
-        Extents { ..self.extents }
-    }
-}
 
 fn create_buffer(font: &Font, font_system: &mut FontSystem, max_width: Option<f32>) -> Buffer {
     let dpi = 96.0;
@@ -54,7 +19,6 @@ fn create_buffer(font: &Font, font_system: &mut FontSystem, max_width: Option<f3
 
 pub struct Text {
     pub buffer: Buffer,
-    pub anchors: Vec<Rc<Anchor>>,
     x: f32,
     y: f32,
 }
@@ -65,6 +29,7 @@ impl Text {
         T: AsRef<str>,
     {
         let attrs = Attrs::new()
+            .metadata(0.6_f32.to_bits() as usize)
             .family(glyphon::Family::Name(&font.family))
             .weight(Weight::BOLD);
         let mut buffer = create_buffer(font, font_system, None);
@@ -72,159 +37,6 @@ impl Text {
 
         Self {
             buffer,
-            anchors: Vec::new(),
-            x: 0.,
-            y: 0.,
-        }
-    }
-
-    pub fn new_notification(
-        font: &Font,
-        font_system: &mut FontSystem,
-        mut body: String,
-        max_width: f32,
-    ) -> Self {
-        let attrs = Attrs::new().family(glyphon::Family::Name(&font.family));
-        let mut spans = vec![];
-        let mut anchors = Vec::new();
-        let mut anchor_stack: Vec<Anchor> = Vec::new();
-
-        let mut start_pos = 0;
-        if !body.is_empty() {
-            let mut style_stack = Vec::new();
-            let mut current_attrs = attrs.clone();
-            let mut last_pos = 0;
-
-            body = SPLIT_REGEX
-                .replace_all(&body, |caps: &regex::Captures| {
-                    if let Some(tag) = caps.get(1) {
-                        tag.as_str().to_string()
-                    } else if let Some(text) = caps.get(2) {
-                        URL_REGEX
-                            .replace_all(text.as_str(), |url_caps: &regex::Captures| {
-                                format!("<a href=\"{}\">{}</a>", &url_caps[0], &url_caps[0])
-                            })
-                            .to_string()
-                    } else {
-                        String::new()
-                    }
-                })
-                .into_owned();
-
-            REGEX.captures_iter(&body).for_each(|cap| {
-                let full_match = cap.get(0).unwrap();
-                let is_closing = !cap[1].is_empty();
-                let tag: Box<str> = cap[2].into();
-
-                if full_match.start() > last_pos {
-                    let text = &body[last_pos..full_match.start()];
-                    start_pos += text.chars().filter(|char| *char != '\n').count();
-                    spans.push((text, current_attrs.clone()));
-                }
-
-                if is_closing {
-                    if let Some(pos) = style_stack.iter().rposition(|t| *t == tag) {
-                        style_stack.remove(pos);
-                    }
-                    if tag.as_ref() == "a" {
-                        if let Some(mut anchor) = anchor_stack.pop() {
-                            anchor.text = (&body[last_pos..full_match.start()]).into();
-                            anchors.push(anchor);
-                        }
-                    }
-                } else {
-                    match tag.as_ref() {
-                        "a" => {
-                            if let Some(href_cap) = HREF_REGEX.captures(full_match.as_str()) {
-                                let href = Arc::from(&href_cap[1]);
-                                anchor_stack.push(Anchor {
-                                    text: "".into(),
-                                    href,
-                                    line: 0,
-                                    start: start_pos,
-                                    end: 0,
-                                    extents: Extents::default(),
-                                });
-                            }
-                        }
-                        "img" => {
-                            if let Some(alt_cap) = ALT_REGEX.captures(full_match.as_str()) {
-                                if let Some(href_cap) = HREF_REGEX.captures(full_match.as_str()) {
-                                    let href = &href_cap[1];
-
-                                    if let Some(image) = get_icon(Path::new(&href), 64) {
-                                        _ = image;
-                                    } else if let Some(alt) = alt_cap.get(1) {
-                                        spans.push((alt.into(), current_attrs.clone()));
-                                    }
-                                }
-                            }
-                        }
-                        _ => {}
-                    }
-                    style_stack.push(tag);
-                }
-
-                current_attrs = attrs.clone();
-                style_stack.iter().for_each(|tag| {
-                    current_attrs = match &**tag {
-                        "b" => current_attrs.clone().weight(Weight::BOLD),
-                        "i" => current_attrs.clone().style(Style::Italic),
-                        "a" => current_attrs.clone().color(Color::rgb(0, 0, 255)),
-                        "u" => current_attrs.clone(), // TODO: implement this once cosmic text implements
-                        // underline
-                        _ => current_attrs.clone(),
-                    };
-                });
-
-                last_pos = full_match.end();
-            });
-
-            if last_pos < body.len() {
-                let text = &body[last_pos..];
-                spans.push((text, current_attrs));
-            }
-        }
-
-        let mut buffer = create_buffer(font, font_system, Some(max_width));
-        buffer.set_rich_text(font_system, spans, &attrs, Shaping::Advanced, None);
-
-        let mut total = 0;
-        anchors.iter_mut().for_each(|anchor| {
-            total = 0;
-            buffer.lines.iter().enumerate().for_each(|(i, line)| {
-                line.text()
-                    .match_indices(&*anchor.text)
-                    .for_each(|(start, _)| {
-                        if total + start == anchor.start {
-                            anchor.start = start;
-                            anchor.end = start + anchor.text.len();
-                            anchor.line = i;
-                            anchor.extents = match buffer.layout_runs().nth(anchor.line) {
-                                Some(line) => {
-                                    let first = line.glyphs.get(anchor.start);
-                                    let last = line.glyphs.get(anchor.end.saturating_sub(1));
-                                    match (first, last) {
-                                        (Some(first), Some(last)) => Extents {
-                                            x: first.x + first.w,
-                                            y: line.line_top + line.line_height,
-                                            width: (last.x + last.w) - first.x,
-                                            height: line.line_height,
-                                        },
-                                        _ => Extents::default(),
-                                    }
-                                }
-                                None => Extents::default(),
-                            };
-                        }
-                    });
-                total += line.text().len();
-            });
-        });
-
-        Self {
-            buffer,
-            anchors: anchors.into_iter().map(Rc::new).collect(),
             x: 0.,
             y: 0.,
         }
@@ -264,7 +76,18 @@ impl TextContext {
         let swash_cache = SwashCache::new();
         let cache = Cache::new(device);
         let mut atlas = TextAtlas::new(device, queue, &cache, texture_format);
-        let renderer = TextRenderer::new(&mut atlas, device, MultisampleState::default(), None);
+        let renderer = TextRenderer::new(
+            &mut atlas,
+            device,
+            MultisampleState::default(),
+            Some(wgpu::DepthStencilState {
+                format: wgpu::TextureFormat::Depth32Float,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: wgpu::StencilState::default(),
+                bias: wgpu::DepthBiasState::default(),
+            }),
+        );
 
         Self {
             swash_cache,
@@ -285,7 +108,7 @@ impl TextContext {
             return Ok(());
         }
 
-        self.renderer.prepare(
+        self.renderer.prepare_with_depth(
             device,
             queue,
             font_system,
@@ -293,6 +116,7 @@ impl TextContext {
             &self.viewport,
             text,
             &mut self.swash_cache,
+            |metadata| f32::from_bits(metadata as u32),
         )?;
 
         Ok(())

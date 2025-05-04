@@ -207,34 +207,35 @@ impl Moxnotify {
 
                 let suppress_sound = data.hints.suppress_sound;
 
-                self.db.execute(
-                    "INSERT INTO notifications (id, app_name, app_icon, timeout, summary, body, actions, hints)
-                     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-                    params![
-                        data.id,
-                        data.app_name,
-                        data.app_icon,
-                        data.timeout,
-                        data.summary,
-                        data.body,
-                        serde_json::to_string(&data.actions)?,
-                        serde_json::to_string(&data.hints)?
-                    ],
-                )?;
-
                 let id = match self.history {
                     History::Shown => self.db.last_insert_rowid() as u32,
                     History::Hidden => data.id,
                 };
 
                 self.notifications.add(NotificationData { id, ..*data })?;
-                self.update_surface_size();
 
                 if self.notifications.inhibited() || suppress_sound {
                     log::debug!("Sound suppressed for notification");
                 } else if let (Some(audio), Some(path)) = (self.audio.as_mut(), path) {
                     log::debug!("Playing notification sound");
                     audio.play(path)?;
+                }
+
+                if let Some(notification) = self.notifications.notifications().last() {
+                    self.db.execute(
+                        "INSERT INTO notifications (id, app_name, app_icon, timeout, summary, body, actions, hints)
+                         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                        params![
+                            notification.data.id,
+                            notification.data.app_name,
+                            notification.data.app_icon,
+                            notification.data.timeout,
+                            notification.data.summary,
+                            notification.data.body,
+                            serde_json::to_string(&notification.data.actions)?,
+                            serde_json::to_string(&notification.data.hints)?
+                        ],
+                )?;
                 }
             }
             Event::CloseNotification(id) => {
@@ -295,7 +296,7 @@ impl Moxnotify {
                     self.db.execute(
                         "DELETE FROM notifications WHERE rowid IN (
                         SELECT rowid FROM notifications ORDER BY rowid ASC LIMIT (
-                            SELECT MAX(COUNT(*) + 1 - ?, 0) FROM notifications
+                            SELECT MAX(COUNT(*) - ?, 0) FROM notifications
                         )
                     )",
                         params![self.config.general.history.size],

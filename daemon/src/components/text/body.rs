@@ -31,13 +31,20 @@ pub struct Anchor {
     pub line: usize,
     pub start: usize,
     pub end: usize,
-    bounds: Bounds,
+    pub bounds: Bounds,
+}
+
+impl Anchor {
+    pub fn bounds(&self) -> Bounds {
+        Bounds { ..self.bounds }
+    }
 }
 
 pub struct Body {
     id: NotificationId,
     app_name: Arc<str>,
     ui_state: Rc<RefCell<UiState>>,
+    pub anchors: Vec<Rc<Anchor>>,
     config: Rc<Config>,
     buffer: Buffer,
     x: f32,
@@ -55,7 +62,9 @@ impl Text for Body {
     {
         let family = Rc::clone(&self.get_style().family);
 
-        let attrs = Attrs::new().family(glyphon::Family::Name(&family));
+        let attrs = Attrs::new()
+            .metadata(0.7_f32.to_bits() as usize)
+            .family(glyphon::Family::Name(&family));
         let mut spans = Vec::new();
         let mut anchors = Vec::new();
         let mut anchor_stack: Vec<Anchor> = Vec::new();
@@ -195,6 +204,8 @@ impl Text for Body {
                 total_bytes = line_end;
             }
         });
+
+        self.anchors = anchors.into_iter().map(Rc::new).collect();
     }
 }
 
@@ -233,6 +244,7 @@ impl Component for Body {
             border_size: style.border.size.into(),
             border_color: style.border.color.to_linear(urgency),
             scale: self.ui_state.borrow().scale,
+            depth: 0.8,
         }]
     }
 
@@ -353,6 +365,7 @@ impl Body {
             config,
             ui_state,
             app_name,
+            anchors: Vec::new(),
         }
     }
 }

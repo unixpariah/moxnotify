@@ -221,10 +221,11 @@ impl Component for Icons {
                     left: bounds.x as u32,
                     top: bounds.y as u32,
                     right: (bounds.x + bounds.width) as u32,
-                    bottom: bounds.y as u32,
+                    bottom: (bounds.y + bounds.height) as u32,
                 },
                 data: &icon.data,
                 radius: style.icon.border.radius.into(),
+                depth: 0.8,
             });
 
             bounds.x += bounds.height - self.config.general.app_icon_size as f32;
@@ -244,11 +245,12 @@ impl Component for Icons {
                 bounds: TextureBounds {
                     left: bounds.x as u32,
                     top: bounds.y as u32,
-                    right: (bounds.x + bounds.width) as u32,
-                    bottom: bounds.y as u32,
+                    right: (bounds.x + app_icon_size) as u32,
+                    bottom: (bounds.y + app_icon_size) as u32,
                 },
                 data: &app_icon.data,
                 radius: style.app_icon.border.radius.into(),
+                depth: 0.7,
             });
         }
 

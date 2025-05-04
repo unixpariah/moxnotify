@@ -1,6 +1,8 @@
 use crate::{
-    config::Config, rendering::shape_renderer, rendering::text_renderer,
-    rendering::texture_renderer, wgpu_state::WgpuState,
+    config::Config,
+    rendering::{shape_renderer, text_renderer, texture_renderer},
+    utils::buffers::{self, DepthBuffer},
+    wgpu_state::WgpuState,
 };
 use anyhow::Context;
 use raw_window_handle::{RawWindowHandle, WaylandWindowHandle};
@@ -14,6 +16,7 @@ pub struct WgpuSurface {
     pub text_ctx: text_renderer::TextContext,
     pub surface: wgpu::Surface<'static>,
     pub config: wgpu::SurfaceConfiguration,
+    pub depth_buffer: buffers::DepthBuffer,
 }
 
 impl WgpuSurface {
@@ -74,12 +77,15 @@ impl WgpuSurface {
             surface_config.format,
         );
 
+        let depth_buffer = DepthBuffer::new(&wgpu_state.device, 1, 1);
+
         Ok(Self {
             shape_renderer,
             texture_renderer,
             text_ctx,
             surface: wgpu_surface,
             config: surface_config,
+            depth_buffer,
         })
     }
 }

@@ -9,7 +9,6 @@ use crate::rendering::texture_renderer;
 use crate::{
     components::{Component, Data},
     config::{Size, StyleState},
-    rendering::text_renderer,
     utils::buffers,
     Config, Moxnotify, NotificationData, Urgency,
 };
@@ -121,6 +120,7 @@ impl Component for Notification {
             border_size: style.border.size.into(),
             border_color: style.border.color.to_linear(urgency),
             scale: self.ui_state.borrow().scale,
+            depth: 0.9,
         }]
     }
 
@@ -409,20 +409,6 @@ impl Notification {
         .add_dismiss(font_system)
         .add_actions(&data.actions, font_system);
 
-        let icon_bounds = icons.get_bounds();
-        let text = text_renderer::Text::new_notification(
-            &config.styles.default.font,
-            font_system,
-            data.body.to_string(),
-            config.styles.default.width
-                - icon_bounds.width
-                - buttons
-                    .buttons()
-                    .first()
-                    .map(|buttons| buttons.get_render_bounds().width)
-                    .unwrap_or_default(),
-        );
-
         body.set_text(font_system, &data.body);
         summary.set_text(font_system, &data.summary);
 
@@ -447,7 +433,6 @@ impl Notification {
         );
 
         Self {
-            body,
             summary,
             progress: data.hints.value.map(|value| {
                 Progress::new(
@@ -462,13 +447,14 @@ impl Notification {
             x: 0.,
             icons,
             buttons: buttons
-                .add_anchors(&text.anchors, font_system)
+                .add_anchors(&body.anchors, font_system)
                 .finish(font_system),
             data,
             config,
             hovered: false,
             registration_token: None,
             ui_state: Rc::clone(&ui_state),
+            body,
         }
     }
 

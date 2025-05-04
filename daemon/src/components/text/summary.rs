@@ -33,6 +33,7 @@ impl Text for Summary {
         let family = Rc::clone(&style.family);
 
         let attrs = Attrs::new()
+            .metadata(0.7_f32.to_bits() as usize)
             .family(glyphon::Family::Name(&family))
             .weight(Weight::BOLD);
 
@@ -80,6 +81,7 @@ impl Component for Summary {
             border_size: style.border.size.into(),
             border_color: style.border.color.to_linear(urgency),
             scale: self.ui_state.borrow().scale,
+            depth: 0.8,
         }]
     }
 

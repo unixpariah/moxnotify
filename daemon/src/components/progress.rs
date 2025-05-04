@@ -163,6 +163,7 @@ impl Component for Progress {
                 border_size: border_size.into(),
                 border_color: style.border.color.to_linear(urgency),
                 scale: self.get_ui_state().scale,
+                depth: 0.8,
             });
         }
 
@@ -197,6 +198,7 @@ impl Component for Progress {
                     border_size: border_size.into(),
                     border_color: style.border.color.to_linear(urgency),
                     scale: self.get_ui_state().scale,
+                    depth: 0.8,
                 });
             }
         }

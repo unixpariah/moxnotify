@@ -18,6 +18,7 @@ struct VertexOutput {
     @location(5) border_size: vec4<f32>,
     @location(6) border_color: vec4<f32>,
     @location(7) scale: f32,
+    @location(8) depth: f32,
 };
 
 struct InstanceInput {
@@ -28,6 +29,7 @@ struct InstanceInput {
     @location(5) border_size: vec4<f32>,
     @location(6) border_color: vec4<f32>,
     @location(7) scale: f32,
+    @location(8) depth: f32,
 }
 
 @vertex
@@ -38,7 +40,7 @@ fn vs_main(
     var out: VertexOutput;
 
     let position = model.position * (instance.rect_size + vec2<f32>(instance.border_size[0], instance.border_size[2]) + vec2<f32>(instance.border_size[1], instance.border_size[3])) * instance.scale + instance.rect_pos * instance.scale;
-    out.clip_position = projection.projection * vec4<f32>(position, 0.0, 1.0);
+    out.clip_position = projection.projection * vec4<f32>(position, instance.depth, 1.0);
     out.uv = position;
     out.rect_pos = (instance.rect_pos + vec2<f32>(instance.border_size[0], instance.border_size[2])) * instance.scale;
     out.rect_size = instance.rect_size * instance.scale;
@@ -59,6 +61,7 @@ fn vs_main(
     out.border_size = instance.border_size * instance.scale;
     out.border_color = instance.border_color;
     out.scale = instance.scale;
+    out.depth = instance.depth;
 
     return out;
 }
@@ -73,8 +76,13 @@ fn sdf_rounded_rect(p: vec2<f32>, b: vec2<f32>, r: vec4<f32>) -> f32 {
     return min(max(q.x, q.y), 0.0) + length(max(q, vec2<f32>(0.0))) - x;
 }
 
+struct FragmentOutput {
+    @location(0) color: vec4<f32>,
+    @builtin(frag_depth) depth: f32,
+};
+
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+fn fs_main(in: VertexOutput) -> FragmentOutput {
     let inner_center = in.rect_pos + in.rect_size / 2.0;
     let inner_dist = sdf_rounded_rect(in.uv - inner_center, in.rect_size / 2.0, in.border_radius);
 
@@ -92,5 +100,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let inner_color = in.rect_color * inner_alpha;
     let border_color = in.border_color * border_alpha;
 
-    return inner_color + border_color;
+    var out: FragmentOutput;
+    out.color = inner_color + border_color;
+    out.depth = in.clip_position.z / in.clip_position.w;
+    return out;
 }

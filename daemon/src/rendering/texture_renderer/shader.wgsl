@@ -1,3 +1,13 @@
+struct ProjectionUniform {
+    view_proj: mat4x4<f32>,
+};
+@group(1) @binding(0)
+var<uniform> projection: ProjectionUniform;
+
+struct VertexInput {
+    @location(0) position: vec2<f32>,
+};
+
 struct InstanceInput {
     @location(2) pos: vec2<f32>,
     @location(3) size: vec2<f32>,
@@ -5,10 +15,7 @@ struct InstanceInput {
     @location(5) container_rect: vec4<f32>,
     @location(6) border_width: vec4<f32>,
     @location(7) scale: f32,
-};
-
-struct VertexInput {
-    @location(0) position: vec2<f32>,
+    @location(8) depth: f32,
 };
 
 struct VertexOutput {
@@ -20,13 +27,8 @@ struct VertexOutput {
     @location(4) container_rect: vec4<f32>,
     @location(5) surface_position: vec2<f32>,
     @location(6) border_width: vec4<f32>,
+    @location(7) depth: f32,
 };
-
-struct ProjectionUniform {
-    view_proj: mat4x4<f32>,
-};
-@group(1) @binding(0)
-var<uniform> projection: ProjectionUniform;
 
 @vertex
 fn vs_main(
@@ -56,6 +58,7 @@ fn vs_main(
     out.container_rect = instance.container_rect;
     out.surface_position = position;
     out.border_width = instance.border_width * instance.scale;
+    out.depth = instance.depth;
 
     return out;
 }
@@ -73,8 +76,13 @@ fn sdf_rounded_rect(p: vec2<f32>, b: vec2<f32>, r: vec4<f32>) -> f32 {
     return min(max(q.x, q.y), 0.0) + length(max(q, vec2<f32>(0.0))) - radius;
 }
 
+struct FragmentOutput {
+    @location(0) color: vec4<f32>,
+    @builtin(frag_depth) depth: f32,
+};
+
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+fn fs_main(in: VertexOutput) -> FragmentOutput {
     let tex_color = textureSample(
         t_diffuse,
         s_diffuse,
@@ -96,5 +104,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let alpha = outer;
 
     let final_alpha = color.a * alpha;
-    return vec4<f32>(color.rgb * final_alpha, final_alpha);
+
+    var out: FragmentOutput;
+    out.color = vec4<f32>(color.rgb * final_alpha, final_alpha);
+    out.depth = in.clip_position.z / in.clip_position.w;
+    return out;
 }
