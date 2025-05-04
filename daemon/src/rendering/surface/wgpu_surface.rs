@@ -7,7 +7,7 @@ use crate::{
 use anyhow::Context;
 use raw_window_handle::{RawWindowHandle, WaylandWindowHandle};
 
-use std::{ptr::NonNull, rc::Rc};
+use std::ptr::NonNull;
 use wayland_client::{protocol::wl_surface, Proxy};
 
 pub struct WgpuSurface {
@@ -23,7 +23,7 @@ impl WgpuSurface {
     pub fn new(
         wgpu_state: &WgpuState,
         surface: &wl_surface::WlSurface,
-        config: Rc<Config>,
+        config: &Config,
     ) -> anyhow::Result<Self> {
         let raw_window_handle = RawWindowHandle::Wayland(WaylandWindowHandle::new(
             NonNull::new(surface.id().as_ptr() as *mut _).context("Surface id is a null ptr")?,

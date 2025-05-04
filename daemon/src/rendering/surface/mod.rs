@@ -49,7 +49,7 @@ impl Surface {
         layer_shell: &zwlr_layer_shell_v1::ZwlrLayerShellV1,
         qh: &QueueHandle<Moxnotify>,
         outputs: &[Output],
-        config: Rc<Config>,
+        config: &Config,
         font_system: Rc<RefCell<FontSystem>>,
     ) -> anyhow::Result<Self> {
         let output = outputs
@@ -313,7 +313,7 @@ impl Moxnotify {
                 &self.layer_shell,
                 &self.qh,
                 &self.outputs,
-                Rc::clone(&self.config),
+                &self.config,
                 Rc::clone(&self.font_system),
             )
             .ok();

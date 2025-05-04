@@ -29,6 +29,7 @@ pub struct Anchor {
     text: Rc<str>,
     pub href: Arc<str>,
     pub line: usize,
+    pub index: usize,
     pub start: usize,
     pub end: usize,
     pub bounds: Bounds,
@@ -46,7 +47,7 @@ pub struct Body {
     ui_state: Rc<RefCell<UiState>>,
     pub anchors: Vec<Rc<Anchor>>,
     config: Rc<Config>,
-    buffer: Buffer,
+    pub buffer: Buffer,
     x: f32,
     y: f32,
 }
@@ -69,11 +70,9 @@ impl Text for Body {
         let mut anchors = Vec::new();
         let mut anchor_stack: Vec<Anchor> = Vec::new();
 
-        let mut start_pos = 0;
-        let mut style_stack = Vec::new();
-        let mut current_attrs = attrs.clone();
-        let mut last_pos = 0;
+        let mut buffer_text = String::new();
 
+        // Process the body and replace URLs with <a> tags
         let body = SPLIT_REGEX
             .replace_all(text.as_ref(), |caps: &regex::Captures| {
                 if let Some(tag) = caps.get(1) {
@@ -90,15 +89,19 @@ impl Text for Body {
             })
             .into_owned();
 
-        REGEX.captures_iter(&body).for_each(|cap| {
+        let mut style_stack = Vec::new();
+        let mut current_attrs = attrs.clone();
+        let mut last_pos = 0;
+
+        for cap in REGEX.captures_iter(&body) {
             let full_match = cap.get(0).unwrap();
             let is_closing = !cap[1].is_empty();
             let tag: Box<str> = cap[2].into();
 
             if full_match.start() > last_pos {
                 let text = &body[last_pos..full_match.start()];
-                start_pos += text.len();
                 spans.push((text, current_attrs.clone()));
+                buffer_text.push_str(text);
             }
 
             if is_closing {
@@ -107,7 +110,11 @@ impl Text for Body {
                 }
                 if tag.as_ref() == "a" {
                     if let Some(mut anchor) = anchor_stack.pop() {
-                        anchor.text = (&body[last_pos..full_match.start()]).into();
+                        anchor.end = buffer_text
+                            .chars()
+                            .filter(|character| *character != '\n')
+                            .count();
+                        anchor.text = buffer_text[anchor.start..anchor.end].into();
                         anchors.push(anchor);
                     }
                 }
@@ -120,7 +127,8 @@ impl Text for Body {
                                 text: "".into(),
                                 href,
                                 line: 0,
-                                start: start_pos,
+                                index: 0,
+                                start: buffer_text.replace('\n', "").len(),
                                 end: 0,
                                 bounds: Bounds::default(),
                             });
@@ -130,7 +138,8 @@ impl Text for Body {
                         if let Some(alt_cap) = ALT_REGEX.captures(full_match.as_str()) {
                             if HREF_REGEX.captures(full_match.as_str()).is_some() {
                                 if let Some(alt) = alt_cap.get(1) {
-                                    spans.push((alt.into(), current_attrs.clone()));
+                                    spans.push((alt.as_str(), current_attrs.clone()));
+                                    buffer_text.push_str(alt.as_str());
                                 }
                             }
                         }
@@ -141,23 +150,23 @@ impl Text for Body {
             }
 
             current_attrs = attrs.clone();
-            style_stack.iter().for_each(|tag| {
+            for tag in &style_stack {
                 current_attrs = match &**tag {
-                    "b" => current_attrs.clone().weight(Weight::BOLD),
-                    "i" => current_attrs.clone().style(Style::Italic),
-                    "a" => current_attrs.clone().color(Color::rgb(0, 0, 255)),
-                    "u" => current_attrs.clone(), // TODO: implement this once cosmic text implements
-                    // underline
-                    _ => current_attrs.clone(),
+                    "b" => current_attrs.weight(Weight::BOLD),
+                    "i" => current_attrs.style(Style::Italic),
+                    "a" => current_attrs.color(Color::rgb(0, 0, 255)),
+                    "u" => current_attrs,
+                    _ => current_attrs,
                 };
-            });
+            }
 
             last_pos = full_match.end();
-        });
+        }
 
         if last_pos < body.len() {
             let text = &body[last_pos..];
             spans.push((text, current_attrs));
+            buffer_text.push_str(text);
         }
 
         self.buffer
@@ -165,41 +174,40 @@ impl Text for Body {
 
         anchors.iter_mut().for_each(|anchor| {
             let mut total_bytes = 0;
-
             for (line_idx, layout_run) in self.buffer.layout_runs().enumerate() {
-                let line_text = &self.buffer.lines[line_idx].text();
+                let line_text = &self.buffer.lines[line_idx].text().trim();
                 let line_start = total_bytes;
                 let line_end = line_start + line_text.len();
 
-                if anchor.start >= line_start && anchor.start < line_end {
+                if anchor.start >= line_start && anchor.end <= line_end {
+                    anchor.line = line_idx;
+                    anchor.index = anchor.start - line_start;
+
                     let local_start = anchor.start - line_start;
-                    let local_end = local_start + anchor.text.len();
+                    let local_end = anchor.end - line_start;
 
-                    if line_text.get(local_start..local_end) == Some(&*anchor.text) {
-                        anchor.line = line_idx;
+                    let mut first_glyph = None;
+                    let mut last_glyph = None;
 
-                        let mut first_glyph = None;
-                        let mut last_glyph = None;
-
-                        for glyph in layout_run.glyphs.iter() {
-                            if glyph.start <= local_start && glyph.end > local_start {
-                                first_glyph.get_or_insert(glyph);
-                            }
-                            if glyph.start < local_end && glyph.end >= local_end {
-                                last_glyph = Some(glyph);
-                                break;
-                            }
+                    for glyph in layout_run.glyphs {
+                        if glyph.start <= local_start && glyph.end > local_start {
+                            first_glyph.get_or_insert(glyph);
                         }
-
-                        if let (Some(first), Some(last)) = (first_glyph, last_glyph) {
-                            anchor.bounds = Bounds {
-                                x: first.x,
-                                y: layout_run.line_top,
-                                width: last.x + last.w - first.x,
-                                height: layout_run.line_height,
-                            };
+                        if glyph.start < local_end && glyph.end >= local_end {
+                            last_glyph = Some(glyph);
+                            break;
                         }
                     }
+
+                    if let (Some(first), Some(last)) = (first_glyph, last_glyph) {
+                        anchor.bounds = Bounds {
+                            x: first.x,
+                            y: layout_run.line_top,
+                            width: last.x + last.w - first.x,
+                            height: layout_run.line_height,
+                        };
+                    }
+                    break;
                 }
                 total_bytes = line_end;
             }
