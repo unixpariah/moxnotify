@@ -1,11 +1,10 @@
-#![allow(dead_code)]
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Position {
-    line: usize,
-    column: usize,
-    offset: usize,
+    pub line: usize,
+    pub column: usize,
+    pub offset: usize,
 }
 
 #[derive(Debug, PartialEq)]
@@ -185,9 +184,9 @@ impl Parser {
         for c in s.chars() {
             if c == '\n' {
                 self.line += 1;
-                self.column = 1;
+                self.column = 0;
                 if count_in_text {
-                    self.text_column = 1;
+                    self.text_column = 0;
                 }
             } else {
                 self.column += 1;
@@ -206,9 +205,9 @@ impl Parser {
 
         if current_char == '\n' {
             self.line += 1;
-            self.column = 1;
+            self.column = 0;
             if count_in_text {
-                self.text_column = 1;
+                self.text_column = 0;
             }
         } else {
             self.column += 1;
@@ -226,13 +225,13 @@ impl Parser {
 
         if let Some(pos) = last_newline_pos {
             self.line = slice[..pos].chars().filter(|&c| c == '\n').count() + 1;
-            self.column = slice[pos + 1..].chars().count() + 1;
+            self.column = slice[pos + 1..].chars().count();
 
             if count_in_text {
                 self.text_column = self.column;
             }
         } else {
-            self.column = slice.chars().count() + 1;
+            self.column = slice.chars().count();
             if count_in_text {
                 self.text_column = self.column;
             }
@@ -361,7 +360,7 @@ mod tests {
         if let Tag::Anchor { text, position, .. } = &result[1] {
             assert_eq!(text, "Line 2");
             assert_eq!(position.line, 1);
-            assert_eq!(position.column, 1);
+            assert_eq!(position.column, 0);
         } else {
             panic!("Expected Anchor tag");
         }
@@ -388,7 +387,7 @@ mod tests {
     }
 
     #[test]
-    fn test_complex_html_with_positions() {
+    fn test_complex_markup_with_positions() {
         let html =
             "<b>Bold</b> text <i>and</i> <a href=\"#1\">link 1</a> and <a href=\"#2\">link 2</a>";
         let mut parser = Parser::new(html.to_string());
@@ -408,6 +407,81 @@ mod tests {
             assert_eq!(position.column, 25);
         } else {
             panic!("Expected second Anchor tag");
+        }
+    }
+
+    #[test]
+    fn test_complex_multiline_markup_with_positions() {
+        let html = "<u>underline</u>\n<i>italic</i>\n<b>bold</b>\n<a href=\"https://github.com/unixpariah/moxnotify\">github</a>\n<img alt=\"image\" href=\"\"/>";
+        let mut parser = Parser::new(html.to_string());
+        let result = parser.parse();
+
+        assert_eq!(result.len(), 9, "Expected 9 tags in total");
+
+        if let Tag::Underline(content) = &result[0] {
+            assert_eq!(content, "underline", "Expected underline content");
+        } else {
+            panic!("Expected Underline tag at position 0");
+        }
+
+        if let Tag::Text(content) = &result[1] {
+            assert_eq!(content, "\n", "Expected newline after underline");
+        } else {
+            panic!("Expected Text tag with newline at position 1");
+        }
+
+        if let Tag::Italic(content) = &result[2] {
+            assert_eq!(content, "italic", "Expected italic content");
+        } else {
+            panic!("Expected Italic tag at position 2");
+        }
+
+        if let Tag::Text(content) = &result[3] {
+            assert_eq!(content, "\n", "Expected newline after italic");
+        } else {
+            panic!("Expected Text tag with newline at position 3");
+        }
+
+        if let Tag::Bold(content) = &result[4] {
+            assert_eq!(content, "bold", "Expected bold content");
+        } else {
+            panic!("Expected Bold tag at position 4");
+        }
+
+        if let Tag::Text(content) = &result[5] {
+            assert_eq!(content, "\n", "Expected newline after bold");
+        } else {
+            panic!("Expected Text tag with newline at position 5");
+        }
+
+        if let Tag::Anchor {
+            href,
+            text,
+            position,
+        } = &result[6]
+        {
+            assert_eq!(
+                href, "https://github.com/unixpariah/moxnotify",
+                "Expected correct href"
+            );
+            assert_eq!(text, "github", "Expected anchor text");
+            assert_eq!(position.line, 3, "Expected anchor on line 3");
+            assert_eq!(position.column, 0)
+        } else {
+            panic!("Expected Anchor tag at position 6");
+        }
+
+        if let Tag::Text(content) = &result[7] {
+            assert_eq!(content, "\n", "Expected newline after anchor");
+        } else {
+            panic!("Expected Text tag with newline at position 7");
+        }
+
+        if let Tag::Image { alt, src } = &result[8] {
+            assert_eq!(alt, "image", "Expected image alt text");
+            assert_eq!(src, "", "Expected empty src attribute");
+        } else {
+            panic!("Expected Image tag at position 8");
         }
     }
 }

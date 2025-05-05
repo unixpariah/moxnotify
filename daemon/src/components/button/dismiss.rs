@@ -160,7 +160,9 @@ impl Component for DismissButton {
         self.x = x;
         self.y = y;
         self.text.set_buffer_position(x, y);
-        self.hint.set_position(x, y);
+
+        let bounds = self.get_render_bounds();
+        self.hint.set_position(bounds.x, bounds.y);
     }
 
     fn get_textures(&self) -> Vec<texture_renderer::TextureArea> {

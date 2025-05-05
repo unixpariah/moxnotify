@@ -242,11 +242,7 @@ mod tests {
         hints.insert("value", zbus::zvariant::Value::I32(25));
         hints.insert("image-path", "zen-beta".into());
 
-        let body = r#"<u>underline</u>
-<i>italic</i>
-<b>bold</b>
-<a href="https://github.com/unixpariah/moxnotify">github</a>
-<img alt="image" href=""/>"#;
+        let body = "<u>underline</u>\n<i>italic</i>\n<b>bold</b>\n<a href=\"https://github.com/unixpariah/moxnotify\">github</a>\n<img alt=\"image\" href=\"\"/>";
 
         let notification = Notification {
             summary: "everything test",

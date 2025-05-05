@@ -140,7 +140,6 @@ impl Component for Notification {
         let hovered = self.hovered();
         let style = self.config.find_style(&self.data.app_name, hovered);
 
-        // Common offset calculations
         let x_offset = style.border.size.left + style.padding.left;
         let y_offset = style.border.size.top + style.padding.top;
 
@@ -202,11 +201,9 @@ impl Component for Notification {
 
             progress.set_width(available_width);
 
-            // Update style if selected
             let is_selected = self.ui_state.borrow().selected == Some(self.data.id);
             let selected_style = self.config.find_style(&self.data.app_name, is_selected);
 
-            // Position progress at the bottom
             let progress_x =
                 extents.x + selected_style.border.size.left + selected_style.padding.left;
             let progress_y = extents.y + extents.height
@@ -217,7 +214,6 @@ impl Component for Notification {
             progress.set_position(progress_x, progress_y);
         }
 
-        // Find and position dismiss button if present, get its bottom y-coordinate
         let dismiss_bottom_y = self
             .buttons
             .buttons_mut()
@@ -239,7 +235,6 @@ impl Component for Notification {
 
         // Position action buttons
         if action_buttons_count > 0 {
-            // Get button style once
             let button_style = self
                 .buttons
                 .buttons()
@@ -248,7 +243,6 @@ impl Component for Notification {
                 .map(|button| button.get_style())
                 .unwrap_or_else(|| &style.buttons.action.default);
 
-            // Calculate widths and positions
             let side_padding = style.border.size.left
                 + style.border.size.right
                 + style.padding.left
@@ -261,10 +255,8 @@ impl Component for Notification {
             let total_spacing = (action_buttons_f32 - 1.0) * button_margin;
             let button_width = (available_width - total_spacing) / action_buttons_f32;
 
-            // Set all action button widths
             self.buttons.set_action_widths(button_width);
 
-            // Calculate base position
             let progress_height = self
                 .progress
                 .as_ref()
@@ -274,7 +266,6 @@ impl Component for Notification {
             let base_x = extents.x + style.border.size.left + style.padding.left;
             let bottom_padding = style.border.size.bottom + style.padding.bottom + progress_height;
 
-            // Position each action button
             self.buttons
                 .buttons_mut()
                 .iter_mut()
@@ -288,16 +279,19 @@ impl Component for Notification {
 
                     button.set_position(x_position, y_position);
                 });
-
-            // Position anchor buttons
-            self.buttons
-                .buttons_mut()
-                .iter_mut()
-                .filter(|b| b.button_type() == ButtonType::Anchor)
-                .for_each(|button| {
-                    button.set_position(self.body.get_bounds().x, self.summary.get_bounds().y)
-                });
         }
+
+        // Position anchor buttons
+        self.buttons
+            .buttons_mut()
+            .iter_mut()
+            .filter(|b| b.button_type() == ButtonType::Anchor)
+            .for_each(|button| {
+                button.set_position(
+                    self.body.get_render_bounds().x,
+                    self.body.get_render_bounds().y,
+                )
+            });
 
         // Position body
         let bounds = self.get_render_bounds();

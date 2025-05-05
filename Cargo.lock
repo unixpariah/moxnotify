@@ -583,7 +583,6 @@ dependencies = [
  "log",
  "mlua",
  "raw-window-handle",
- "regex",
  "resvg",
  "rusqlite",
  "serde",

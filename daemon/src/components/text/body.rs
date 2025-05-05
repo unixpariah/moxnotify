@@ -10,29 +10,12 @@ use crate::{
     Urgency,
 };
 use glyphon::{Attrs, Buffer, Color, FontSystem, Shaping, Style, Weight};
-use regex::Regex;
-use std::{
-    cell::RefCell,
-    rc::Rc,
-    sync::{Arc, LazyLock},
-};
-
-static REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"<(/?)(b|i|a|u|img)\b[^>]*>").unwrap());
-static HREF_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"href\s*=\s*["']([^"']*)["']"#).unwrap());
-static ALT_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r#"alt\s*=\s*["']([^"']*)["']"#).unwrap());
-static URL_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)\b(https?://|ftp://|www\.)\S+\b").unwrap());
-static SPLIT_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(<[^>]+>)|([^<]+)").unwrap());
+use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 #[derive(Debug)]
 pub struct Anchor {
-    text: Rc<str>,
     pub href: Arc<str>,
     pub line: usize,
-    pub index: usize,
     pub start: usize,
     pub end: usize,
     pub bounds: Bounds,
@@ -70,6 +53,8 @@ impl Text for Body {
             .metadata(0.7_f32.to_bits() as usize)
             .family(glyphon::Family::Name(&family));
 
+        let mut anchors = Vec::new();
+
         let mut parser = Parser::new(text.as_ref().to_string());
         let body = parser.parse();
         let spans = body
@@ -80,16 +65,44 @@ impl Text for Body {
                 Tag::Underline(text) => (text.as_str(), attrs.clone()),
                 Tag::Image { alt, src: _ } => (alt.as_str(), attrs.clone()),
                 Tag::Anchor {
-                    href: _,
+                    href,
                     text,
-                    position: _,
-                } => (text.as_str(), attrs.clone().color(Color::rgb(0, 0, 255))),
+                    position,
+                } => {
+                    let anchor = Anchor {
+                        href: href.as_str().into(),
+                        line: position.line,
+                        start: position.column,
+                        end: position.column + text.len() - 1,
+                        bounds: Bounds::default(),
+                    };
+                    anchors.push(anchor);
+                    (text.as_str(), attrs.clone().color(Color::rgb(0, 0, 255)))
+                }
                 Tag::Text(text) => (text.as_str(), attrs.clone()),
             })
             .collect::<Vec<_>>();
 
         self.buffer
             .set_rich_text(font_system, spans, &attrs, Shaping::Advanced, None);
+
+        anchors.iter_mut().for_each(|anchor| {
+            if let Some(line) = self.buffer.layout_runs().nth(anchor.line) {
+                let first = line.glyphs.get(anchor.start);
+                let last = line.glyphs.get(anchor.end);
+
+                if let (Some(first), Some(last)) = (first, last) {
+                    anchor.bounds = Bounds {
+                        x: first.x,
+                        y: line.line_top,
+                        width: last.x + last.w,
+                        height: line.line_height,
+                    };
+                }
+            };
+        });
+
+        self.anchors = anchors.into_iter().map(Rc::new).collect();
     }
 }
 
