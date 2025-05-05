@@ -1,4 +1,7 @@
-use super::Text;
+use super::{
+    markup::{Parser, Tag},
+    Text,
+};
 use crate::{
     components::{notification::NotificationId, Bounds, Component, Data},
     config::{self, Config},
@@ -66,154 +69,27 @@ impl Text for Body {
         let attrs = Attrs::new()
             .metadata(0.7_f32.to_bits() as usize)
             .family(glyphon::Family::Name(&family));
-        let mut spans = Vec::new();
-        let mut anchors = Vec::new();
-        let mut anchor_stack: Vec<Anchor> = Vec::new();
 
-        let mut buffer_text = String::new();
-
-        // Process the body and replace URLs with <a> tags
-        let body = SPLIT_REGEX
-            .replace_all(text.as_ref(), |caps: &regex::Captures| {
-                if let Some(tag) = caps.get(1) {
-                    tag.as_str().to_string()
-                } else if let Some(text) = caps.get(2) {
-                    URL_REGEX
-                        .replace_all(text.as_str(), |url_caps: &regex::Captures| {
-                            format!("<a href=\"{}\">{}</a>", &url_caps[0], &url_caps[0])
-                        })
-                        .to_string()
-                } else {
-                    String::new()
-                }
+        let mut parser = Parser::new(text.as_ref().to_string());
+        let body = parser.parse();
+        let spans = body
+            .iter()
+            .map(|tag| match tag {
+                Tag::Bold(text) => (text.as_str(), attrs.clone().weight(Weight::BOLD)),
+                Tag::Italic(text) => (text.as_str(), attrs.clone().style(Style::Italic)),
+                Tag::Underline(text) => (text.as_str(), attrs.clone()),
+                Tag::Image { alt, src: _ } => (alt.as_str(), attrs.clone()),
+                Tag::Anchor {
+                    href: _,
+                    text,
+                    position: _,
+                } => (text.as_str(), attrs.clone().color(Color::rgb(0, 0, 255))),
+                Tag::Text(text) => (text.as_str(), attrs.clone()),
             })
-            .into_owned();
-
-        let mut style_stack = Vec::new();
-        let mut current_attrs = attrs.clone();
-        let mut last_pos = 0;
-
-        for cap in REGEX.captures_iter(&body) {
-            let full_match = cap.get(0).unwrap();
-            let is_closing = !cap[1].is_empty();
-            let tag: Box<str> = cap[2].into();
-
-            if full_match.start() > last_pos {
-                let text = &body[last_pos..full_match.start()];
-                spans.push((text, current_attrs.clone()));
-                buffer_text.push_str(text);
-            }
-
-            if is_closing {
-                if let Some(pos) = style_stack.iter().rposition(|t| *t == tag) {
-                    style_stack.remove(pos);
-                }
-                if tag.as_ref() == "a" {
-                    if let Some(mut anchor) = anchor_stack.pop() {
-                        anchor.end = buffer_text
-                            .chars()
-                            .filter(|character| *character != '\n')
-                            .count();
-                        anchor.text = buffer_text[anchor.start..anchor.end].into();
-                        anchors.push(anchor);
-                    }
-                }
-            } else {
-                match tag.as_ref() {
-                    "a" => {
-                        if let Some(href_cap) = HREF_REGEX.captures(full_match.as_str()) {
-                            let href = Arc::from(&href_cap[1]);
-                            anchor_stack.push(Anchor {
-                                text: "".into(),
-                                href,
-                                line: 0,
-                                index: 0,
-                                start: buffer_text.replace('\n', "").len(),
-                                end: 0,
-                                bounds: Bounds::default(),
-                            });
-                        }
-                    }
-                    "img" => {
-                        if let Some(alt_cap) = ALT_REGEX.captures(full_match.as_str()) {
-                            if HREF_REGEX.captures(full_match.as_str()).is_some() {
-                                if let Some(alt) = alt_cap.get(1) {
-                                    spans.push((alt.as_str(), current_attrs.clone()));
-                                    buffer_text.push_str(alt.as_str());
-                                }
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-                style_stack.push(tag);
-            }
-
-            current_attrs = attrs.clone();
-            for tag in &style_stack {
-                current_attrs = match &**tag {
-                    "b" => current_attrs.weight(Weight::BOLD),
-                    "i" => current_attrs.style(Style::Italic),
-                    "a" => current_attrs.color(Color::rgb(0, 0, 255)),
-                    "u" => current_attrs,
-                    _ => current_attrs,
-                };
-            }
-
-            last_pos = full_match.end();
-        }
-
-        if last_pos < body.len() {
-            let text = &body[last_pos..];
-            spans.push((text, current_attrs));
-            buffer_text.push_str(text);
-        }
+            .collect::<Vec<_>>();
 
         self.buffer
             .set_rich_text(font_system, spans, &attrs, Shaping::Advanced, None);
-
-        anchors.iter_mut().for_each(|anchor| {
-            let mut total_bytes = 0;
-            for (line_idx, layout_run) in self.buffer.layout_runs().enumerate() {
-                let line_text = &self.buffer.lines[line_idx].text().trim();
-                let line_start = total_bytes;
-                let line_end = line_start + line_text.len();
-
-                if anchor.start >= line_start && anchor.end <= line_end {
-                    anchor.line = line_idx;
-                    anchor.index = anchor.start - line_start;
-
-                    let local_start = anchor.start - line_start;
-                    let local_end = anchor.end - line_start;
-
-                    let mut first_glyph = None;
-                    let mut last_glyph = None;
-
-                    for glyph in layout_run.glyphs {
-                        if glyph.start <= local_start && glyph.end > local_start {
-                            first_glyph.get_or_insert(glyph);
-                        }
-                        if glyph.start < local_end && glyph.end >= local_end {
-                            last_glyph = Some(glyph);
-                            break;
-                        }
-                    }
-
-                    if let (Some(first), Some(last)) = (first_glyph, last_glyph) {
-                        anchor.bounds = Bounds {
-                            x: first.x,
-                            y: layout_run.line_top,
-                            width: last.x + last.w - first.x,
-                            height: layout_run.line_height,
-                        };
-                    }
-                    break;
-                }
-                total_bytes = line_end;
-            }
-        });
-
-        self.anchors = anchors.into_iter().map(Rc::new).collect();
     }
 }
 

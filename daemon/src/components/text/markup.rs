@@ -2,14 +2,14 @@
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
-struct Position {
+pub struct Position {
     line: usize,
     column: usize,
     offset: usize,
 }
 
 #[derive(Debug, PartialEq)]
-enum Tag {
+pub enum Tag {
     Bold(String),
     Italic(String),
     Underline(String),
@@ -25,7 +25,7 @@ enum Tag {
     Text(String),
 }
 
-struct Parser {
+pub struct Parser {
     pos: usize,
     line: usize,
     column: usize,
@@ -34,7 +34,7 @@ struct Parser {
 }
 
 impl Parser {
-    fn new(input: String) -> Self {
+    pub fn new(input: String) -> Self {
         Parser {
             pos: 0,
             line: 0,
@@ -44,7 +44,7 @@ impl Parser {
         }
     }
 
-    fn parse(&mut self) -> Vec<Tag> {
+    pub fn parse(&mut self) -> Vec<Tag> {
         let mut result = Vec::new();
         while self.pos < self.input.len() {
             if self.input[self.pos..].starts_with('<') {
