@@ -94,15 +94,109 @@ impl Parser {
                 }
             } else {
                 let mut text = String::new();
+
                 while self.pos < self.input.len() && !self.input[self.pos..].starts_with('<') {
-                    text.push(self.consume_char(true));
+                    let current_line = self.line;
+                    let current_column = self.text_column;
+                    let current_pos = self.pos;
+
+                    if let Some((url, url_text)) = self.detect_url_at_current_position() {
+                        if !text.is_empty() {
+                            result.push(Tag::Text(text));
+                            text = String::new();
+                        }
+
+                        let url_position = Position {
+                            line: current_line,
+                            column: current_column,
+                            offset: current_pos,
+                        };
+
+                        result.push(Tag::Anchor {
+                            href: url,
+                            text: url_text,
+                            position: url_position,
+                        });
+                    } else {
+                        text.push(self.consume_char(true));
+                    }
                 }
+
                 if !text.is_empty() {
                     result.push(Tag::Text(text));
                 }
             }
         }
         result
+    }
+
+    fn detect_url_at_current_position(&mut self) -> Option<(String, String)> {
+        let url_prefixes = ["http://", "https://"];
+
+        let remaining = &self.input[self.pos..];
+
+        for prefix in &url_prefixes {
+            if remaining.starts_with(prefix) {
+                let mut end_pos = 0;
+                let mut depth = 0;
+
+                for (i, c) in remaining.chars().enumerate() {
+                    if i < prefix.len() {
+                        continue;
+                    }
+
+                    match c {
+                        ' ' | '\t' | '\n' | '\r' | '<' | '>' => {
+                            break;
+                        }
+                        '(' => depth += 1,
+                        ')' => {
+                            if depth == 0 {
+                                break;
+                            }
+                            depth -= 1;
+                        }
+                        '[' => depth += 1,
+                        ']' => {
+                            if depth == 0 {
+                                break;
+                            }
+                            depth -= 1;
+                        }
+                        '{' => depth += 1,
+                        '}' => {
+                            if depth == 0 {
+                                break;
+                            }
+                            depth -= 1;
+                        }
+                        '.' | ',' | ':' | ';' | '!' | '?' => {
+                            if i + 1 >= remaining.len() {
+                                end_pos = i;
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+
+                    end_pos = i + 1;
+                }
+
+                if end_pos > 0 {
+                    let url = remaining[..end_pos].to_string();
+
+                    let url = url.trim_end_matches(|c| ".,:;!?".contains(c)).to_string();
+
+                    (0..url.len()).for_each(|_| {
+                        self.consume_char(true);
+                    });
+
+                    return Some((url.clone(), url));
+                }
+            }
+        }
+
+        None
     }
 
     fn parse_tag_and_attributes(
@@ -126,13 +220,6 @@ impl Parser {
         while self.pos < self.input.len() && self.input.chars().nth(self.pos) != Some('>') {
             let current_char = self.consume_char(count_in_text);
 
-            if current_char.is_whitespace() {
-                if in_attr_name && !attr_name.is_empty() {
-                    in_attr_name = false;
-                }
-                continue;
-            }
-
             if in_attr_value {
                 if current_char == quote_char {
                     in_attr_value = false;
@@ -141,6 +228,10 @@ impl Parser {
                     attr_value.clear();
                 } else {
                     attr_value.push(current_char);
+                }
+            } else if current_char.is_whitespace() {
+                if in_attr_name && !attr_name.is_empty() {
+                    in_attr_name = false;
                 }
             } else if current_char == '=' {
                 in_attr_name = false;
@@ -482,6 +573,102 @@ mod tests {
             assert_eq!(src, "", "Expected empty src attribute");
         } else {
             panic!("Expected Image tag at position 8");
+        }
+    }
+
+    #[test]
+    fn test_plain_url_detection() {
+        let html = "Check out https://example.com for more info.";
+        let mut parser = Parser::new(html.to_string());
+        let result = parser.parse();
+
+        assert_eq!(result.len(), 3);
+
+        if let Tag::Text(content) = &result[0] {
+            assert_eq!(content, "Check out ");
+        } else {
+            panic!("Expected Text tag at position 0");
+        }
+
+        if let Tag::Anchor {
+            href,
+            text,
+            position,
+        } = &result[1]
+        {
+            assert_eq!(href, "https://example.com");
+            assert_eq!(text, "https://example.com");
+            assert_eq!(position.line, 0);
+            assert_eq!(position.column, 10);
+        } else {
+            panic!("Expected Anchor tag at position 1");
+        }
+
+        if let Tag::Text(content) = &result[2] {
+            assert_eq!(content, " for more info.");
+        } else {
+            panic!("Expected Text tag at position 2");
+        }
+    }
+
+    #[test]
+    fn test_multiple_urls() {
+        let html = "First: https://example.com and second: http://test.org!";
+        let mut parser = Parser::new(html.to_string());
+        let result = parser.parse();
+
+        assert_eq!(result.len(), 5);
+
+        if let Tag::Anchor { href, .. } = &result[1] {
+            assert_eq!(href, "https://example.com");
+        } else {
+            panic!("Expected first Anchor tag");
+        }
+
+        if let Tag::Anchor { href, .. } = &result[3] {
+            assert_eq!(href, "http://test.org");
+        } else {
+            panic!("Expected second Anchor tag");
+        }
+    }
+
+    #[test]
+    fn test_url_with_path() {
+        let html = "Check https://example.com/path/to/page?query=value";
+        let mut parser = Parser::new(html.to_string());
+        let result = parser.parse();
+
+        if let Tag::Anchor { href, .. } = &result[1] {
+            assert_eq!(href, "https://example.com/path/to/page?query=value");
+        } else {
+            panic!("Expected Anchor tag");
+        }
+    }
+
+    #[test]
+    fn test_url_and_html_tags_mixed() {
+        let html = "<b>Bold</b> and https://example.com and <i>italic</i>";
+        let mut parser = Parser::new(html.to_string());
+        let result = parser.parse();
+
+        assert_eq!(result.len(), 5);
+
+        if let Tag::Bold(content) = &result[0] {
+            assert_eq!(content, "Bold");
+        } else {
+            panic!("Expected Bold tag");
+        }
+
+        if let Tag::Anchor { href, .. } = &result[2] {
+            assert_eq!(href, "https://example.com");
+        } else {
+            panic!("Expected Anchor tag");
+        }
+
+        if let Tag::Italic(content) = &result[4] {
+            assert_eq!(content, "italic");
+        } else {
+            panic!("Expected Italic tag");
         }
     }
 }

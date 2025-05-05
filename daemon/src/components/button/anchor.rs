@@ -79,7 +79,7 @@ impl Component for AnchorButton {
     }
 
     fn get_bounds(&self) -> Bounds {
-        let anchor_extents = self.anchor.bounds();
+        let anchor_extents = self.anchor.get_bounds();
 
         Bounds {
             x: self.x + anchor_extents.x,

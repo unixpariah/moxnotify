@@ -219,3 +219,38 @@ impl Summary {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        components::text::{summary::Summary, Text},
+        config::Config,
+        manager::UiState,
+    };
+    use glyphon::FontSystem;
+    use std::{cell::RefCell, rc::Rc};
+
+    #[test]
+    fn test_body() {
+        let mut font_system = FontSystem::new();
+
+        let mut summary = Summary::new(
+            0,
+            Rc::new(Config::default()),
+            "".into(),
+            Rc::new(RefCell::new(UiState::default())),
+            &mut font_system,
+        );
+
+        summary.set_text(
+            &mut font_system,
+            "Hello world\n<b>Hello world</b>\n<i>Hello world</i>",
+        );
+
+        let lines = summary.buffer.lines;
+        assert_eq!(lines.first().unwrap().text(), "Hello world");
+        assert_eq!(lines.get(1).unwrap().text(), "<b>Hello world</b>");
+        assert_eq!(lines.get(2).unwrap().text(), "<i>Hello world</i>");
+        assert_eq!(lines.len(), 3);
+    }
+}

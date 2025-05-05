@@ -22,7 +22,7 @@ pub struct Anchor {
 }
 
 impl Anchor {
-    pub fn bounds(&self) -> Bounds {
+    pub fn get_bounds(&self) -> Bounds {
         Bounds { ..self.bounds }
     }
 }
@@ -264,5 +264,81 @@ impl Body {
             app_name,
             anchors: Vec::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Body;
+    use crate::{components::text::Text, config::Config, manager::UiState};
+    use glyphon::FontSystem;
+    use std::{cell::RefCell, rc::Rc};
+
+    #[test]
+    fn test_body() {
+        let mut font_system = FontSystem::new();
+
+        let mut body = Body::new(
+            0,
+            Rc::new(Config::default()),
+            "".into(),
+            Rc::new(RefCell::new(UiState::default())),
+            &mut font_system,
+        );
+
+        body.set_text(
+            &mut font_system,
+            "Hello world\n<b>Hello world</b>\n<i>Hello world</i>\n<a href=\"\">Hello world</a>\n<img alt=\"Hello world\" href=\"/tmp/image.png\">",
+        );
+
+        let lines = body.buffer.lines;
+        assert_eq!(lines.first().unwrap().text(), "Hello world");
+        assert_eq!(lines.get(1).unwrap().text(), "Hello world");
+        assert_eq!(lines.get(2).unwrap().text(), "Hello world");
+        assert_eq!(lines.get(3).unwrap().text(), "Hello world");
+        assert_eq!(lines.get(4).unwrap().text(), "Hello world");
+        assert_eq!(lines.len(), 5);
+    }
+
+    #[test]
+    fn test_plain_url_detection() {
+        let mut font_system = FontSystem::new();
+        let mut body = Body::new(
+            0,
+            Rc::new(Config::default()),
+            "".into(),
+            Rc::new(RefCell::new(UiState::default())),
+            &mut font_system,
+        );
+
+        body.set_text(
+            &mut font_system,
+            "Check this website: https://example.com for more info.",
+        );
+
+        assert_eq!(body.anchors.len(), 1);
+        assert_eq!(body.anchors[0].href.as_ref(), "https://example.com");
+        assert_eq!(body.anchors[0].line, 0);
+    }
+
+    #[test]
+    fn test_multiple_urls() {
+        let mut font_system = FontSystem::new();
+        let mut body = Body::new(
+            0,
+            Rc::new(Config::default()),
+            "".into(),
+            Rc::new(RefCell::new(UiState::default())),
+            &mut font_system,
+        );
+
+        body.set_text(
+            &mut font_system,
+            "First URL: https://example.com and second URL: http://test.org!",
+        );
+
+        assert_eq!(body.anchors.len(), 2);
+        assert_eq!(body.anchors[0].href.as_ref(), "https://example.com");
+        assert_eq!(body.anchors[1].href.as_ref(), "http://test.org");
     }
 }

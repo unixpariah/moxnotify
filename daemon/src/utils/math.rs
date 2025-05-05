@@ -19,3 +19,20 @@ impl Matrix for Mat4 {
         ]
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_projection() {
+        let mat = Mat4::projection(-1.0, 1.0, 1.0, -1.0);
+        let expected = [
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ];
+        assert_eq!(mat, expected);
+    }
+}
