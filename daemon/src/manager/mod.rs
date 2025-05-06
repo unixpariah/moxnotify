@@ -704,3 +704,205 @@ impl Moxnotify {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{cell::RefCell, rc::Rc};
+
+    use calloop::EventLoop;
+    use glyphon::FontSystem;
+
+    use super::NotificationManager;
+    use crate::{config::Config, dbus::xdg::NotificationData};
+
+    #[test]
+    fn test_add() {
+        let config = Rc::new(Config::default());
+        let event_loop = EventLoop::try_new().unwrap();
+        let font_system = Rc::new(RefCell::new(FontSystem::new()));
+        let mut manager =
+            NotificationManager::new(Rc::clone(&config), event_loop.handle(), font_system);
+
+        let data = NotificationData::default();
+        manager.add(data).unwrap();
+
+        assert_eq!(manager.notifications().len(), 1);
+    }
+
+    #[test]
+    fn test_add_with_duplicate_id() {
+        let config = Rc::new(Config::default());
+        let event_loop = EventLoop::try_new().unwrap();
+        let font_system = Rc::new(RefCell::new(FontSystem::new()));
+        let mut manager =
+            NotificationManager::new(Rc::clone(&config), event_loop.handle(), font_system);
+
+        let data = NotificationData {
+            id: 42,
+            ..Default::default()
+        };
+
+        manager.add(data.clone()).unwrap();
+
+        manager.add(data).unwrap();
+
+        assert_eq!(manager.notifications().len(), 1);
+    }
+
+    #[test]
+    fn test_add_many() {
+        let config = Rc::new(Config::default());
+        let event_loop = EventLoop::try_new().unwrap();
+        let font_system = Rc::new(RefCell::new(FontSystem::new()));
+        let mut manager =
+            NotificationManager::new(Rc::clone(&config), event_loop.handle(), font_system);
+
+        let mut notifications = Vec::new();
+        for i in 1..=5 {
+            let data = NotificationData {
+                id: i,
+                ..Default::default()
+            };
+            notifications.push(data);
+        }
+
+        manager.add_many(notifications).unwrap();
+        assert_eq!(manager.notifications().len(), 5);
+    }
+
+    #[test]
+    fn test_dismiss() {
+        let config = Rc::new(Config::default());
+        let event_loop = EventLoop::try_new().unwrap();
+        let font_system = Rc::new(RefCell::new(FontSystem::new()));
+        let mut manager =
+            NotificationManager::new(Rc::clone(&config), event_loop.handle(), font_system);
+
+        let data = NotificationData {
+            id: 123,
+            ..Default::default()
+        };
+        manager.add(data).unwrap();
+
+        assert_eq!(manager.notifications().len(), 1);
+
+        manager.dismiss(123);
+        assert_eq!(manager.notifications().len(), 0);
+    }
+
+    #[test]
+    fn test_select_and_deselect() {
+        let config = Rc::new(Config::default());
+        let event_loop = EventLoop::try_new().unwrap();
+        let font_system = Rc::new(RefCell::new(FontSystem::new()));
+        let mut manager =
+            NotificationManager::new(Rc::clone(&config), event_loop.handle(), font_system);
+
+        let data = NotificationData {
+            id: 1,
+            ..Default::default()
+        };
+        manager.add(data).unwrap();
+
+        assert_eq!(manager.selected_id(), None);
+
+        manager.select(1);
+        assert_eq!(manager.selected_id(), Some(1));
+
+        let notification = manager.selected_notification_mut().unwrap();
+        assert!(notification.hovered());
+
+        manager.deselect();
+        assert_eq!(manager.selected_id(), None);
+    }
+
+    #[test]
+    fn test_next_and_prev() {
+        let config = Rc::new(Config::default());
+        let event_loop = EventLoop::try_new().unwrap();
+        let font_system = Rc::new(RefCell::new(FontSystem::new()));
+        let mut manager =
+            NotificationManager::new(Rc::clone(&config), event_loop.handle(), font_system);
+
+        for i in 1..=3 {
+            let data = NotificationData {
+                id: i,
+                ..Default::default()
+            };
+            manager.add(data).unwrap();
+        }
+
+        manager.next();
+        assert_eq!(manager.selected_id(), Some(1));
+
+        manager.next();
+        assert_eq!(manager.selected_id(), Some(2));
+
+        manager.next();
+        assert_eq!(manager.selected_id(), Some(3));
+
+        manager.next();
+        assert_eq!(manager.selected_id(), Some(1));
+
+        manager.prev();
+        assert_eq!(manager.selected_id(), Some(3));
+
+        manager.prev();
+        assert_eq!(manager.selected_id(), Some(2));
+    }
+
+    #[test]
+    fn test_inhibit() {
+        let config = Rc::new(Config::default());
+        let event_loop = EventLoop::try_new().unwrap();
+        let font_system = Rc::new(RefCell::new(FontSystem::new()));
+        let mut manager =
+            NotificationManager::new(Rc::clone(&config), event_loop.handle(), font_system);
+
+        let data = NotificationData {
+            id: 0,
+            ..Default::default()
+        };
+        manager.add(data).unwrap();
+
+        assert_eq!(manager.notifications().len(), 1);
+
+        manager.inhibit();
+
+        let data = NotificationData {
+            id: 1,
+            ..Default::default()
+        };
+        manager.add(data).unwrap();
+
+        assert_eq!(manager.notifications().len(), 1);
+        assert_eq!(manager.waiting(), 1);
+
+        manager.uninhibit();
+
+        assert_eq!(manager.notifications().len(), 1);
+        assert_eq!(manager.waiting(), 0);
+    }
+
+    #[test]
+    fn test_data() {
+        let config = Rc::new(Config::default());
+        let event_loop = EventLoop::try_new().unwrap();
+        let font_system = Rc::new(RefCell::new(FontSystem::new()));
+        let mut manager =
+            NotificationManager::new(Rc::clone(&config), event_loop.handle(), font_system);
+
+        let data = NotificationData {
+            id: 123,
+            ..Default::default()
+        };
+        manager.add(data).unwrap();
+
+        let data = manager.data();
+        // Body, summary, notification and dismiss button
+        assert_eq!(data.0.len(), 4);
+        // Body and summary
+        assert_eq!(data.1.len(), 2);
+        assert_eq!(data.2.len(), 0);
+    }
+}

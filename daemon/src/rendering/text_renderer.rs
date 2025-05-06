@@ -1,4 +1,4 @@
-use crate::{components::notification::Extents, config::Font};
+use crate::{components::Bounds, config::Font};
 use glyphon::{
     Attrs, Buffer, Cache, FontSystem, Shaping, SwashCache, TextArea, TextAtlas, TextRenderer,
     Viewport, Weight,
@@ -47,7 +47,7 @@ impl Text {
         self.y = y;
     }
 
-    pub fn extents(&self) -> Extents {
+    pub fn get_bounds(&self) -> Bounds {
         let (width, total_lines) = self
             .buffer
             .layout_runs()
@@ -55,7 +55,7 @@ impl Text {
                 (run.line_w.max(width), total_lines + 1.0)
             });
 
-        Extents {
+        Bounds {
             x: self.x,
             y: self.y,
             width,

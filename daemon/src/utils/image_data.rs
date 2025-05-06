@@ -6,13 +6,13 @@ use zbus::zvariant::{Signature, Structure};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ImageData {
-    pub width: u32,
-    pub height: u32,
-    pub rowstride: i32,
-    pub has_alpha: bool,
-    pub bits_per_sample: i32,
-    pub channels: i32,
-    pub data: Vec<u8>,
+    width: u32,
+    height: u32,
+    rowstride: i32,
+    has_alpha: bool,
+    bits_per_sample: i32,
+    channels: i32,
+    data: Vec<u8>,
 }
 
 impl ImageData {
@@ -57,6 +57,22 @@ impl ImageData {
             data: dst.into_vec(),
             ..rgba
         }
+    }
+
+    pub fn data(&self) -> &[u8] {
+        &self.data
+    }
+
+    pub fn size(&self) -> (u32, u32) {
+        (self.width, self.height)
+    }
+
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
     }
 }
 

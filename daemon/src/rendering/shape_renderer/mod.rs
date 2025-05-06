@@ -118,18 +118,14 @@ impl ShapeRenderer {
             return;
         }
 
-        let needed_buffer_size = std::mem::size_of_val(instances) as u64;
+        let needed_buffer_size = std::mem::size_of_val(instances);
 
-        if needed_buffer_size > self.instance_buffer.buffer.size() {
-            self.instance_buffer = buffers::InstanceBuffer::with_size(device, needed_buffer_size);
+        if self.instance_buffer.size() < needed_buffer_size as u32 {
+            self.instance_buffer =
+                buffers::InstanceBuffer::with_size(device, needed_buffer_size as u64);
         }
 
-        queue.write_buffer(
-            &self.instance_buffer.buffer,
-            0,
-            bytemuck::cast_slice(instances),
-        );
-        self.instance_buffer.instances = instances.into();
+        self.instance_buffer.write(queue, instances);
     }
 
     pub fn render(&self, render_pass: &mut wgpu::RenderPass<'_>) {

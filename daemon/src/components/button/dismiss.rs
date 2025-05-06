@@ -72,7 +72,7 @@ impl Component for DismissButton {
     fn get_text_areas(&self, urgency: &Urgency) -> Vec<glyphon::TextArea> {
         let extents = self.get_render_bounds();
         let style = self.get_style();
-        let text_extents = self.text.extents();
+        let text_extents = self.text.get_bounds();
 
         let remaining_padding = extents.width - text_extents.width;
         let (pl, _) = match (style.padding.left.is_auto(), style.padding.right.is_auto()) {
@@ -118,7 +118,7 @@ impl Component for DismissButton {
 
     fn get_bounds(&self) -> Bounds {
         let style = self.get_style();
-        let text_extents = self.text.extents();
+        let text_extents = self.text.get_bounds();
 
         let width = style.width.resolve(text_extents.width)
             + style.border.size.left

@@ -29,6 +29,8 @@ pub trait Buffer {
     fn size(&self) -> u32;
 
     fn slice(&self, bounds: impl std::ops::RangeBounds<wgpu::BufferAddress>) -> wgpu::BufferSlice;
+
+    fn write(&mut self, queue: &wgpu::Queue, data: &[Self::DataType]);
 }
 
 pub struct IndexBuffer {
@@ -42,7 +44,7 @@ impl Buffer for IndexBuffer {
     fn new(device: &wgpu::Device, data: &[Self::DataType]) -> Self {
         Self {
             buffer: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Index Buffer"),
+                label: Some("IndexBuffer"),
                 usage: wgpu::BufferUsages::INDEX,
                 contents: bytemuck::cast_slice(data),
             }),
@@ -55,7 +57,7 @@ impl Buffer for IndexBuffer {
         Self: Sized,
     {
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Index Buffer"),
+            label: Some("IndexBuffer"),
             size,
             usage: wgpu::BufferUsages::INDEX,
             mapped_at_creation: false,
@@ -74,6 +76,8 @@ impl Buffer for IndexBuffer {
     fn slice(&self, bounds: impl std::ops::RangeBounds<wgpu::BufferAddress>) -> wgpu::BufferSlice {
         self.buffer.slice(bounds)
     }
+
+    fn write(&mut self, _: &wgpu::Queue, _: &[Self::DataType]) {}
 }
 
 #[repr(C)]
@@ -129,8 +133,8 @@ impl DataDescription for Instance {
 }
 
 pub struct InstanceBuffer<T> {
-    pub buffer: wgpu::Buffer,
-    pub instances: Box<[T]>,
+    buffer: wgpu::Buffer,
+    instances: Box<[T]>,
 }
 
 impl<T> Buffer for InstanceBuffer<T>
@@ -142,7 +146,7 @@ where
     fn new(device: &wgpu::Device, data: &[Self::DataType]) -> Self {
         Self {
             buffer: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Instance Buffer"),
+                label: Some("InstanceBuffer"),
                 usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
                 contents: bytemuck::cast_slice(data),
             }),
@@ -155,7 +159,7 @@ where
         Self: Sized,
     {
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Instance Buffer"),
+            label: Some("InstanceBuffer"),
             size,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
@@ -173,6 +177,12 @@ where
     fn slice(&self, bounds: impl std::ops::RangeBounds<wgpu::BufferAddress>) -> wgpu::BufferSlice {
         self.buffer.slice(bounds)
     }
+
+    fn write(&mut self, queue: &wgpu::Queue, data: &[Self::DataType]) {
+        queue.write_buffer(&self.buffer, 0, bytemuck::cast_slice(data));
+
+        self.instances = data.into();
+    }
 }
 
 pub struct DepthBuffer {
@@ -188,7 +198,7 @@ impl DepthBuffer {
             depth_or_array_layers: 1,
         };
         let desc = wgpu::TextureDescriptor {
-            label: Some("Depth Buffer"),
+            label: Some("DepthBuffer"),
             size,
             mip_level_count: 1,
             sample_count: 1,
@@ -234,7 +244,7 @@ impl Buffer for VertexBuffer {
     fn new(device: &wgpu::Device, data: &[Self::DataType]) -> Self {
         Self {
             buffer: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("Buffer"),
+                label: Some("VertexBuffer"),
                 usage: wgpu::BufferUsages::VERTEX,
                 contents: bytemuck::cast_slice(data),
             }),
@@ -247,7 +257,7 @@ impl Buffer for VertexBuffer {
         Self: Sized,
     {
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Vertex Buffer"),
+            label: Some("VertexBuffer"),
             size,
             usage: wgpu::BufferUsages::VERTEX,
             mapped_at_creation: false,
@@ -266,6 +276,8 @@ impl Buffer for VertexBuffer {
     fn slice(&self, bounds: impl std::ops::RangeBounds<wgpu::BufferAddress>) -> wgpu::BufferSlice {
         self.buffer.slice(bounds)
     }
+
+    fn write(&mut self, _: &wgpu::Queue, _: &[Self::DataType]) {}
 }
 
 pub struct Projection {
@@ -279,7 +291,7 @@ impl Projection {
         let projection = Mat4::projection(left, right, top, bottom);
 
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("Buffer"),
+            label: Some("Projection"),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             contents: bytemuck::cast_slice(&projection),
         });

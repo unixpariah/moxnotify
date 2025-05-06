@@ -47,14 +47,14 @@ impl Cache {
 
 #[derive(Default)]
 pub struct Icons {
-    pub id: u32,
-    pub icon: Option<ImageData>,
-    pub app_icon: Option<ImageData>,
-    pub x: f32,
-    pub y: f32,
-    pub ui_state: Rc<RefCell<UiState>>,
-    pub config: Rc<Config>,
-    pub app_name: Arc<str>,
+    id: u32,
+    icon: Option<ImageData>,
+    app_icon: Option<ImageData>,
+    x: f32,
+    y: f32,
+    ui_state: Rc<RefCell<UiState>>,
+    config: Rc<Config>,
+    app_name: Arc<str>,
 }
 
 impl Icons {
@@ -139,12 +139,12 @@ impl Component for Icons {
             .as_ref()
             .map(|i| {
                 (
-                    i.width as f32
+                    i.width() as f32
                         + style.icon.padding.right
                         + style.icon.padding.left
                         + style.icon.margin.left
                         + style.icon.margin.right,
-                    i.height as f32
+                    i.height() as f32
                         + style.icon.padding.top
                         + style.icon.padding.bottom
                         + style.icon.margin.top
@@ -172,8 +172,8 @@ impl Component for Icons {
             .as_ref()
             .map(|i| {
                 (
-                    i.width as f32 + style.icon.padding.right + style.icon.padding.left,
-                    i.height as f32 + style.icon.padding.top + style.icon.padding.bottom,
+                    i.width() as f32 + style.icon.padding.right + style.icon.padding.left,
+                    i.height() as f32 + style.icon.padding.top + style.icon.padding.bottom,
                 )
             })
             .unwrap_or((0., 0.));
@@ -223,7 +223,7 @@ impl Component for Icons {
                     right: (bounds.x + bounds.width) as u32,
                     bottom: (bounds.y + bounds.height) as u32,
                 },
-                data: &icon.data,
+                data: icon.data(),
                 radius: style.icon.border.radius.into(),
                 depth: 0.8,
             });
@@ -248,7 +248,7 @@ impl Component for Icons {
                     right: (bounds.x + app_icon_size) as u32,
                     bottom: (bounds.y + app_icon_size) as u32,
                 },
-                data: &app_icon.data,
+                data: app_icon.data(),
                 radius: style.app_icon.border.radius.into(),
                 depth: 0.7,
             });
@@ -323,21 +323,19 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
+    use image::{DynamicImage, RgbaImage};
+    use std::cell::RefCell;
+    use std::path::{Path, PathBuf};
+    use std::rc::Rc;
+    use std::sync::Arc;
 
     #[test]
     fn cache_insert_and_retrieve() {
         let cache = Cache::default();
         let path = PathBuf::from("test_icon.png");
-        let data = ImageData {
-            width: 32,
-            height: 32,
-            data: vec![0; 32 * 32 * 4],
-            rowstride: 32 * 4,
-            has_alpha: true,
-            bits_per_sample: 8,
-            channels: 4,
-        };
+
+        let img = RgbaImage::new(32, 32);
+        let data = ImageData::try_from(DynamicImage::ImageRgba8(img)).unwrap();
 
         cache.insert(&path, data.clone());
         assert_eq!(cache.get(&path).unwrap(), data);
@@ -347,20 +345,15 @@ mod tests {
     fn new_with_image_data() {
         let config = Rc::new(Config::default());
         let ui_state = Rc::new(RefCell::new(UiState::default()));
-        let image_data = ImageData {
-            width: 64,
-            height: 64,
-            data: vec![0; 64 * 64 * 4],
-            rowstride: 64 * 4,
-            has_alpha: true,
-            bits_per_sample: 8,
-            channels: 4,
-        };
+
+        let img = RgbaImage::new(64, 64);
+        let image_data = ImageData::try_from(DynamicImage::ImageRgba8(img)).unwrap();
+
         let image = Image::Data(image_data.clone());
         let icons = Icons::new(1, Some(&image), None, config, ui_state, Arc::from("app"));
 
         assert!(icons.icon.is_some());
-        assert_eq!(icons.icon.unwrap().width, 64);
+        assert_eq!(icons.icon.unwrap().width(), 64);
     }
 
     #[test]

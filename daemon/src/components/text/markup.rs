@@ -111,7 +111,24 @@ impl Parser {
                     let current_column = self.text_column;
                     let current_pos = self.pos;
 
-                    if let Some((url, url_text)) = self.detect_url_at_current_position() {
+                    if let Some((url, url_text)) = self.detect_markdown_link_at_current_position() {
+                        if !text.is_empty() {
+                            result.push(Tag::Text(text));
+                            text = String::new();
+                        }
+
+                        let url_position = Position {
+                            line: current_line,
+                            column: current_column,
+                            offset: current_pos,
+                        };
+
+                        result.push(Tag::Anchor {
+                            href: url,
+                            text: url_text,
+                            position: url_position,
+                        });
+                    } else if let Some((url, url_text)) = self.detect_url_at_current_position() {
                         if !text.is_empty() {
                             result.push(Tag::Text(text));
                             text = String::new();
@@ -139,6 +156,66 @@ impl Parser {
             }
         }
         result
+    }
+
+    fn detect_markdown_link_at_current_position(&mut self) -> Option<(String, String)> {
+        let remaining = &self.input[self.pos..];
+
+        if !remaining.starts_with('[') {
+            return None;
+        }
+
+        let mut bracket_depth = 0;
+        let mut text_end = 0;
+
+        for (i, c) in remaining.chars().enumerate().skip(1) {
+            if c == '[' {
+                bracket_depth += 1;
+            } else if c == ']' {
+                if bracket_depth == 0 {
+                    text_end = i;
+                    break;
+                }
+                bracket_depth -= 1;
+            }
+        }
+
+        if text_end == 0 {
+            return None;
+        }
+
+        if remaining.chars().nth(text_end + 1) != Some('(') {
+            return None;
+        }
+
+        let link_text = remaining[1..text_end].to_string();
+
+        let mut paren_depth = 0;
+        let mut url_end = 0;
+
+        for (i, c) in remaining.chars().enumerate().skip(text_end + 2) {
+            if c == '(' {
+                paren_depth += 1;
+            } else if c == ')' {
+                if paren_depth == 0 {
+                    url_end = i;
+                    break;
+                }
+                paren_depth -= 1;
+            }
+        }
+
+        if url_end == 0 {
+            return None;
+        }
+
+        let url = remaining[(text_end + 2)..url_end].to_string();
+
+        for _ in 0..(url_end + 1) {
+            self.consume_char(true);
+        }
+
+        Some((url, link_text))
     }
 
     fn detect_url_at_current_position(&mut self) -> Option<(String, String)> {
@@ -703,6 +780,97 @@ mod tests {
             assert_eq!(text, "Span");
         } else {
             panic!("Expected span tag");
+        }
+    }
+
+    #[test]
+    fn test_markdown_link() {
+        let html = "Check out [Example Site](https://example.com) for more info.";
+        let mut parser = Parser::new(html.to_string());
+        let result = parser.parse();
+
+        assert_eq!(result.len(), 3);
+
+        if let Tag::Text(content) = &result[0] {
+            assert_eq!(content, "Check out ");
+        } else {
+            panic!("Expected Text tag at position 0");
+        }
+
+        if let Tag::Anchor {
+            href,
+            text,
+            position,
+        } = &result[1]
+        {
+            assert_eq!(href, "https://example.com");
+            assert_eq!(text, "Example Site");
+            assert_eq!(position.line, 0);
+            assert_eq!(position.column, 10);
+        } else {
+            panic!("Expected Anchor tag at position 1");
+        }
+
+        if let Tag::Text(content) = &result[2] {
+            assert_eq!(content, " for more info.");
+        } else {
+            panic!("Expected Text tag at position 2");
+        }
+    }
+
+    #[test]
+    fn test_multiple_markdown_links() {
+        let html = "First: [Example](https://example.com) and second: [Test](http://test.org)!";
+        let mut parser = Parser::new(html.to_string());
+        let result = parser.parse();
+
+        assert_eq!(result.len(), 5);
+
+        if let Tag::Anchor { href, text, .. } = &result[1] {
+            assert_eq!(href, "https://example.com");
+            assert_eq!(text, "Example");
+        } else {
+            panic!("Expected first Anchor tag");
+        }
+
+        if let Tag::Anchor { href, text, .. } = &result[3] {
+            assert_eq!(href, "http://test.org");
+            assert_eq!(text, "Test");
+        } else {
+            panic!("Expected second Anchor tag");
+        }
+    }
+
+    #[test]
+    fn test_mixed_link_types() {
+        let html = "<b>Bold</b> and [Example](https://example.com) and <i>italic</i> and https://plainurl.com";
+        let mut parser = Parser::new(html.to_string());
+        let result = parser.parse();
+
+        if let Tag::Bold(content) = &result[0] {
+            assert_eq!(content, "Bold");
+        } else {
+            panic!("Expected Bold tag");
+        }
+
+        if let Tag::Anchor { href, text, .. } = &result[2] {
+            assert_eq!(href, "https://example.com");
+            assert_eq!(text, "Example");
+        } else {
+            panic!("Expected Markdown Anchor tag");
+        }
+
+        if let Tag::Italic(content) = &result[4] {
+            assert_eq!(content, "italic");
+        } else {
+            panic!("Expected Italic tag");
+        }
+
+        if let Tag::Anchor { href, text, .. } = &result[6] {
+            assert_eq!(href, "https://plainurl.com");
+            assert_eq!(text, "https://plainurl.com");
+        } else {
+            panic!("Expected Plain URL Anchor tag");
         }
     }
 }

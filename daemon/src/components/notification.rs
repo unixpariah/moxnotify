@@ -16,14 +16,6 @@ use calloop::{LoopHandle, RegistrationToken};
 use glyphon::FontSystem;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
-#[derive(Debug, Default)]
-pub struct Extents {
-    pub x: f32,
-    pub y: f32,
-    pub width: f32,
-    pub height: f32,
-}
-
 pub type NotificationId = u32;
 
 pub struct Notification {
@@ -354,16 +346,14 @@ impl Notification {
                 x: 0.,
                 hovered: false,
                 config: Rc::clone(&config),
-                icons: Icons {
-                    id: data.id,
-                    icon: None,
-                    app_icon: None,
-                    x: 0.,
-                    y: 0.,
-                    config: Rc::clone(&config),
-                    ui_state: Rc::clone(&ui_state),
-                    app_name: Arc::clone(&data.app_name),
-                },
+                icons: Icons::new(
+                    data.id,
+                    None,
+                    None,
+                    Rc::clone(&config),
+                    Rc::clone(&ui_state),
+                    Arc::clone(&data.app_name),
+                ),
                 progress: None,
                 registration_token: None,
                 buttons: ButtonManager::new(

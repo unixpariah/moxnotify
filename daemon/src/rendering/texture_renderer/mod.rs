@@ -275,19 +275,14 @@ impl TextureRenderer {
         });
 
         let instance_buffer_size =
-            (std::mem::size_of::<buffers::TextureInstance>() * instances.len()) as u64;
+            std::mem::size_of::<buffers::TextureInstance>() * instances.len();
 
-        if self.instance_buffer.buffer.size() < instance_buffer_size {
-            self.instance_buffer = buffers::InstanceBuffer::with_size(device, instance_buffer_size);
+        if self.instance_buffer.size() < instance_buffer_size as u32 {
+            self.instance_buffer =
+                buffers::InstanceBuffer::with_size(device, instance_buffer_size as u64);
         }
 
-        queue.write_buffer(
-            &self.instance_buffer.buffer,
-            0,
-            bytemuck::cast_slice(&instances),
-        );
-
-        self.instance_buffer.instances = instances.into();
+        self.instance_buffer.write(queue, &instances);
     }
 
     pub fn render(&self, render_pass: &mut wgpu::RenderPass) {

@@ -6,7 +6,7 @@ use zbus::{fdo::RequestNameFlags, object_server::SignalEmitter, zvariant::Str};
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone)]
 pub struct NotificationHints {
     pub action_icons: bool,
     pub category: Option<Box<str>>,
@@ -82,7 +82,7 @@ impl NotificationHints {
     }
 }
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone)]
 pub struct NotificationData {
     pub id: u32,
     pub app_name: Arc<str>,
