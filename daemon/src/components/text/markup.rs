@@ -22,6 +22,10 @@ pub enum Tag {
         position: Position,
     },
     Text(String),
+    Span {
+        text: String,
+        attributes: HashMap<String, String>,
+    },
 }
 
 pub struct Parser {
@@ -89,6 +93,13 @@ impl Parser {
                         text,
                         position: content_pos,
                     });
+                } else if self.input[self.pos..].starts_with("<span") {
+                    let (tag_end, attributes) = self.parse_tag_and_attributes(false);
+                    self.pos = tag_end + 1;
+                    self.update_position_for_tag_end(false);
+                    let text = self.parse_until("</span>");
+                    self.consume_str("</span>", false);
+                    result.push(Tag::Span { text, attributes });
                 } else {
                     result.push(Tag::Text(self.consume_char(true).to_string()));
                 }
@@ -669,6 +680,29 @@ mod tests {
             assert_eq!(content, "italic");
         } else {
             panic!("Expected Italic tag");
+        }
+    }
+
+    #[test]
+    fn test_span() {
+        let html = "text <span>Span</span>";
+        let mut parser = Parser::new(html.to_string());
+        let result = parser.parse();
+
+        if let Tag::Text(content) = &result[0] {
+            assert_eq!(content, "text ");
+        } else {
+            panic!("Expected text tag");
+        }
+
+        if let Tag::Span {
+            text,
+            attributes: _,
+        } = &result[1]
+        {
+            assert_eq!(text, "Span");
+        } else {
+            panic!("Expected span tag");
         }
     }
 }
