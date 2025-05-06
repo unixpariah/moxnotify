@@ -141,9 +141,9 @@ impl NotificationManager {
                 if let Some(notification) = self.notifications.get(index) {
                     let extents = notification.get_render_bounds();
                     let x_within_bounds =
-                        x >= extents.x as f64 && x < (extents.x + extents.width) as f64;
+                        x >= extents.x as f64 && x <= (extents.x + extents.width) as f64;
                     let y_within_bounds =
-                        y >= extents.y as f64 && y < (extents.y + extents.height) as f64;
+                        y >= extents.y as f64 && y <= (extents.y + extents.height) as f64;
 
                     if x_within_bounds && y_within_bounds {
                         return Some(notification);
@@ -713,7 +713,7 @@ mod tests {
     use glyphon::FontSystem;
 
     use super::NotificationManager;
-    use crate::{config::Config, dbus::xdg::NotificationData};
+    use crate::{components::Component, config::Config, dbus::xdg::NotificationData};
 
     #[test]
     fn test_add() {
@@ -824,7 +824,7 @@ mod tests {
         let mut manager =
             NotificationManager::new(Rc::clone(&config), event_loop.handle(), font_system);
 
-        for i in 1..=3 {
+        for i in 1..=10 {
             let data = NotificationData {
                 id: i,
                 ..Default::default()
@@ -842,13 +842,28 @@ mod tests {
         assert_eq!(manager.selected_id(), Some(3));
 
         manager.next();
-        assert_eq!(manager.selected_id(), Some(1));
+        assert_eq!(manager.selected_id(), Some(4));
+
+        manager.next();
+        assert_eq!(manager.selected_id(), Some(5));
+
+        manager.next();
+        assert_eq!(manager.selected_id(), Some(6));
+
+        manager.prev();
+        assert_eq!(manager.selected_id(), Some(5));
+
+        manager.prev();
+        assert_eq!(manager.selected_id(), Some(4));
 
         manager.prev();
         assert_eq!(manager.selected_id(), Some(3));
 
         manager.prev();
         assert_eq!(manager.selected_id(), Some(2));
+
+        manager.prev();
+        assert_eq!(manager.selected_id(), Some(1));
     }
 
     #[test]
@@ -875,11 +890,13 @@ mod tests {
         };
         manager.add(data).unwrap();
 
+        assert!(manager.inhibited());
         assert_eq!(manager.notifications().len(), 1);
         assert_eq!(manager.waiting(), 1);
 
         manager.uninhibit();
 
+        assert!(!manager.inhibited());
         assert_eq!(manager.notifications().len(), 1);
         assert_eq!(manager.waiting(), 0);
     }
@@ -904,5 +921,114 @@ mod tests {
         // Body and summary
         assert_eq!(data.1.len(), 2);
         assert_eq!(data.2.len(), 0);
+    }
+
+    #[test]
+    fn test_get_by_coordinates() {
+        let config = Rc::new(Config::default());
+        let style = &config.styles.default;
+        let event_loop = EventLoop::try_new().unwrap();
+        let font_system = Rc::new(RefCell::new(FontSystem::new()));
+        let mut manager =
+            NotificationManager::new(Rc::clone(&config), event_loop.handle(), font_system);
+
+        let data = NotificationData {
+            id: 1,
+            ..Default::default()
+        };
+        manager.add(data).unwrap();
+
+        if let Some(notification) = manager.notifications.get_mut(0) {
+            notification.set_position(10.0, 20.0);
+        }
+
+        let x = 10.0 + style.margin.left.resolve(0.) as f64;
+        let y = 20.0 + style.margin.top.resolve(0.) as f64;
+        let width = (style.width
+            + style.border.size.left
+            + style.border.size.right
+            + style.padding.left
+            + style.padding.right) as f64;
+        let height = (style.height
+            + style.border.size.top
+            + style.border.size.bottom
+            + style.padding.top
+            + style.padding.bottom) as f64;
+
+        let (left, right, top, bottom) = (x, x + width, y, y + height);
+        let epsilon = 0.1;
+
+        assert!(manager
+            .get_by_coordinates(left + width / 2.0, top + height / 2.0)
+            .is_some());
+
+        // Left edge
+        assert!(manager
+            .get_by_coordinates(left - epsilon, top + height / 2.0)
+            .is_none());
+        assert!(manager
+            .get_by_coordinates(left + epsilon, top + height / 2.0)
+            .is_some());
+
+        // Right edge
+        assert!(manager
+            .get_by_coordinates(right - epsilon, top + height / 2.0)
+            .is_some());
+        assert!(manager
+            .get_by_coordinates(right + epsilon, top + height / 2.0)
+            .is_none());
+
+        // Top edge
+        assert!(manager
+            .get_by_coordinates(left + width / 2.0, top - epsilon)
+            .is_none());
+        assert!(manager
+            .get_by_coordinates(left + width / 2.0, top)
+            .is_some());
+
+        // Bottom edge
+        assert!(manager
+            .get_by_coordinates(left + width / 2.0, bottom)
+            .is_some());
+        assert!(manager
+            .get_by_coordinates(left + width / 2.0, bottom + 30.00)
+            .is_some());
+
+        // Top-left corner
+        assert!(manager
+            .get_by_coordinates(left - epsilon, top - epsilon)
+            .is_none());
+        assert!(manager.get_by_coordinates(left + epsilon, top).is_some());
+
+        // Top-right corner
+        assert!(manager.get_by_coordinates(right - epsilon, top).is_some());
+        assert!(manager
+            .get_by_coordinates(right + epsilon, top - epsilon)
+            .is_none());
+
+        // Bottom-left corner
+        assert!(manager.get_by_coordinates(left + epsilon, bottom).is_some());
+        assert!(manager
+            .get_by_coordinates(left - epsilon, bottom + epsilon)
+            .is_none());
+
+        // Bottom-right corner
+        assert!(manager
+            .get_by_coordinates(right - epsilon, bottom)
+            .is_some());
+        assert!(manager
+            .get_by_coordinates(right + epsilon, bottom + epsilon)
+            .is_none());
+
+        let center_notification =
+            manager.get_by_coordinates(left + width / 2.0, top + height / 2.0);
+        assert_eq!(center_notification.unwrap().id(), 1);
+
+        assert!(manager.get_by_coordinates(15.0, 25.0).is_some());
+        assert!(manager.get_by_coordinates(9.9, 25.0).is_none());
+        assert!(manager.get_by_coordinates(right, bottom).is_some());
+        assert!(manager
+            .get_by_coordinates(right + epsilon, bottom + epsilon)
+            .is_none());
     }
 }
