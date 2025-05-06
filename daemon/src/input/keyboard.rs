@@ -240,6 +240,7 @@ impl Moxnotify {
                 && keymap.mode == self.notifications.ui_state.borrow().mode
         }) {
             log::debug!("Action executed: {:?}", key_combination.action);
+            self.seat.keyboard.key_combination.clear();
             match key_combination.action {
                 KeyAction::Noop => {}
                 KeyAction::NextNotification => self.notifications.next(),

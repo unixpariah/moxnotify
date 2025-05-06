@@ -26,6 +26,7 @@ pub struct UiState {
     pub scale: f32,
     pub mode: keymaps::Mode,
     pub selected: Option<NotificationId>,
+    pub last_selected: Option<NotificationId>,
 }
 
 impl Default for UiState {
@@ -34,6 +35,7 @@ impl Default for UiState {
             mode: keymaps::Mode::Normal,
             scale: 1.0,
             selected: None,
+            last_selected: None,
         }
     }
 }
@@ -231,6 +233,7 @@ impl NotificationManager {
 
         if let Some(notification) = self.notifications.iter_mut().find(|n| n.id() == id) {
             notification.hover();
+            log::info!("Selected notification id: {id}");
 
             self.ui_state.borrow_mut().selected = Some(id);
             if let Some(token) = notification.registration_token.take() {
@@ -359,6 +362,7 @@ impl NotificationManager {
 
     pub fn deselect(&mut self) {
         let id = self.ui_state.borrow_mut().selected.take();
+        self.ui_state.borrow_mut().last_selected = id;
         if let Some(old_id) = id {
             if let Some(index) = self.notifications.iter().position(|n| n.id() == old_id) {
                 if let Some(notification) = self.notifications.get_mut(index) {
@@ -527,21 +531,23 @@ impl NotificationManager {
 
     pub fn dismiss(&mut self, id: NotificationId) {
         if let Some(i) = self.notifications.iter().position(|n| n.id() == id) {
-            let notification = self.notifications.remove(i);
-            if let Some(token) = notification.registration_token {
-                self.loop_handle.remove(token);
-            }
+            if let Some(notification) = self.notifications.get(i) {
+                if let Some(token) = notification.registration_token {
+                    self.loop_handle.remove(token);
+                }
 
-            if let Some(next_notification) = self.notifications.get(i) {
-                if self.selected_id() == Some(notification.id()) {
-                    self.select(next_notification.id());
+                if let Some(next_notification) = self.notifications.get(i + 1) {
+                    if self.selected_id() == Some(notification.id()) {
+                        self.select(next_notification.id());
+                    }
+                    self.notifications.remove(i);
+                } else if self.ui_state.borrow().selected.is_some() {
+                    self.prev();
+                    self.notifications.remove(i);
+                } else {
+                    self.notifications.remove(i);
                 }
             }
-        }
-
-        if self.notification_view.visible.start >= self.notifications.len() {
-            self.notification_view.visible = self.notifications.len().saturating_sub(1)
-                ..self.notifications.len().saturating_sub(1) + self.config.general.max_visible;
         }
 
         self.notification_view
@@ -584,17 +590,6 @@ impl NotificationManager {
                 }
             },
         );
-
-        let x_offset = self
-            .notifications
-            .iter()
-            .map(|notification| notification.data.hints.x)
-            .min()
-            .unwrap_or_default()
-            .abs();
-        self.notifications
-            .iter_mut()
-            .for_each(|notification| notification.set_position(x_offset as f32, notification.y));
     }
 }
 

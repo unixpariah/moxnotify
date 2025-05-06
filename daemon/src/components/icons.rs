@@ -225,7 +225,7 @@ impl Component for Icons {
                 },
                 data: icon.data(),
                 radius: style.icon.border.radius.into(),
-                depth: 0.8,
+                depth: 0.9,
             });
 
             bounds.x += bounds.height - self.config.general.app_icon_size as f32;
@@ -250,7 +250,7 @@ impl Component for Icons {
                 },
                 data: app_icon.data(),
                 radius: style.app_icon.border.radius.into(),
-                depth: 0.7,
+                depth: 0.8,
             });
         }
 

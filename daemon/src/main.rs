@@ -247,7 +247,23 @@ impl Moxnotify {
                     if surface.focus_reason.is_none() {
                         log::info!("Focusing notification surface");
                         surface.focus(FocusReason::Ctl);
-                        self.notifications.next();
+
+                        let ui_state = self.notifications.ui_state.borrow();
+                        let should_select_last = ui_state.last_selected.is_some_and(|last_id| {
+                            self.notifications
+                                .notifications()
+                                .iter()
+                                .any(|n| n.id() == last_id)
+                        });
+
+                        if should_select_last {
+                            let last_id = ui_state.last_selected.unwrap();
+                            drop(ui_state);
+                            self.notifications.ui_state.borrow_mut().selected = Some(last_id);
+                        } else {
+                            drop(ui_state);
+                            self.notifications.next();
+                        }
                     }
                 }
             }

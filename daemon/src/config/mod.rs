@@ -436,6 +436,7 @@ impl Default for Icon {
             },
             margin: Insets {
                 right: Size::Value(10.),
+                left: Size::Value(5.),
                 ..Default::default()
             },
             padding: Insets::default(),

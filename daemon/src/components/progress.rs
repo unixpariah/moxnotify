@@ -415,8 +415,7 @@ mod tests {
         let config = Rc::new(Config::default());
         let ui_state = Rc::new(RefCell::new(UiState {
             selected: Some(1),
-            mode: config::keymaps::Mode::Normal,
-            scale: 1.0,
+            ..Default::default()
         }));
 
         let app_name = Arc::from("test_app");
