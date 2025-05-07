@@ -269,6 +269,7 @@ where
     let icon_path = freedesktop_icons::lookup(name.as_ref())
         .with_size(icon_size)
         .with_theme(theme.as_ref().map(AsRef::as_ref).unwrap_or("hicolor"))
+        .force_svg()
         .with_cache()
         .find()?;
 
