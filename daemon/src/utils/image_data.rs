@@ -16,8 +16,8 @@ pub struct ImageData {
 }
 
 impl ImageData {
-    pub fn into_rgba(self, max_size: u32) -> Self {
-        let rgba = if self.has_alpha {
+    pub fn to_rgba(self) -> Self {
+        if self.has_alpha {
             self
         } else {
             let mut data = self.data;
@@ -36,15 +36,17 @@ impl ImageData {
                 rowstride: self.width as i32 * 4,
                 ..self
             }
-        };
+        }
+    }
 
+    pub fn resize(self, size: u32) -> Self {
         let mut src =
-            fr::images::Image::from_vec_u8(rgba.width, rgba.height, rgba.data, fr::PixelType::U8x4)
+            fr::images::Image::from_vec_u8(self.width, self.height, self.data, fr::PixelType::U8x4)
                 .unwrap();
 
         let alpha_mul_div = fr::MulDiv::default();
         alpha_mul_div.multiply_alpha_inplace(&mut src).unwrap();
-        let mut dst = fr::images::Image::new(max_size, max_size, fr::PixelType::U8x4);
+        let mut dst = fr::images::Image::new(size, size, fr::PixelType::U8x4);
         let mut resizer = fr::Resizer::new();
         resizer
             .resize(&src, &mut dst, &ResizeOptions::default())
@@ -55,7 +57,7 @@ impl ImageData {
             width: dst.width(),
             height: dst.height(),
             data: dst.into_vec(),
-            ..rgba
+            ..self
         }
     }
 
@@ -200,7 +202,7 @@ mod tests {
         img.put_pixel(1, 1, Rgb([255, 255, 255]));
 
         let image_data = ImageData::try_from(DynamicImage::ImageRgb8(img)).unwrap();
-        let converted = image_data.into_rgba(2);
+        let converted = image_data.to_rgba().resize(2);
 
         assert_eq!(converted.channels, 4);
         assert!(converted.has_alpha);
@@ -213,7 +215,7 @@ mod tests {
         let img = RgbaImage::from_raw(4, 4, vec![255; 4 * 4 * 4]).unwrap();
         let image_data = ImageData::try_from(DynamicImage::ImageRgba8(img)).unwrap();
 
-        let resized = image_data.into_rgba(2);
+        let resized = image_data.to_rgba().resize(2);
 
         assert_eq!(resized.width, 2);
         assert_eq!(resized.height, 2);
@@ -226,7 +228,7 @@ mod tests {
         img.put_pixel(0, 0, image::Rgba([255, 0, 0, 128]));
         let image_data = ImageData::try_from(DynamicImage::ImageRgba8(img)).unwrap();
 
-        let converted = image_data.into_rgba(2);
+        let converted = image_data.to_rgba().resize(2);
 
         assert_eq!(converted.data[3], 128);
     }

@@ -67,9 +67,12 @@ impl Icons {
         app_name: Arc<str>,
     ) -> Self {
         let icon = match image {
-            Some(Image::Data(image_data)) => {
-                Some(image_data.clone().into_rgba(config.general.icon_size))
-            }
+            Some(Image::Data(image_data)) => Some(
+                image_data
+                    .clone()
+                    .to_rgba()
+                    .resize(config.general.icon_size),
+            ),
             Some(Image::File(file)) => get_icon(file, config.general.icon_size as u16),
             Some(Image::Name(name)) => find_icon(
                 name,
@@ -316,7 +319,9 @@ where
     };
 
     let image_data = ImageData::try_from(image.ok()?);
-    let image_data = image_data.ok().map(|i| i.into_rgba(icon_size as u32))?;
+    let image_data = image_data
+        .ok()
+        .map(|i| i.to_rgba().resize(icon_size as u32))?;
     ICON_CACHE.insert(&icon_path, image_data.clone());
     Some(image_data)
 }
