@@ -38,7 +38,7 @@
       devShells = forAllSystems (pkgs: {
         default =
           with pkgs;
-          mkShell rec {
+          mkShell.override { stdenv = pkgs.clang12Stdenv; } rec {
             buildInputs = [
               (rust-bin.selectLatestNightlyWith (
                 toolchain:
@@ -59,9 +59,10 @@
               vulkan-validation-layers
               wgsl-analyzer
               wayland
-              libpulseaudio
+              alsa-lib
             ];
-            LD_LIBRARY_PATH = "${lib.makeLibraryPath buildInputs}";
+
+            LD_LIBRARY_PATH = lib.makeLibraryPath buildInputs;
           };
       });
 
