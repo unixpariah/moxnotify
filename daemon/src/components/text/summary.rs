@@ -85,7 +85,7 @@ impl Component for Summary {
         }]
     }
 
-    fn get_text_areas(&self, urgency: &crate::Urgency) -> Vec<glyphon::TextArea> {
+    fn get_text_areas(&self, urgency: &crate::Urgency) -> Vec<glyphon::TextArea<'_>> {
         let style = self.get_style();
         let bounds = self.get_render_bounds();
 
@@ -124,7 +124,7 @@ impl Component for Summary {
         }]
     }
 
-    fn get_textures(&self) -> Vec<texture_renderer::TextureArea> {
+    fn get_textures(&self) -> Vec<texture_renderer::TextureArea<'_>> {
         Vec::new()
     }
 
@@ -182,7 +182,7 @@ impl Component for Summary {
         self.y = y;
     }
 
-    fn get_data(&self, urgency: &Urgency) -> Vec<Data> {
+    fn get_data(&self, urgency: &Urgency) -> Vec<Data<'_>> {
         self.get_instances(urgency)
             .into_iter()
             .map(Data::Instance)

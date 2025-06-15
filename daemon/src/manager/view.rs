@@ -136,7 +136,7 @@ impl NotificationView {
         }
     }
 
-    pub fn prev_data(&self, total_width: f32) -> Option<(buffers::Instance, TextArea)> {
+    pub fn prev_data(&self, total_width: f32) -> Option<(buffers::Instance, TextArea<'_>)> {
         if let Some(prev) = self.prev.as_ref() {
             let extents = prev.get_render_bounds();
             let style = &self.config.styles.prev;
@@ -165,7 +165,7 @@ impl NotificationView {
         None
     }
 
-    pub fn next_data(&self, total_width: f32) -> Option<(buffers::Instance, TextArea)> {
+    pub fn next_data(&self, total_width: f32) -> Option<(buffers::Instance, TextArea<'_>)> {
         if let Some(next) = self.next.as_ref() {
             let extents = next.get_render_bounds();
             let style = &self.config.styles.prev;

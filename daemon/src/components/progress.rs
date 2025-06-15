@@ -121,7 +121,7 @@ impl Component for Progress {
         }
     }
 
-    fn get_text_areas(&self, _: &Urgency) -> Vec<glyphon::TextArea> {
+    fn get_text_areas(&self, _: &Urgency) -> Vec<glyphon::TextArea<'_>> {
         vec![]
     }
 
@@ -206,7 +206,7 @@ impl Component for Progress {
         instances
     }
 
-    fn get_textures(&self) -> Vec<texture_renderer::TextureArea> {
+    fn get_textures(&self) -> Vec<texture_renderer::TextureArea<'_>> {
         Vec::new()
     }
 }

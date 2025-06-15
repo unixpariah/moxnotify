@@ -291,7 +291,7 @@ impl ButtonManager<Finished> {
         buttons
     }
 
-    pub fn text_areas(&self) -> Vec<TextArea> {
+    pub fn text_areas(&self) -> Vec<TextArea<'_>> {
         let mut text_areas = self
             .buttons
             .iter()
@@ -310,7 +310,7 @@ impl ButtonManager<Finished> {
         text_areas
     }
 
-    pub fn data(&self) -> Vec<Data> {
+    pub fn data(&self) -> Vec<Data<'_>> {
         let mut data = self
             .buttons
             .iter()
@@ -619,7 +619,7 @@ impl Component for Hint {
         self.y = y;
     }
 
-    fn get_text_areas(&self, urgency: &Urgency) -> Vec<TextArea> {
+    fn get_text_areas(&self, urgency: &Urgency) -> Vec<TextArea<'_>> {
         let style = self.get_style();
         let text_extents = self.text.get_bounds();
         let bounds = self.get_render_bounds();
@@ -659,7 +659,7 @@ impl Component for Hint {
         }]
     }
 
-    fn get_textures(&self) -> Vec<texture_renderer::TextureArea> {
+    fn get_textures(&self) -> Vec<texture_renderer::TextureArea<'_>> {
         Vec::new()
     }
 }

@@ -62,7 +62,7 @@ impl Component for ActionButton {
         }]
     }
 
-    fn get_text_areas(&self, urgency: &Urgency) -> Vec<glyphon::TextArea> {
+    fn get_text_areas(&self, urgency: &Urgency) -> Vec<glyphon::TextArea<'_>> {
         let extents = self.get_render_bounds();
         let style = self.get_style();
         let text_extents = self.text.get_bounds();
@@ -167,7 +167,7 @@ impl Component for ActionButton {
         self.hint.set_position(bounds.x, bounds.y);
     }
 
-    fn get_textures(&self) -> Vec<texture_renderer::TextureArea> {
+    fn get_textures(&self) -> Vec<texture_renderer::TextureArea<'_>> {
         Vec::new()
     }
 }

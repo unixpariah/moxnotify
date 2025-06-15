@@ -116,11 +116,11 @@ impl Component for Notification {
         }]
     }
 
-    fn get_text_areas(&self, _: &Urgency) -> Vec<glyphon::TextArea> {
+    fn get_text_areas(&self, _: &Urgency) -> Vec<glyphon::TextArea<'_>> {
         Vec::new()
     }
 
-    fn get_textures(&self) -> Vec<texture_renderer::TextureArea> {
+    fn get_textures(&self) -> Vec<texture_renderer::TextureArea<'_>> {
         Vec::new()
     }
 
@@ -293,7 +293,7 @@ impl Component for Notification {
         );
     }
 
-    fn get_data(&self, urgency: &Urgency) -> Vec<Data> {
+    fn get_data(&self, urgency: &Urgency) -> Vec<Data<'_>> {
         let mut data = self
             .get_instances(urgency)
             .into_iter()

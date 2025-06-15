@@ -92,7 +92,13 @@ impl NotificationManager {
         &self.notifications
     }
 
-    pub fn data(&self) -> (Vec<buffers::Instance>, Vec<TextArea>, Vec<TextureArea>) {
+    pub fn data(
+        &self,
+    ) -> (
+        Vec<buffers::Instance>,
+        Vec<TextArea<'_>>,
+        Vec<TextureArea<'_>>,
+    ) {
         let mut instances = Vec::new();
         let mut text_areas = Vec::new();
         let mut textures = Vec::new();

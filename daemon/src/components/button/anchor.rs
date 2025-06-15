@@ -60,7 +60,7 @@ impl Component for AnchorButton {
         }]
     }
 
-    fn get_text_areas(&self, urgency: &crate::Urgency) -> Vec<glyphon::TextArea> {
+    fn get_text_areas(&self, urgency: &crate::Urgency) -> Vec<glyphon::TextArea<'_>> {
         let style = self.get_style();
         vec![glyphon::TextArea {
             buffer: &self.text.buffer,
@@ -101,7 +101,7 @@ impl Component for AnchorButton {
         self.hint.set_position(bounds.x, bounds.y);
     }
 
-    fn get_textures(&self) -> Vec<texture_renderer::TextureArea> {
+    fn get_textures(&self) -> Vec<texture_renderer::TextureArea<'_>> {
         Vec::new()
     }
 }

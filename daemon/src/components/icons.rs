@@ -193,7 +193,7 @@ impl Component for Icons {
         Vec::new()
     }
 
-    fn get_text_areas(&self, _: &crate::Urgency) -> Vec<glyphon::TextArea> {
+    fn get_text_areas(&self, _: &crate::Urgency) -> Vec<glyphon::TextArea<'_>> {
         Vec::new()
     }
 
@@ -202,7 +202,7 @@ impl Component for Icons {
         self.y = y;
     }
 
-    fn get_textures(&self) -> Vec<texture_renderer::TextureArea> {
+    fn get_textures(&self) -> Vec<texture_renderer::TextureArea<'_>> {
         let mut texture_areas = Vec::new();
 
         let style = self.config.find_style(
@@ -260,7 +260,7 @@ impl Component for Icons {
         texture_areas
     }
 
-    fn get_data(&self, _: &crate::Urgency) -> Vec<Data> {
+    fn get_data(&self, _: &crate::Urgency) -> Vec<Data<'_>> {
         self.get_textures().into_iter().map(Data::Texture).collect()
     }
 }

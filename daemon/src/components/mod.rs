@@ -48,9 +48,9 @@ pub trait Component {
 
     fn get_instances(&self, urgency: &Urgency) -> Vec<buffers::Instance>;
 
-    fn get_text_areas(&self, urgency: &Urgency) -> Vec<glyphon::TextArea>;
+    fn get_text_areas(&self, urgency: &Urgency) -> Vec<glyphon::TextArea<'_>>;
 
-    fn get_textures(&self) -> Vec<texture_renderer::TextureArea>;
+    fn get_textures(&self) -> Vec<texture_renderer::TextureArea<'_>>;
 
     fn get_bounds(&self) -> Bounds;
 
@@ -58,7 +58,7 @@ pub trait Component {
 
     fn set_position(&mut self, x: f32, y: f32);
 
-    fn get_data(&self, urgency: &Urgency) -> Vec<Data> {
+    fn get_data(&self, urgency: &Urgency) -> Vec<Data<'_>> {
         self.get_instances(urgency)
             .into_iter()
             .map(Data::Instance)
