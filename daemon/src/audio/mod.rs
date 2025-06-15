@@ -93,9 +93,9 @@ impl Audio {
 
                 {
                     let buffer = &mut audio_buffer;
-                    for &sample in samples {
-                        buffer.push_back(sample);
-                    }
+                    samples.iter().for_each(|sample| {
+                        buffer.push_back(*sample);
+                    });
                 }
             }
 
