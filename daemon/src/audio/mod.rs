@@ -2,7 +2,6 @@ use std::{
     collections::{BTreeMap, VecDeque},
     fs,
     path::Path,
-    sync::Arc,
     thread,
     time::Duration,
 };
@@ -21,6 +20,10 @@ struct Playback {
     duration: Duration,
     buffer: VecDeque<f32>,
     params: OutputDeviceParameters,
+    shutdown_channel: Option<(
+        crossbeam_channel::Sender<()>,
+        crossbeam_channel::Receiver<()>,
+    )>,
 }
 
 impl Playback {
@@ -118,28 +121,40 @@ impl Playback {
             duration,
             buffer: audio_buffer,
             params,
+            shutdown_channel: None,
         })
     }
 
     fn start(&mut self) {
+        self.shutdown_channel = Some(crossbeam_channel::unbounded());
+
         let mut buffer = self.buffer.clone();
         let params = self.params;
         let duration = self.duration;
 
-        thread::spawn(move || {
-            let _device = run_output_device(params, move |data| {
-                data.iter_mut().for_each(|sample| {
-                    if let Some(audio_sample) = buffer.pop_front() {
-                        *sample = audio_sample;
-                    } else {
-                        *sample = 0.0;
-                    }
-                });
-            })
-            .unwrap();
+        if let Some(channel) = self.shutdown_channel.as_ref() {
+            let rx = channel.1.clone();
+            thread::spawn(move || {
+                let _device = run_output_device(params, move |data| {
+                    data.iter_mut().for_each(|sample| {
+                        if let Some(audio_sample) = buffer.pop_front() {
+                            *sample = audio_sample;
+                        } else {
+                            *sample = 0.0;
+                        }
+                    });
+                })
+                .unwrap();
 
-            std::thread::sleep(duration);
-        });
+                _ = rx.recv_timeout(duration);
+            });
+        }
+    }
+
+    fn stop(&mut self) {
+        if let Some(channel) = self.shutdown_channel.as_ref() {
+            _ = channel.0.send(());
+        }
     }
 }
 
@@ -163,17 +178,16 @@ impl Cache {
     }
 }
 
+#[derive(Default)]
 pub struct Audio {
     cache: Cache,
     muted: bool,
+    playback: Option<Playback>,
 }
 
 impl Audio {
-    pub fn new() -> anyhow::Result<Self> {
-        Ok(Self {
-            muted: false,
-            cache: Cache::default(),
-        })
+    pub fn new() -> Self {
+        Self::default()
     }
 
     pub fn play<T>(&mut self, path: T) -> anyhow::Result<()>
@@ -182,6 +196,10 @@ impl Audio {
     {
         if self.muted {
             return Ok(());
+        }
+
+        if let Some(mut playback) = self.playback.take() {
+            playback.stop();
         }
 
         let mut playback = match self.cache.get(&path) {
@@ -193,6 +211,8 @@ impl Audio {
             }
         };
         playback.start();
+
+        self.playback = Some(playback);
 
         Ok(())
     }

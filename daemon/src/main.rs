@@ -77,7 +77,7 @@ pub struct Moxnotify {
     loop_handle: calloop::LoopHandle<'static, Self>,
     emit_sender: broadcast::Sender<EmitEvent>,
     compositor: wl_compositor::WlCompositor,
-    audio: Option<Audio>,
+    audio: Audio,
     db: rusqlite::Connection,
     history: History,
     font_system: Rc<RefCell<FontSystem>>,
@@ -124,7 +124,7 @@ impl Moxnotify {
         Ok(Self {
             history: History::Hidden,
             db,
-            audio: Audio::new().ok(),
+            audio: Audio::new(),
             globals,
             qh,
             notifications: NotificationManager::new(
@@ -216,9 +216,9 @@ impl Moxnotify {
 
                 if self.notifications.inhibited() || suppress_sound {
                     log::debug!("Sound suppressed for notification");
-                } else if let (Some(audio), Some(path)) = (self.audio.as_mut(), path) {
+                } else if let Some(path) = path {
                     log::debug!("Playing notification sound");
-                    audio.play(path)?;
+                    self.audio.play(path)?;
                 }
 
                 if let Some(notification) = self.notifications.notifications().last() {
@@ -280,29 +280,25 @@ impl Moxnotify {
                 return Ok(());
             }
             Event::Mute => {
-                if let Some(audio) = self.audio.as_mut() {
-                    if !audio.muted() {
-                        log::info!("Muting notification sounds");
-                        _ = self.emit_sender.send(EmitEvent::MuteStateChanged(true));
-                        audio.mute();
-                    } else {
-                        log::debug!("Audio already muted");
-                    }
+                if !self.audio.muted() {
+                    log::info!("Muting notification sounds");
+                    _ = self.emit_sender.send(EmitEvent::MuteStateChanged(true));
+                    self.audio.mute();
+                } else {
+                    log::debug!("Audio already muted");
                 }
 
                 return Ok(());
             }
             Event::Unmute => {
-                if let Some(audio) = self.audio.as_mut() {
-                    if audio.muted() {
-                        log::info!("Unmuting notification sounds");
-                        audio.unmute();
-                        _ = self
-                            .emit_sender
-                            .send(EmitEvent::MuteStateChanged(audio.muted()));
-                    } else {
-                        log::debug!("Audio already unmuted");
-                    }
+                if self.audio.muted() {
+                    log::info!("Unmuting notification sounds");
+                    self.audio.unmute();
+                    _ = self
+                        .emit_sender
+                        .send(EmitEvent::MuteStateChanged(self.audio.muted()));
+                } else {
+                    log::debug!("Audio already unmuted");
                 }
 
                 return Ok(());
@@ -426,9 +422,7 @@ impl Moxnotify {
             }
             Event::GetMuted => {
                 log::debug!("Getting audio mute state");
-                _ = self.emit_sender.send(EmitEvent::Muted(
-                    self.audio.as_ref().map(|a| a.muted()).unwrap_or(true),
-                ));
+                _ = self.emit_sender.send(EmitEvent::Muted(self.audio.muted()));
 
                 return Ok(());
             }

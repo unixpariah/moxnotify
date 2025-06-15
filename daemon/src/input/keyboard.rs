@@ -297,23 +297,15 @@ impl Moxnotify {
                     false => self.notifications.inhibit(),
                 },
                 KeyAction::Mute => {
-                    if let Some(audio) = self.audio.as_mut() {
-                        audio.mute();
-                    }
+                    self.audio.mute();
                 }
                 KeyAction::Unmute => {
-                    if let Some(audio) = self.audio.as_mut() {
-                        audio.unmute();
-                    }
+                    self.audio.unmute();
                 }
-                KeyAction::ToggleMute => {
-                    if let Some(audio) = self.audio.as_mut() {
-                        match audio.muted() {
-                            true => audio.unmute(),
-                            false => audio.mute(),
-                        }
-                    }
-                }
+                KeyAction::ToggleMute => match self.audio.muted() {
+                    true => self.audio.unmute(),
+                    false => self.audio.mute(),
+                },
                 KeyAction::NormalMode => {
                     self.notifications.ui_state.borrow_mut().mode = Mode::Normal
                 }
