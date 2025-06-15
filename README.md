@@ -129,7 +129,7 @@ return {
 - **Rust**  
 - **dbus**
 - **wayland**  
-- **libpulseaudio**  
+- **alsa**  
 - **vulkan-loader**
 
 ## Packaging
