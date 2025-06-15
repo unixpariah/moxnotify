@@ -1,4 +1,11 @@
-use std::{collections::VecDeque, fs, path::Path, thread};
+use std::{
+    collections::{BTreeMap, VecDeque},
+    fs,
+    path::Path,
+    sync::Arc,
+    thread,
+    time::Duration,
+};
 use symphonia::core::{
     audio::SampleBuffer,
     codecs::{DecoderOptions, CODEC_TYPE_NULL},
@@ -9,13 +16,164 @@ use symphonia::core::{
 };
 use tinyaudio::{run_output_device, OutputDeviceParameters};
 
+#[derive(Clone)]
+struct Playback {
+    duration: Duration,
+    buffer: VecDeque<f32>,
+    params: OutputDeviceParameters,
+}
+
+impl Playback {
+    fn new<T>(path: T) -> anyhow::Result<Self>
+    where
+        T: AsRef<Path>,
+    {
+        let src = fs::File::open(&path)?;
+        let mss = MediaSourceStream::new(Box::new(src), Default::default());
+        let hint = Hint::new();
+
+        let probed = symphonia::default::get_probe()
+            .format(
+                &hint,
+                mss,
+                &FormatOptions::default(),
+                &MetadataOptions::default(),
+            )
+            .map_err(|e| anyhow::anyhow!("Failed to probe audio format: {}", e))?;
+
+        let track = probed
+            .format
+            .tracks()
+            .iter()
+            .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
+            .ok_or(anyhow::anyhow!("No valid audio track found"))?;
+
+        let channels_count = track
+            .codec_params
+            .channels
+            .map(|channels| channels.count())
+            .ok_or(anyhow::anyhow!("Unable to determine channel count"))?;
+
+        let sample_rate = track
+            .codec_params
+            .sample_rate
+            .ok_or(anyhow::anyhow!("Unable to determine sample rate"))?
+            as usize;
+
+        let mut format = probed.format;
+
+        let track = format
+            .tracks()
+            .iter()
+            .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
+            .ok_or(anyhow::anyhow!(""))?;
+
+        let dec_opts = DecoderOptions::default();
+        let mut decoder = symphonia::default::get_codecs().make(&track.codec_params, &dec_opts)?;
+
+        let mut audio_buffer: VecDeque<f32> = VecDeque::new();
+
+        let duration = if let Some(time_base) = track.codec_params.time_base {
+            if let Some(n_frames) = track.codec_params.n_frames {
+                let duration_seconds =
+                    (n_frames as f64) / (time_base.denom as f64 / time_base.numer as f64);
+                Some(std::time::Duration::from_secs_f64(duration_seconds))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+        .unwrap();
+
+        let track_id = track.id;
+        while let Ok(packet) = format.next_packet() {
+            while !format.metadata().is_latest() {
+                format.metadata().pop();
+            }
+            if packet.track_id() != track_id {
+                continue;
+            }
+            let decoded = decoder.decode(&packet)?;
+            let mut sample_buf =
+                SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
+            sample_buf.copy_interleaved_ref(decoded);
+            let samples: &[f32] = bytemuck::cast_slice(sample_buf.samples());
+
+            {
+                let buffer = &mut audio_buffer;
+                samples.iter().for_each(|sample| {
+                    buffer.push_back(*sample);
+                });
+            }
+        }
+
+        let params = OutputDeviceParameters {
+            channels_count,
+            sample_rate,
+            channel_sample_count: audio_buffer.len(),
+        };
+
+        Ok(Self {
+            duration,
+            buffer: audio_buffer,
+            params,
+        })
+    }
+
+    fn start(&mut self) {
+        let mut buffer = self.buffer.clone();
+        let params = self.params;
+        let duration = self.duration;
+
+        thread::spawn(move || {
+            let _device = run_output_device(params, move |data| {
+                data.iter_mut().for_each(|sample| {
+                    if let Some(audio_sample) = buffer.pop_front() {
+                        *sample = audio_sample;
+                    } else {
+                        *sample = 0.0;
+                    }
+                });
+            })
+            .unwrap();
+
+            std::thread::sleep(duration);
+        });
+    }
+}
+
+#[derive(Default)]
+struct Cache(BTreeMap<Box<Path>, Playback>);
+
+impl Cache {
+    fn insert<P>(&mut self, icon_path: &P, data: Playback)
+    where
+        P: AsRef<Path>,
+    {
+        let entry = icon_path.as_ref();
+        self.0.insert(entry.into(), data);
+    }
+
+    fn get<P>(&self, icon_path: P) -> Option<Playback>
+    where
+        P: AsRef<Path>,
+    {
+        self.0.get(icon_path.as_ref()).cloned()
+    }
+}
+
 pub struct Audio {
+    cache: Cache,
     muted: bool,
 }
 
 impl Audio {
     pub fn new() -> anyhow::Result<Self> {
-        Ok(Self { muted: false })
+        Ok(Self {
+            muted: false,
+            cache: Cache::default(),
+        })
     }
 
     pub fn play<T>(&mut self, path: T) -> anyhow::Result<()>
@@ -26,101 +184,15 @@ impl Audio {
             return Ok(());
         }
 
-        let src = fs::File::open(&path)?;
-        thread::spawn(move || {
-            let mss = MediaSourceStream::new(Box::new(src), Default::default());
-            let hint = Hint::new();
-
-            let probed = symphonia::default::get_probe()
-                .format(
-                    &hint,
-                    mss,
-                    &FormatOptions::default(),
-                    &MetadataOptions::default(),
-                )
-                .map_err(|e| anyhow::anyhow!("Failed to probe audio format: {}", e))
-                .unwrap();
-
-            let track = probed
-                .format
-                .tracks()
-                .iter()
-                .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
-                .ok_or(anyhow::anyhow!("No valid audio track found"))
-                .unwrap();
-
-            let channels_count = track
-                .codec_params
-                .channels
-                .map(|channels| channels.count())
-                .ok_or(anyhow::anyhow!("Unable to determine channel count"))
-                .unwrap();
-
-            let sample_rate = track
-                .codec_params
-                .sample_rate
-                .ok_or(anyhow::anyhow!("Unable to determine sample rate"))
-                .unwrap() as usize;
-
-            let mut format = probed.format;
-
-            let track = format
-                .tracks()
-                .iter()
-                .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
-                .unwrap();
-
-            let dec_opts = DecoderOptions::default();
-            let mut decoder = symphonia::default::get_codecs()
-                .make(&track.codec_params, &dec_opts)
-                .unwrap();
-
-            let mut audio_buffer: VecDeque<f32> = VecDeque::new();
-
-            let track_id = track.id;
-            while let Ok(packet) = format.next_packet() {
-                while !format.metadata().is_latest() {
-                    format.metadata().pop();
-                }
-                if packet.track_id() != track_id {
-                    continue;
-                }
-                let decoded = decoder.decode(&packet).unwrap();
-                let mut sample_buf =
-                    SampleBuffer::<f32>::new(decoded.capacity() as u64, *decoded.spec());
-                sample_buf.copy_interleaved_ref(decoded);
-                let samples: &[f32] = bytemuck::cast_slice(sample_buf.samples());
-
-                {
-                    let buffer = &mut audio_buffer;
-                    samples.iter().for_each(|sample| {
-                        buffer.push_back(*sample);
-                    });
-                }
+        let mut playback = match self.cache.get(&path) {
+            Some(playback) => playback,
+            None => {
+                let playback = Playback::new(&path).unwrap();
+                self.cache.insert(&path, playback.clone());
+                playback
             }
-
-            let params = OutputDeviceParameters {
-                channels_count,
-                sample_rate,
-                channel_sample_count: audio_buffer.len(),
-            };
-
-            let _device = run_output_device(params, {
-                move |data| {
-                    let buffer = &mut audio_buffer;
-                    data.iter_mut().for_each(|sample| {
-                        if let Some(audio_sample) = buffer.pop_front() {
-                            *sample = audio_sample;
-                        } else {
-                            *sample = 0.0;
-                        }
-                    });
-                }
-            })
-            .unwrap();
-
-            std::thread::sleep(std::time::Duration::from_secs(1));
-        });
+        };
+        playback.start();
 
         Ok(())
     }
