@@ -21,7 +21,7 @@ jobs:
             libxkbcommon-dev \
             libwayland-dev \
             libvulkan-dev \
-            libpulse-dev
+            libasound2-dev
 
       - name: Install Rust (Nightly)
         uses: dtolnay/rust-toolchain@master
