@@ -1,4 +1,10 @@
-use std::{collections::VecDeque, fs, path::Path, thread, time::Duration};
+use std::{
+    fs,
+    path::Path,
+    sync::atomic::{AtomicUsize, Ordering},
+    thread,
+    time::Duration,
+};
 use symphonia::core::{
     audio::SampleBuffer,
     codecs::{DecoderOptions, CODEC_TYPE_NULL},
@@ -10,18 +16,25 @@ use symphonia::core::{
 use tinyaudio::{run_output_device, OutputDeviceParameters};
 
 #[derive(Clone)]
-pub struct Playback {
-    duration: Duration,
-    buffer: VecDeque<f32>,
-    params: OutputDeviceParameters,
-    shutdown_channel: Option<(
+pub struct Ready;
+
+pub struct Played {
+    shutdown_channel: (
         crossbeam_channel::Sender<()>,
         crossbeam_channel::Receiver<()>,
-    )>,
+    ),
+}
+
+#[derive(Clone)]
+pub struct Playback<State = Ready> {
+    duration: Duration,
+    buffer: Vec<f32>,
+    params: OutputDeviceParameters,
+    state: State,
 }
 
 impl Playback {
-    pub fn new<T>(path: T) -> anyhow::Result<Self>
+    pub fn new<T>(path: T) -> anyhow::Result<Playback<Ready>>
     where
         T: AsRef<Path>,
     {
@@ -68,7 +81,7 @@ impl Playback {
         let dec_opts = DecoderOptions::default();
         let mut decoder = symphonia::default::get_codecs().make(&track.codec_params, &dec_opts)?;
 
-        let mut audio_buffer: VecDeque<f32> = VecDeque::new();
+        let mut audio_buffer: Vec<f32> = Vec::new();
 
         let duration = if let Some(time_base) = track.codec_params.time_base {
             if let Some(n_frames) = track.codec_params.n_frames {
@@ -100,7 +113,7 @@ impl Playback {
             {
                 let buffer = &mut audio_buffer;
                 samples.iter().for_each(|sample| {
-                    buffer.push_back(*sample);
+                    buffer.push(*sample);
                 });
             }
         }
@@ -115,39 +128,45 @@ impl Playback {
             duration,
             buffer: audio_buffer,
             params,
-            shutdown_channel: None,
+            state: Ready,
         })
     }
 
-    pub fn start(&mut self) {
-        self.shutdown_channel = Some(crossbeam_channel::unbounded());
+    pub fn start(self) -> Playback<Played> {
+        let (tx, rx) = crossbeam_channel::unbounded();
 
-        let mut buffer = self.buffer.clone();
+        let buffer = self.buffer.clone();
         let params = self.params;
         let duration = self.duration;
 
-        if let Some(channel) = self.shutdown_channel.as_ref() {
-            let rx = channel.1.clone();
-            thread::spawn(move || {
+        thread::spawn({
+            let rx = rx.clone();
+            move || {
+                let index = AtomicUsize::new(0);
                 let _device = run_output_device(params, move |data| {
                     data.iter_mut().for_each(|sample| {
-                        if let Some(audio_sample) = buffer.pop_front() {
-                            *sample = audio_sample;
-                        } else {
-                            *sample = 0.0;
-                        }
+                        let current_index = index.fetch_add(1, Ordering::Relaxed);
+                        *sample = *buffer.get(current_index).unwrap_or(&0.0);
                     });
                 })
                 .unwrap();
+                let _ = rx.recv_timeout(duration);
+            }
+        });
 
-                _ = rx.recv_timeout(duration);
-            });
+        Playback {
+            duration: self.duration,
+            buffer: self.buffer,
+            params: self.params,
+            state: Played {
+                shutdown_channel: (tx, rx),
+            },
         }
     }
+}
 
-    pub fn stop(&mut self) {
-        if let Some(channel) = self.shutdown_channel.as_ref() {
-            _ = channel.0.send(());
-        }
+impl Playback<Played> {
+    pub fn stop(self) {
+        self.state.shutdown_channel.0.send(()).unwrap();
     }
 }

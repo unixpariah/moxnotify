@@ -26,7 +26,7 @@ impl Cache {
 pub struct Audio {
     cache: Cache,
     muted: bool,
-    playback: Option<playback::Playback>,
+    playback: Option<playback::Playback<playback::Played>>,
 }
 
 impl Audio {
@@ -42,11 +42,11 @@ impl Audio {
             return Ok(());
         }
 
-        if let Some(mut playback) = self.playback.take() {
+        if let Some(playback) = self.playback.take() {
             playback.stop();
         }
 
-        let mut playback = match self.cache.get(&path) {
+        let playback = match self.cache.get(&path) {
             Some(playback) => playback,
             None => {
                 let playback = playback::Playback::new(&path).unwrap();
@@ -54,9 +54,8 @@ impl Audio {
                 playback
             }
         };
-        playback.start();
 
-        self.playback = Some(playback);
+        self.playback = Some(playback.start());
 
         Ok(())
     }
