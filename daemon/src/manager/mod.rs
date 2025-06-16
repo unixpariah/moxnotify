@@ -12,13 +12,10 @@ use crate::{
     utils::buffers,
     EmitEvent, History, Moxnotify, NotificationData,
 };
-use calloop::{
-    timer::{TimeoutAction, Timer},
-    LoopHandle,
-};
+use calloop::LoopHandle;
 use glyphon::{FontSystem, TextArea};
 use rusqlite::params;
-use std::{cell::RefCell, fmt, rc::Rc, time::Duration};
+use std::{cell::RefCell, fmt, rc::Rc};
 use view::NotificationView;
 
 #[derive(Clone)]
@@ -242,9 +239,7 @@ impl NotificationManager {
             log::info!("Selected notification id: {id}");
 
             self.ui_state.borrow_mut().selected = Some(id);
-            if let Some(token) = notification.registration_token.take() {
-                self.loop_handle.remove(token);
-            }
+            notification.stop_timer(&self.loop_handle);
 
             let dismiss_button = notification
                 .buttons
@@ -373,21 +368,10 @@ impl NotificationManager {
             if let Some(index) = self.notifications.iter().position(|n| n.id() == old_id) {
                 if let Some(notification) = self.notifications.get_mut(index) {
                     notification.unhover();
-                    let timer = match self.config.general.queue {
-                        Queue::FIFO if index == 0 => notification.timeout(),
-                        Queue::Unordered => notification.timeout(),
-                        _ => None,
-                    }
-                    .map(|t| Timer::from_duration(Duration::from_millis(t)));
-
-                    if let Some(timer) = timer {
-                        notification.registration_token = self
-                            .loop_handle
-                            .insert_source(timer, move |_, _, moxnotify| {
-                                moxnotify.dismiss_by_id(old_id, Some(Reason::Expired));
-                                TimeoutAction::Drop
-                            })
-                            .ok();
+                    match self.config.general.queue {
+                        Queue::FIFO if index == 0 => notification.start_timer(&self.loop_handle),
+                        Queue::Unordered => notification.start_timer(&self.loop_handle),
+                        _ => {}
                     }
                 }
             }
@@ -460,28 +444,19 @@ impl NotificationManager {
         );
         notification.set_position(0.0, y);
 
-        if let Some(timeout) = notification.timeout() {
-            let should_set_timer = match self.config.general.queue {
-                Queue::FIFO => self.notifications.is_empty(),
-                Queue::Unordered => true,
-            };
-
-            if should_set_timer {
-                let timer = Timer::from_duration(Duration::from_millis(timeout));
-                notification.registration_token = self
-                    .loop_handle
-                    .insert_source(timer, move |_, _, moxnotify| {
-                        moxnotify.dismiss_by_id(id, Some(Reason::Expired));
-                        TimeoutAction::Drop
-                    })
-                    .ok();
+        match self.config.general.queue {
+            Queue::FIFO if self.notifications.is_empty() => {
+                notification.start_timer(&self.loop_handle)
             }
+
+            Queue::Unordered => notification.start_timer(&self.loop_handle),
+            _ => {}
         }
 
         match existing_index {
             Some(index) => {
-                if let Some(token) = self.notifications[index].registration_token.take() {
-                    self.loop_handle.remove(token);
+                if let Some(notification) = self.notifications.get(index) {
+                    notification.stop_timer(&self.loop_handle);
                 }
 
                 let replaced_height_differs = self.notifications[index].get_bounds().height
@@ -538,20 +513,16 @@ impl NotificationManager {
     pub fn dismiss(&mut self, id: NotificationId) {
         if let Some(i) = self.notifications.iter().position(|n| n.id() == id) {
             if let Some(notification) = self.notifications.get(i) {
-                if let Some(token) = notification.registration_token {
-                    self.loop_handle.remove(token);
-                }
+                notification.stop_timer(&self.loop_handle);
 
                 if let Some(next_notification) = self.notifications.get(i + 1) {
                     if self.selected_id() == Some(notification.id()) {
                         self.select(next_notification.id());
                     }
                     self.notifications.remove(i);
-                } else if self.ui_state.borrow().selected.is_some() {
-                    self.prev();
-                    self.notifications.remove(i);
                 } else {
                     self.notifications.remove(i);
+                    self.prev();
                 }
             }
         }
@@ -559,25 +530,9 @@ impl NotificationManager {
         self.notification_view
             .update_notification_count(self.height(), self.notifications.len());
 
-        if self.selected_id() == Some(id) {
-            self.deselect();
-        }
-
-        if self.config.general.queue == Queue::FIFO {
-            if let Some(notification) = self.notifications.first_mut() {
-                if !notification.hovered() {
-                    if let Some(timeout) = notification.timeout() {
-                        let timer = Timer::from_duration(Duration::from_millis(timeout));
-                        let id = notification.id();
-                        notification.registration_token = self
-                            .loop_handle
-                            .insert_source(timer, move |_, _, moxnotify| {
-                                moxnotify.dismiss_by_id(id, Some(Reason::Expired));
-                                TimeoutAction::Drop
-                            })
-                            .ok();
-                    }
-                }
+        if let Queue::FIFO = self.config.general.queue {
+            if let Some(notification) = self.notifications.first_mut().filter(|n| !n.hovered()) {
+                notification.start_timer(&self.loop_handle);
             }
         }
 

@@ -259,7 +259,7 @@ impl Moxnotify {
                         if should_select_last {
                             let last_id = ui_state.last_selected.unwrap();
                             drop(ui_state);
-                            self.notifications.ui_state.borrow_mut().selected = Some(last_id);
+                            self.notifications.select(last_id);
                         } else {
                             drop(ui_state);
                             self.notifications.next();

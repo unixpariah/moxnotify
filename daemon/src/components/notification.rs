@@ -5,6 +5,7 @@ use super::text::body::Body;
 use super::text::summary::Summary;
 use super::text::Text;
 use super::{Bounds, UiState};
+use crate::manager::Reason;
 use crate::rendering::texture_renderer;
 use crate::{
     components::{Component, Data},
@@ -12,8 +13,10 @@ use crate::{
     utils::buffers,
     Config, Moxnotify, NotificationData, Urgency,
 };
+use calloop::timer::{TimeoutAction, Timer};
 use calloop::{LoopHandle, RegistrationToken};
 use glyphon::FontSystem;
+use std::time::Duration;
 use std::{cell::RefCell, rc::Rc, sync::Arc};
 
 pub type NotificationId = u32;
@@ -439,6 +442,36 @@ impl Notification {
             registration_token: None,
             ui_state: Rc::clone(&ui_state),
             body,
+        }
+    }
+
+    pub fn start_timer(&mut self, loop_handle: &LoopHandle<'static, Moxnotify>) {
+        if let Some(timeout) = self.timeout() {
+            log::debug!(
+                "Expiration timer started for notification, id: {}, timeout: {}",
+                self.id(),
+                timeout
+            );
+
+            let timer = Timer::from_duration(Duration::from_millis(timeout));
+            let id = self.id();
+            self.registration_token = loop_handle
+                .insert_source(timer, move |_, _, moxnotify| {
+                    moxnotify.dismiss_by_id(id, Some(Reason::Expired));
+                    TimeoutAction::Drop
+                })
+                .ok();
+        }
+    }
+
+    pub fn stop_timer(&self, loop_handle: &LoopHandle<'static, Moxnotify>) {
+        if let Some(token) = self.registration_token {
+            log::debug!(
+                "Expiration timer paused for notification, id: {}",
+                self.id()
+            );
+
+            loop_handle.remove(token);
         }
     }
 
