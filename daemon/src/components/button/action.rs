@@ -7,10 +7,7 @@ use crate::{
     utils::buffers,
     Urgency,
 };
-use std::{
-    rc::Rc,
-    sync::{atomic::Ordering, Arc},
-};
+use std::sync::{atomic::Ordering, Arc};
 
 pub struct ActionButton {
     pub id: u32,
@@ -19,7 +16,7 @@ pub struct ActionButton {
     pub x: f32,
     pub y: f32,
     pub hint: Hint,
-    pub config: Rc<Config>,
+    pub config: Arc<Config>,
     pub text: text_renderer::Text,
     pub action: Arc<str>,
     pub state: State,
@@ -220,19 +217,19 @@ mod tests {
         rendering::text_renderer::Text,
     };
     use glyphon::FontSystem;
-    use std::{rc::Rc, sync::Arc};
+    use std::sync::Arc;
 
     use super::ActionButton;
 
     #[test]
     fn test_action_button() {
-        let config = Rc::new(Config::default());
+        let config = Arc::new(Config::default());
         let ui_state = UiState::default();
         let hint = Hint::new(
             0,
             "",
             "".into(),
-            Rc::clone(&config),
+            Arc::clone(&config),
             &mut FontSystem::new(),
             ui_state.clone(),
         );
@@ -247,7 +244,7 @@ mod tests {
             hint,
             text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
             state: State::Hovered,
-            config: Rc::clone(&config),
+            config: Arc::clone(&config),
             ui_state: ui_state.clone(),
             tx: Some(tx),
             width: 100.,
@@ -264,7 +261,7 @@ mod tests {
 
     #[test]
     fn test_multiple_action_buttons() {
-        let config = Rc::new(Config::default());
+        let config = Arc::new(Config::default());
         let ui_state = UiState::default();
 
         let (tx, text_rx1) = calloop::channel::channel();
@@ -275,7 +272,7 @@ mod tests {
             0,
             "",
             "".into(),
-            Rc::clone(&config),
+            Arc::clone(&config),
             &mut FontSystem::new(),
             ui_state.clone(),
         );
@@ -287,7 +284,7 @@ mod tests {
             hint,
             text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
             state: State::Hovered,
-            config: Rc::clone(&config),
+            config: Arc::clone(&config),
             ui_state: ui_state.clone(),
             tx: Some(tx.clone()),
             width: 100.,
@@ -303,7 +300,7 @@ mod tests {
             0,
             "",
             "".into(),
-            Rc::clone(&config),
+            Arc::clone(&config),
             &mut FontSystem::new(),
             ui_state.clone(),
         );
@@ -314,7 +311,7 @@ mod tests {
             hint,
             text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
             state: State::Hovered,
-            config: Rc::clone(&config),
+            config: Arc::clone(&config),
             ui_state: ui_state.clone(),
             tx: Some(tx.clone()),
             width: 100.,

@@ -8,17 +8,14 @@ use crate::{
     utils::buffers,
     Urgency,
 };
-use std::{
-    rc::Rc,
-    sync::{atomic::Ordering, Arc},
-};
+use std::sync::{atomic::Ordering, Arc};
 
 pub struct DismissButton {
     pub id: u32,
     pub x: f32,
     pub y: f32,
     pub hint: Hint,
-    pub config: Rc<Config>,
+    pub config: Arc<Config>,
     pub text: text_renderer::Text,
     pub state: State,
     pub ui_state: UiState,
@@ -219,17 +216,17 @@ mod tests {
         rendering::text_renderer::Text,
     };
     use glyphon::FontSystem;
-    use std::rc::Rc;
+    use std::sync::Arc;
 
     #[test]
     fn test_dismiss_button() {
-        let config = Rc::new(Config::default());
+        let config = Arc::new(Config::default());
         let ui_state = UiState::default();
         let hint = Hint::new(
             0,
             "",
             "".into(),
-            Rc::clone(&config),
+            Arc::clone(&config),
             &mut FontSystem::new(),
             ui_state.clone(),
         );
@@ -244,7 +241,7 @@ mod tests {
             hint,
             text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
             state: State::Unhovered,
-            config: Rc::clone(&config),
+            config: Arc::clone(&config),
             ui_state,
             tx: Some(tx),
         };

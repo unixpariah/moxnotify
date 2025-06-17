@@ -4,7 +4,7 @@ use serde::{
     de::{self, MapAccess, Visitor},
     Deserialize, Deserializer,
 };
-use std::{fmt, rc::Rc, str::FromStr};
+use std::{fmt, str::FromStr, sync::Arc};
 
 #[derive(Deserialize, Default, Clone)]
 pub struct PartialStyle {
@@ -97,7 +97,7 @@ impl<'de> Deserialize<'de> for PartialColor {
 #[derive(Deserialize, Clone)]
 pub struct PartialFont {
     pub size: Option<f32>,
-    pub family: Option<Rc<str>>,
+    pub family: Option<Arc<str>>,
     pub color: Option<PartialColor>,
 }
 

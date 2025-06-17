@@ -235,7 +235,7 @@ pub async fn serve(
             match emit_receiver.recv().await {
                 Ok(EmitEvent::ActionInvoked {
                     id,
-                    action_key,
+                    key: action_key,
                     token,
                 }) => {
                     log::info!("{action_key} action invoked for notification with ID: {id}.");

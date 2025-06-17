@@ -6,16 +6,13 @@ use crate::{
     utils::buffers,
     Urgency,
 };
-use std::{
-    rc::Rc,
-    sync::{atomic::Ordering, Arc},
-};
+use std::sync::{atomic::Ordering, Arc};
 
 pub struct Progress {
     id: u32,
     app_name: Arc<str>,
     ui_state: UiState,
-    config: Rc<Config>,
+    config: Arc<Config>,
     value: i32,
     x: f32,
     y: f32,
@@ -221,7 +218,7 @@ impl Progress {
         id: u32,
         value: i32,
         ui_state: UiState,
-        config: Rc<Config>,
+        config: Arc<Config>,
         app_name: Arc<str>,
     ) -> Self {
         Self {
@@ -245,16 +242,13 @@ impl Progress {
 mod tests {
     use super::*;
     use crate::Urgency;
-    use std::{
-        rc::Rc,
-        sync::{
-            atomic::{AtomicBool, AtomicU32},
-            Arc,
-        },
+    use std::sync::{
+        atomic::{AtomicBool, AtomicU32},
+        Arc,
     };
 
     fn create_test_progress(value: i32) -> Progress {
-        let config = Rc::new(Config::default());
+        let config = Arc::new(Config::default());
 
         let app_name = Arc::from("test_app");
         let mut progress = Progress::new(1, value, UiState::default(), config, app_name);
@@ -422,7 +416,7 @@ mod tests {
 
     #[test]
     fn test_selection_state() {
-        let config = Rc::new(Config::default());
+        let config = Arc::new(Config::default());
         let ui_state = UiState {
             selected_id: Arc::new(AtomicU32::new(1)),
             selected: Arc::new(AtomicBool::new(true)),

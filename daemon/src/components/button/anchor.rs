@@ -13,7 +13,7 @@ pub struct AnchorButton {
     pub x: f32,
     pub y: f32,
     pub hint: Hint,
-    pub config: Rc<Config>,
+    pub config: Arc<Config>,
     pub text: Text,
     pub state: State,
     pub ui_state: UiState,

@@ -11,7 +11,6 @@ use resvg::usvg;
 use std::{
     collections::BTreeMap,
     path::Path,
-    rc::Rc,
     sync::{atomic::Ordering, Arc, LazyLock, Mutex},
 };
 
@@ -52,7 +51,7 @@ pub struct Icons {
     x: f32,
     y: f32,
     ui_state: UiState,
-    config: Rc<Config>,
+    config: Arc<Config>,
     app_name: Arc<str>,
 }
 
@@ -61,7 +60,7 @@ impl Icons {
         id: u32,
         image: Option<&Image>,
         app_icon: Option<&str>,
-        config: Rc<Config>,
+        config: Arc<Config>,
         ui_state: UiState,
         app_name: Arc<str>,
     ) -> Self {
@@ -333,7 +332,6 @@ mod tests {
     use super::*;
     use image::{DynamicImage, RgbaImage};
     use std::path::{Path, PathBuf};
-    use std::rc::Rc;
     use std::sync::Arc;
 
     #[test]
@@ -350,7 +348,7 @@ mod tests {
 
     #[test]
     fn new_with_image_data() {
-        let config = Rc::new(Config::default());
+        let config = Arc::new(Config::default());
         let ui_state = UiState::default();
 
         let img = RgbaImage::new(64, 64);

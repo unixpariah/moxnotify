@@ -16,7 +16,6 @@ use std::{
     fmt, fs,
     ops::{Add, Sub},
     path::{Path, PathBuf},
-    rc::Rc,
     sync::Arc,
 };
 use text::{Body, Summary};
@@ -191,7 +190,7 @@ pub struct Style {
     #[serde(default)]
     pub ignore_sound_file: Option<bool>,
     #[serde(default)]
-    pub theme: Option<Rc<str>>,
+    pub theme: Option<Arc<str>>,
 }
 
 fn deserialize_selectors<'de, D>(deserializer: D) -> Result<Vec<Selector>, D::Error>
@@ -237,7 +236,7 @@ pub enum State {
     Default,
     Hover,
     ContainerHover,
-    NamedContainerHover(Rc<str>),
+    NamedContainerHover(Arc<str>),
 }
 
 impl<'de> Deserialize<'de> for State {
@@ -368,7 +367,7 @@ impl From<Insets> for [f32; 4] {
 #[derive(Clone)]
 pub struct Font {
     pub size: f32,
-    pub family: Rc<str>,
+    pub family: Arc<str>,
     pub color: Color,
 }
 
@@ -377,7 +376,7 @@ impl Font {
         if let Some(size) = partial.size {
             self.size = size;
         }
-        if let Some(family) = partial.family.as_ref().map(Rc::clone) {
+        if let Some(family) = partial.family.as_ref().map(Arc::clone) {
             self.family = family;
         }
         if let Some(color) = partial.color.as_ref() {

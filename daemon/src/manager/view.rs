@@ -6,20 +6,25 @@ use crate::{
     NotificationData,
 };
 use glyphon::{FontSystem, TextArea};
-use std::{cell::RefCell, ops::Range, rc::Rc, sync::atomic::Ordering};
+use std::{
+    cell::RefCell,
+    ops::Range,
+    rc::Rc,
+    sync::{atomic::Ordering, Arc},
+};
 
 pub struct NotificationView {
     pub visible: Range<usize>,
     pub prev: Option<Notification>,
     pub next: Option<Notification>,
     font_system: Rc<RefCell<FontSystem>>,
-    config: Rc<Config>,
+    config: Arc<Config>,
     ui_state: UiState,
 }
 
 impl NotificationView {
     pub fn new(
-        config: Rc<Config>,
+        config: Arc<Config>,
         ui_state: UiState,
         font_system: Rc<RefCell<FontSystem>>,
     ) -> Self {
@@ -78,7 +83,7 @@ impl NotificationView {
                 notification.set_position(0., 0.);
             } else {
                 self.prev = Some(Notification::new(
-                    Rc::clone(&self.config),
+                    Arc::clone(&self.config),
                     &mut self.font_system.borrow_mut(),
                     NotificationData {
                         summary: summary.into(),
@@ -119,7 +124,7 @@ impl NotificationView {
                 );
             } else {
                 let mut next = Notification::new(
-                    Rc::clone(&self.config),
+                    Arc::clone(&self.config),
                     &mut self.font_system.borrow_mut(),
                     NotificationData {
                         summary: summary.into(),

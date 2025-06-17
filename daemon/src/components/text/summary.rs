@@ -8,16 +8,13 @@ use crate::{
     Urgency,
 };
 use glyphon::{Attrs, Buffer, FontSystem, Weight};
-use std::{
-    rc::Rc,
-    sync::{atomic::Ordering, Arc},
-};
+use std::sync::{atomic::Ordering, Arc};
 
 pub struct Summary {
     id: NotificationId,
     app_name: Arc<str>,
     ui_state: UiState,
-    config: Rc<Config>,
+    config: Arc<Config>,
     pub buffer: Buffer,
     x: f32,
     y: f32,
@@ -33,7 +30,7 @@ impl Text for Summary {
         T: AsRef<str>,
     {
         let style = &self.get_style();
-        let family = Rc::clone(&style.family);
+        let family = Arc::clone(&style.family);
 
         let attrs = Attrs::new()
             .metadata(0.7_f32.to_bits() as usize)
@@ -197,7 +194,7 @@ impl Component for Summary {
 impl Summary {
     pub fn new(
         id: NotificationId,
-        config: Rc<Config>,
+        config: Arc<Config>,
         app_name: Arc<str>,
         ui_state: UiState,
         font_system: &mut FontSystem,
@@ -231,7 +228,7 @@ mod tests {
         manager::UiState,
     };
     use glyphon::FontSystem;
-    use std::rc::Rc;
+    use std::sync::Arc;
 
     #[test]
     fn test_body() {
@@ -239,7 +236,7 @@ mod tests {
 
         let mut summary = Summary::new(
             0,
-            Rc::new(Config::default()),
+            Arc::new(Config::default()),
             "".into(),
             UiState::default(),
             &mut font_system,

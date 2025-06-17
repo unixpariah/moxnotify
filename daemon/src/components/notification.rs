@@ -17,8 +17,8 @@ use calloop::timer::{TimeoutAction, Timer};
 use calloop::{LoopHandle, RegistrationToken};
 use glyphon::FontSystem;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::time::Duration;
-use std::{rc::Rc, sync::Arc};
 
 pub type NotificationId = u32;
 
@@ -26,7 +26,7 @@ pub struct Notification {
     pub y: f32,
     pub x: f32,
     hovered: bool,
-    config: Rc<Config>,
+    config: Arc<Config>,
     pub icons: Icons,
     progress: Option<Progress>,
     pub registration_token: Option<RegistrationToken>,
@@ -321,7 +321,7 @@ impl Component for Notification {
 
 impl Notification {
     pub fn new(
-        config: Rc<Config>,
+        config: Arc<Config>,
         font_system: &mut FontSystem,
         data: NotificationData,
         ui_state: UiState,
@@ -329,7 +329,7 @@ impl Notification {
     ) -> Self {
         let mut body = Body::new(
             data.id,
-            Rc::clone(&config),
+            Arc::clone(&config),
             Arc::clone(&data.app_name),
             ui_state.clone(),
             font_system,
@@ -337,7 +337,7 @@ impl Notification {
 
         let mut summary = Summary::new(
             data.id,
-            Rc::clone(&config),
+            Arc::clone(&config),
             Arc::clone(&data.app_name),
             ui_state.clone(),
             font_system,
@@ -350,12 +350,12 @@ impl Notification {
                 y: 0.,
                 x: 0.,
                 hovered: false,
-                config: Rc::clone(&config),
+                config: Arc::clone(&config),
                 icons: Icons::new(
                     data.id,
                     None,
                     None,
-                    Rc::clone(&config),
+                    Arc::clone(&config),
                     ui_state.clone(),
                     Arc::clone(&data.app_name),
                 ),
@@ -367,7 +367,7 @@ impl Notification {
                     Arc::clone(&data.app_name),
                     ui_state.clone(),
                     loop_handle,
-                    Rc::clone(&config),
+                    Arc::clone(&config),
                 )
                 .add_dismiss(font_system)
                 .finish(font_system),
@@ -382,7 +382,7 @@ impl Notification {
             data.id,
             data.hints.image.as_ref(),
             data.app_icon.as_deref(),
-            Rc::clone(&config),
+            Arc::clone(&config),
             ui_state.clone(),
             Arc::clone(&data.app_name),
         );
@@ -393,7 +393,7 @@ impl Notification {
             Arc::clone(&data.app_name),
             ui_state.clone(),
             loop_handle,
-            Rc::clone(&config),
+            Arc::clone(&config),
         )
         .add_dismiss(font_system)
         .add_actions(&data.actions, font_system);
@@ -428,7 +428,7 @@ impl Notification {
                     data.id,
                     value,
                     ui_state.clone(),
-                    Rc::clone(&config),
+                    Arc::clone(&config),
                     Arc::clone(&data.app_name),
                 )
             }),

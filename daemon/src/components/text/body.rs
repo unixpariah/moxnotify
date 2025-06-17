@@ -35,7 +35,7 @@ pub struct Body {
     app_name: Arc<str>,
     ui_state: UiState,
     pub anchors: Vec<Rc<Anchor>>,
-    config: Rc<Config>,
+    config: Arc<Config>,
     pub buffer: Buffer,
     x: f32,
     y: f32,
@@ -139,7 +139,7 @@ impl Text for Body {
     where
         T: AsRef<str>,
     {
-        let family = Rc::clone(&self.get_style().family);
+        let family = Arc::clone(&self.get_style().family);
 
         let attrs = Attrs::new()
             .metadata(0.7_f32.to_bits() as usize)
@@ -479,7 +479,7 @@ impl Component for Body {
 impl Body {
     pub fn new(
         id: NotificationId,
-        config: Rc<Config>,
+        config: Arc<Config>,
         app_name: Arc<str>,
         ui_state: UiState,
         font_system: &mut FontSystem,
@@ -517,7 +517,6 @@ mod tests {
         manager::UiState,
     };
     use glyphon::{Color, FontSystem};
-    use std::rc::Rc;
 
     #[test]
     fn test_body() {
@@ -525,7 +524,7 @@ mod tests {
 
         let mut body = Body::new(
             0,
-            Rc::new(Config::default()),
+            Arc::new(Config::default()),
             "".into(),
             UiState::default(),
             &mut font_system,
@@ -550,7 +549,7 @@ mod tests {
         let mut font_system = FontSystem::new();
         let mut body = Body::new(
             0,
-            Rc::new(Config::default()),
+            Arc::new(Config::default()),
             "".into(),
             UiState::default(),
             &mut font_system,
@@ -571,7 +570,7 @@ mod tests {
         let mut font_system = FontSystem::new();
         let mut body = Body::new(
             0,
-            Rc::new(Config::default()),
+            Arc::new(Config::default()),
             "".into(),
             UiState::default(),
             &mut font_system,
@@ -744,7 +743,7 @@ mod tests {
         let mut font_system = FontSystem::new();
         let mut body = Body::new(
             0,
-            Rc::new(Config::default()),
+            Arc::new(Config::default()),
             "test_app".into(),
             UiState::default(),
             &mut font_system,
@@ -764,7 +763,7 @@ mod tests {
         let mut font_system = FontSystem::new();
         let mut body = Body::new(
             0,
-            Rc::new(Config::default()),
+            Arc::new(Config::default()),
             "test_app".into(),
             UiState::default(),
             &mut font_system,
@@ -788,7 +787,7 @@ mod tests {
         let mut font_system = FontSystem::new();
         let mut body = Body::new(
             0,
-            Rc::new(Config::default()),
+            Arc::new(Config::default()),
             "test_app".into(),
             UiState::default(),
             &mut font_system,

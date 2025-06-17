@@ -1,10 +1,10 @@
 use super::{border::Border, partial::PartialStyle, Color, Insets};
-use std::rc::Rc;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct Summary {
     pub size: f32,
-    pub family: Rc<str>,
+    pub family: Arc<str>,
     pub color: Color,
     pub margin: Insets,
     pub padding: Insets,
@@ -18,7 +18,7 @@ impl Summary {
             if let Some(size) = font.size {
                 self.size = size;
             }
-            if let Some(family) = font.family.as_ref().map(Rc::clone) {
+            if let Some(family) = font.family.as_ref().map(Arc::clone) {
                 self.family = family;
             }
             if let Some(color) = font.color.as_ref() {
@@ -60,7 +60,7 @@ impl Default for Summary {
 #[derive(Clone)]
 pub struct Body {
     pub size: f32,
-    pub family: Rc<str>,
+    pub family: Arc<str>,
     pub color: Color,
     pub margin: Insets,
     pub padding: Insets,
@@ -74,7 +74,7 @@ impl Body {
             if let Some(size) = font.size {
                 self.size = size;
             }
-            if let Some(family) = font.family.as_ref().map(Rc::clone) {
+            if let Some(family) = font.family.as_ref().map(Arc::clone) {
                 self.family = family;
             }
             if let Some(color) = font.color.as_ref() {

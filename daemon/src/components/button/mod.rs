@@ -2,6 +2,7 @@ mod action;
 mod anchor;
 mod dismiss;
 
+use super::text::body;
 use crate::{
     components::{Bounds, Component, Data},
     config::{
@@ -10,10 +11,10 @@ use crate::{
         keymaps::{self},
         Config,
     },
-    manager::{Reason, UiState},
-    rendering::{surface, text_renderer, texture_renderer},
+    manager::UiState,
+    rendering::{text_renderer, texture_renderer},
     utils::buffers,
-    EmitEvent, Moxnotify, Urgency,
+    Moxnotify, Urgency,
 };
 use action::ActionButton;
 use anchor::AnchorButton;
@@ -24,8 +25,6 @@ use std::{
     rc::Rc,
     sync::{atomic::Ordering, Arc},
 };
-
-use super::text::body;
 
 #[derive(Clone, Copy, Debug)]
 pub enum State {
@@ -69,7 +68,7 @@ pub struct ButtonManager<State = NotReady> {
     urgency: Urgency,
     pub ui_state: UiState,
     loop_handle: Option<LoopHandle<'static, Moxnotify>>,
-    config: Rc<Config>,
+    config: Arc<Config>,
     _state: std::marker::PhantomData<State>,
 }
 
@@ -80,7 +79,7 @@ impl ButtonManager<NotReady> {
         app_name: Arc<str>,
         ui_state: UiState,
         loop_handle: Option<LoopHandle<'static, Moxnotify>>,
-        config: Rc<Config>,
+        config: Arc<Config>,
     ) -> Self {
         Self {
             id,
@@ -114,10 +113,11 @@ impl ButtonManager<NotReady> {
         let tx = if let Some(loop_handle) = self.loop_handle.as_ref() {
             let (tx, rx) = calloop::channel::channel();
             loop_handle
-                .insert_source(rx, move |event, _, moxnotify| {
-                    if let Event::Msg(id) = event {
-                        moxnotify.dismiss_by_id(id, Some(Reason::DismissedByUser));
-                    }
+                .insert_source(rx, move |_, _, moxnotify| {
+                    _ = moxnotify.event_sender.send(crate::Event::Dismiss {
+                        all: false,
+                        id: self.id,
+                    });
                 })
                 .ok();
 
@@ -134,14 +134,14 @@ impl ButtonManager<NotReady> {
                 0,
                 "",
                 "".into(),
-                Rc::clone(&self.config),
+                Arc::clone(&self.config),
                 font_system,
                 self.ui_state.clone(),
             ),
             text,
             x: 0.,
             y: 0.,
-            config: Rc::clone(&self.config),
+            config: Arc::clone(&self.config),
             state: State::Unhovered,
             tx,
         };
@@ -198,7 +198,7 @@ impl ButtonManager<Ready> {
                 0,
                 &combination,
                 "".into(),
-                Rc::clone(&self.config),
+                Arc::clone(&self.config),
                 font_system,
                 self.ui_state.clone(),
             );
@@ -360,40 +360,24 @@ impl<S> ButtonManager<S> {
 
         let font = &self.config.styles.default.buttons.action.default.font;
 
-        let tx = if let Some(loop_handle) = self.loop_handle.as_ref() {
-            let (tx, rx) = calloop::channel::channel();
-            loop_handle
-                .insert_source(rx, move |event, _, moxnotify| {
-                    if let Event::Msg(uri) = event {
-                        if let Some(surface) = moxnotify.surface.as_ref() {
-                            let token = surface.token.as_ref().map(Arc::clone);
-                            if moxnotify
-                                .emit_sender
-                                .send(EmitEvent::Open {
-                                    uri: Arc::clone(&uri),
-                                    token,
-                                })
-                                .is_ok()
-                                && surface.focus_reason == Some(surface::FocusReason::MouseEnter)
-                            {
-                                moxnotify.notifications.deselect();
-                                moxnotify
-                                    .notifications
-                                    .ui_state
-                                    .mode
-                                    .store(keymaps::Mode::Normal, Ordering::Relaxed);
-                            }
-                        }
-                    }
-                })
-                .ok();
-
-            Some(tx)
-        } else {
-            None
-        };
-
         self.buttons.extend(anchors.iter().map(|anchor| {
+            let tx = if let Some(loop_handle) = self.loop_handle.as_ref() {
+                let (tx, rx) = calloop::channel::channel();
+
+                let uri = Arc::clone(&anchor.href);
+                loop_handle
+                    .insert_source(rx, move |_, _, moxnotify| {
+                        _ = moxnotify
+                            .event_sender
+                            .send(crate::Event::InvokeAnchor(Arc::clone(&uri)));
+                    })
+                    .ok();
+
+                Some(tx)
+            } else {
+                None
+            };
+
             let text = text_renderer::Text::new(font, font_system, "");
             Box::new(AnchorButton {
                 id: self.id,
@@ -403,11 +387,11 @@ impl<S> ButtonManager<S> {
                     0,
                     "",
                     "".into(),
-                    Rc::clone(&self.config),
+                    Arc::clone(&self.config),
                     font_system,
                     self.ui_state.clone(),
                 ),
-                config: Rc::clone(&self.config),
+                config: Arc::clone(&self.config),
                 state: State::Unhovered,
                 tx: tx.clone(),
                 text,
@@ -434,26 +418,11 @@ impl<S> ButtonManager<S> {
             let (tx, rx) = calloop::channel::channel();
             loop_handle
                 .insert_source(rx, move |event, _, moxnotify| {
-                    if let Event::Msg((id, action_key)) = event {
-                        if let Some(surface) = moxnotify.surface.as_ref() {
-                            let token = surface.token.as_ref().map(Arc::clone);
-                            _ = moxnotify.emit_sender.send(crate::EmitEvent::ActionInvoked {
-                                id,
-                                action_key,
-                                token: token.unwrap_or_default(),
-                            });
-                        }
-
-                        if !moxnotify
-                            .notifications
-                            .notifications()
-                            .iter()
-                            .find(|notification| notification.id() == id)
-                            .map(|n| n.data.hints.resident)
-                            .unwrap_or_default()
-                        {
-                            moxnotify.dismiss_by_id(id, None);
-                        }
+                    if let Event::Msg((_, action_key)) = event {
+                        _ = moxnotify.event_sender.send(crate::Event::InvokeAction {
+                            id: self.id,
+                            key: action_key,
+                        });
                     }
                 })
                 .ok();
@@ -477,14 +446,14 @@ impl<S> ButtonManager<S> {
                         0,
                         "",
                         "".into(),
-                        Rc::clone(&self.config),
+                        Arc::clone(&self.config),
                         font_system,
                         self.ui_state.clone(),
                     ),
                     text,
                     x: 0.,
                     y: 0.,
-                    config: Rc::clone(&self.config),
+                    config: Arc::clone(&self.config),
                     action: action.0,
                     state: State::Unhovered,
                     width: 0.,
@@ -513,7 +482,7 @@ pub struct Hint {
     combination: Box<str>,
     app_name: Arc<str>,
     text: text_renderer::Text,
-    config: Rc<Config>,
+    config: Arc<Config>,
     ui_state: UiState,
     x: f32,
     y: f32,
@@ -524,7 +493,7 @@ impl Hint {
         id: u32,
         combination: T,
         app_name: Arc<str>,
-        config: Rc<Config>,
+        config: Arc<Config>,
         font_system: &mut FontSystem,
         ui_state: UiState,
     ) -> Self
@@ -682,11 +651,11 @@ mod tests {
     use super::ButtonManager;
     use crate::{manager::UiState, Urgency};
     use glyphon::FontSystem;
-    use std::rc::Rc;
+    use std::sync::Arc;
 
     #[test]
     fn test_button_click_detection() {
-        let config = Rc::new(crate::config::Config::default());
+        let config = Arc::new(crate::config::Config::default());
         let ui_state = UiState::default();
         let mut font_system = FontSystem::new();
 
@@ -696,7 +665,7 @@ mod tests {
             "".into(),
             ui_state,
             None,
-            Rc::clone(&config),
+            Arc::clone(&config),
         )
         .add_dismiss(&mut font_system)
         .finish(&mut font_system);
@@ -751,7 +720,7 @@ mod tests {
 
     #[test]
     fn test_button_hover_detection() {
-        let config = Rc::new(crate::config::Config::default());
+        let config = Arc::new(crate::config::Config::default());
         let ui_state = UiState::default();
         let mut font_system = FontSystem::new();
 
@@ -761,7 +730,7 @@ mod tests {
             "".into(),
             ui_state,
             None,
-            Rc::clone(&config),
+            Arc::clone(&config),
         )
         .add_dismiss(&mut font_system)
         .finish(&mut font_system);

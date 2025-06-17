@@ -49,7 +49,7 @@ impl Default for UiState {
 pub struct NotificationManager {
     notifications: Vec<Notification>,
     waiting: u32,
-    config: Rc<Config>,
+    config: Arc<Config>,
     loop_handle: LoopHandle<'static, Moxnotify>,
     pub font_system: Rc<RefCell<FontSystem>>,
     pub notification_view: NotificationView,
@@ -59,7 +59,7 @@ pub struct NotificationManager {
 
 impl NotificationManager {
     pub fn new(
-        config: Rc<Config>,
+        config: Arc<Config>,
         loop_handle: LoopHandle<'static, Moxnotify>,
         font_system: Rc<RefCell<FontSystem>>,
     ) -> Self {
@@ -69,7 +69,7 @@ impl NotificationManager {
             inhibited: false,
             waiting: 0,
             notification_view: NotificationView::new(
-                Rc::clone(&config),
+                Arc::clone(&config),
                 ui_state.clone(),
                 Rc::clone(&font_system),
             ),
@@ -402,21 +402,28 @@ impl NotificationManager {
     }
 
     pub fn add_many(&mut self, data: Vec<NotificationData>) -> anyhow::Result<()> {
-        let mut y = 0.0;
-
         data.into_iter().for_each(|data| {
-            let mut notification = Notification::new(
-                Rc::clone(&self.config),
+            let notification = Notification::new(
+                Arc::clone(&self.config),
                 &mut self.font_system.borrow_mut(),
                 data,
                 self.ui_state.clone(),
                 None,
             );
-            notification.set_position(0.0, y);
-            let height = notification.get_bounds().height;
-            y += height;
 
             self.notifications.push(notification);
+        });
+
+        let mut y = self
+            .notifications
+            .last()
+            .map(|notification| notification.y)
+            .unwrap_or_default();
+        self.notifications.iter_mut().for_each(|notification| {
+            notification.set_position(0.0, y);
+
+            let height = notification.get_bounds().height;
+            y += height;
         });
 
         if self.notification_view.visible.end < self.notifications.len() {
@@ -454,7 +461,7 @@ impl NotificationManager {
             };
 
         let mut notification = Notification::new(
-            Rc::clone(&self.config),
+            Arc::clone(&self.config),
             &mut self.font_system.borrow_mut(),
             data,
             self.ui_state.clone(),
@@ -684,7 +691,7 @@ impl Moxnotify {
 
 #[cfg(test)]
 mod tests {
-    use std::{cell::RefCell, rc::Rc};
+    use std::{cell::RefCell, rc::Rc, sync::Arc};
 
     use calloop::EventLoop;
     use glyphon::FontSystem;
@@ -694,11 +701,11 @@ mod tests {
 
     #[test]
     fn test_add() {
-        let config = Rc::new(Config::default());
+        let config = Arc::new(Config::default());
         let event_loop = EventLoop::try_new().unwrap();
         let font_system = Rc::new(RefCell::new(FontSystem::new()));
         let mut manager =
-            NotificationManager::new(Rc::clone(&config), event_loop.handle(), font_system);
+            NotificationManager::new(Arc::clone(&config), event_loop.handle(), font_system);
 
         let data = NotificationData::default();
         manager.add(data).unwrap();
@@ -708,11 +715,11 @@ mod tests {
 
     #[test]
     fn test_add_with_duplicate_id() {
-        let config = Rc::new(Config::default());
+        let config = Arc::new(Config::default());
         let event_loop = EventLoop::try_new().unwrap();
         let font_system = Rc::new(RefCell::new(FontSystem::new()));
         let mut manager =
-            NotificationManager::new(Rc::clone(&config), event_loop.handle(), font_system);
+            NotificationManager::new(Arc::clone(&config), event_loop.handle(), font_system);
 
         let data = NotificationData {
             id: 42,
@@ -728,11 +735,11 @@ mod tests {
 
     #[test]
     fn test_add_many() {
-        let config = Rc::new(Config::default());
+        let config = Arc::new(Config::default());
         let event_loop = EventLoop::try_new().unwrap();
         let font_system = Rc::new(RefCell::new(FontSystem::new()));
         let mut manager =
-            NotificationManager::new(Rc::clone(&config), event_loop.handle(), font_system);
+            NotificationManager::new(Arc::clone(&config), event_loop.handle(), font_system);
 
         let mut notifications = Vec::new();
         for i in 1..=5 {
@@ -749,11 +756,11 @@ mod tests {
 
     #[test]
     fn test_dismiss() {
-        let config = Rc::new(Config::default());
+        let config = Arc::new(Config::default());
         let event_loop = EventLoop::try_new().unwrap();
         let font_system = Rc::new(RefCell::new(FontSystem::new()));
         let mut manager =
-            NotificationManager::new(Rc::clone(&config), event_loop.handle(), font_system);
+            NotificationManager::new(Arc::clone(&config), event_loop.handle(), font_system);
 
         let data = NotificationData {
             id: 123,
@@ -769,11 +776,11 @@ mod tests {
 
     #[test]
     fn test_select_and_deselect() {
-        let config = Rc::new(Config::default());
+        let config = Arc::new(Config::default());
         let event_loop = EventLoop::try_new().unwrap();
         let font_system = Rc::new(RefCell::new(FontSystem::new()));
         let mut manager =
-            NotificationManager::new(Rc::clone(&config), event_loop.handle(), font_system);
+            NotificationManager::new(Arc::clone(&config), event_loop.handle(), font_system);
 
         let data = NotificationData {
             id: 1,
@@ -795,11 +802,11 @@ mod tests {
 
     #[test]
     fn test_next_and_prev() {
-        let config = Rc::new(Config::default());
+        let config = Arc::new(Config::default());
         let event_loop = EventLoop::try_new().unwrap();
         let font_system = Rc::new(RefCell::new(FontSystem::new()));
         let mut manager =
-            NotificationManager::new(Rc::clone(&config), event_loop.handle(), font_system);
+            NotificationManager::new(Arc::clone(&config), event_loop.handle(), font_system);
 
         for i in 1..=10 {
             let data = NotificationData {
@@ -845,11 +852,11 @@ mod tests {
 
     #[test]
     fn test_inhibit() {
-        let config = Rc::new(Config::default());
+        let config = Arc::new(Config::default());
         let event_loop = EventLoop::try_new().unwrap();
         let font_system = Rc::new(RefCell::new(FontSystem::new()));
         let mut manager =
-            NotificationManager::new(Rc::clone(&config), event_loop.handle(), font_system);
+            NotificationManager::new(Arc::clone(&config), event_loop.handle(), font_system);
 
         let data = NotificationData {
             id: 0,
@@ -880,11 +887,11 @@ mod tests {
 
     #[test]
     fn test_data() {
-        let config = Rc::new(Config::default());
+        let config = Arc::new(Config::default());
         let event_loop = EventLoop::try_new().unwrap();
         let font_system = Rc::new(RefCell::new(FontSystem::new()));
         let mut manager =
-            NotificationManager::new(Rc::clone(&config), event_loop.handle(), font_system);
+            NotificationManager::new(Arc::clone(&config), event_loop.handle(), font_system);
 
         let data = NotificationData {
             id: 123,
@@ -902,12 +909,12 @@ mod tests {
 
     #[test]
     fn test_get_by_coordinates() {
-        let config = Rc::new(Config::default());
+        let config = Arc::new(Config::default());
         let style = &config.styles.default;
         let event_loop = EventLoop::try_new().unwrap();
         let font_system = Rc::new(RefCell::new(FontSystem::new()));
         let mut manager =
-            NotificationManager::new(Rc::clone(&config), event_loop.handle(), font_system);
+            NotificationManager::new(Arc::clone(&config), event_loop.handle(), font_system);
 
         let data = NotificationData {
             id: 1,

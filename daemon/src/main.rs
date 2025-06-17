@@ -43,6 +43,8 @@ use wayland_protocols::xdg::activation::v1::client::{xdg_activation_token_v1, xd
 use wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_shell_v1;
 use zbus::zvariant::Type;
 
+use crate::config::keymaps;
+
 #[derive(Debug)]
 pub struct Output {
     id: u32,
@@ -76,11 +78,12 @@ pub struct Moxnotify {
     outputs: Vec<Output>,
     wgpu_state: wgpu_state::WgpuState,
     notifications: NotificationManager,
-    config: Rc<Config>,
+    config: Arc<Config>,
     qh: QueueHandle<Self>,
     globals: GlobalList,
     loop_handle: calloop::LoopHandle<'static, Self>,
     emit_sender: broadcast::Sender<EmitEvent>,
+    event_sender: calloop::channel::Sender<Event>,
     compositor: wl_compositor::WlCompositor,
     audio: Audio,
     db: rusqlite::Connection,
@@ -95,6 +98,7 @@ impl Moxnotify {
         globals: GlobalList,
         loop_handle: calloop::LoopHandle<'static, Self>,
         emit_sender: broadcast::Sender<EmitEvent>,
+        event_sender: calloop::channel::Sender<Event>,
         config_path: Option<T>,
     ) -> anyhow::Result<Self>
     where
@@ -104,7 +108,7 @@ impl Moxnotify {
         let compositor = globals.bind::<wl_compositor::WlCompositor, _, _>(&qh, 1..=6, ())?;
         let seat = Seat::new(&qh, &globals)?;
 
-        let config = Rc::new(Config::load(config_path)?);
+        let config = Arc::new(Config::load(config_path)?);
 
         let wgpu_state = wgpu_state::WgpuState::new(conn).await?;
 
@@ -133,7 +137,7 @@ impl Moxnotify {
             globals,
             qh,
             notifications: NotificationManager::new(
-                Rc::clone(&config),
+                Arc::clone(&config),
                 loop_handle.clone(),
                 Rc::clone(&font_system),
             ),
@@ -146,6 +150,7 @@ impl Moxnotify {
             outputs: Vec::new(),
             loop_handle,
             emit_sender,
+            event_sender,
             compositor,
         })
     }
@@ -166,6 +171,47 @@ impl Moxnotify {
                 } else {
                     log::info!("Dismissing notification with id={id}");
                     self.dismiss_by_id(id, Some(Reason::DismissedByUser));
+                }
+            }
+            Event::InvokeAction { id, key } => {
+                if let Some(surface) = self.surface.as_ref() {
+                    let token = surface.token.as_ref().map(Arc::clone);
+                    _ = self.emit_sender.send(crate::EmitEvent::ActionInvoked {
+                        id,
+                        key,
+                        token: token.unwrap_or_default(),
+                    });
+                }
+
+                if !self
+                    .notifications
+                    .notifications()
+                    .iter()
+                    .find(|notification| notification.id() == id)
+                    .map(|n| n.data.hints.resident)
+                    .unwrap_or_default()
+                {
+                    self.dismiss_by_id(id, None);
+                }
+            }
+            Event::InvokeAnchor(uri) => {
+                if let Some(surface) = self.surface.as_ref() {
+                    let token = surface.token.as_ref().map(Arc::clone);
+                    if self
+                        .emit_sender
+                        .send(EmitEvent::Open {
+                            uri: Arc::clone(&uri),
+                            token,
+                        })
+                        .is_ok()
+                        && surface.focus_reason == Some(FocusReason::MouseEnter)
+                    {
+                        self.notifications.deselect();
+                        self.notifications
+                            .ui_state
+                            .mode
+                            .store(keymaps::Mode::Normal, Ordering::Relaxed);
+                    }
                 }
             }
             Event::Notify(data) => {
@@ -509,7 +555,7 @@ pub enum EmitEvent {
     Waiting(u32),
     ActionInvoked {
         id: NotificationId,
-        action_key: Arc<str>,
+        key: Arc<str>,
         token: Arc<str>,
     },
     NotificationClosed {
@@ -532,6 +578,8 @@ pub enum EmitEvent {
 pub enum Event {
     Waiting,
     Dismiss { all: bool, id: NotificationId },
+    InvokeAction { id: NotificationId, key: Arc<str> },
+    InvokeAnchor(Arc<str>),
     Notify(Box<NotificationData>),
     CloseNotification(u32),
     List,
@@ -669,6 +717,7 @@ async fn main() -> anyhow::Result<()> {
     let qh = event_queue.handle();
 
     let (emit_sender, emit_receiver) = broadcast::channel(std::mem::size_of::<EmitEvent>());
+    let (event_sender, event_receiver) = calloop::channel::channel();
     let mut event_loop = EventLoop::try_new()?;
     let mut moxnotify = Moxnotify::new(
         &conn,
@@ -676,6 +725,7 @@ async fn main() -> anyhow::Result<()> {
         globals,
         event_loop.handle(),
         emit_sender.clone(),
+        event_sender.clone(),
         cli.config,
     )
     .await?;
@@ -699,7 +749,6 @@ async fn main() -> anyhow::Result<()> {
         });
     });
 
-    let (event_sender, event_receiver) = calloop::channel::channel();
     let (executor, scheduler) = calloop::futures::executor()?;
 
     {
