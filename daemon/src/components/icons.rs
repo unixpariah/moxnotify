@@ -134,7 +134,7 @@ impl Component for Icons {
         let style = self.config.find_style(
             &self.app_name,
             self.ui_state.selected_id.load(Ordering::Relaxed) == self.id
-                && self.ui_state.selected.load(Ordering::Relaxed) == true,
+                && self.ui_state.selected.load(Ordering::Relaxed),
         );
 
         let (width, height) = self
@@ -168,7 +168,7 @@ impl Component for Icons {
         let style = self.config.find_style(
             &self.app_name,
             self.ui_state.selected_id.load(Ordering::Relaxed) == self.id
-                && self.ui_state.selected.load(Ordering::Relaxed) == true,
+                && self.ui_state.selected.load(Ordering::Relaxed),
         );
 
         let (width, height) = self
@@ -209,7 +209,7 @@ impl Component for Icons {
         let style = self.config.find_style(
             &self.app_name,
             self.ui_state.selected_id.load(Ordering::Relaxed) == self.id
-                && self.ui_state.selected.load(Ordering::Relaxed) == true,
+                && self.ui_state.selected.load(Ordering::Relaxed),
         );
 
         let mut bounds = self.get_render_bounds();

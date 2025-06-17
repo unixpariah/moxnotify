@@ -283,7 +283,7 @@ impl ButtonManager<Finished> {
 
         if self.ui_state.mode.load(Ordering::Relaxed) == keymaps::Mode::Hint
             && self.ui_state.selected_id.load(Ordering::Relaxed) == self.id
-            && self.ui_state.selected.load(Ordering::Relaxed) == true
+            && self.ui_state.selected.load(Ordering::Relaxed)
         {
             let hints = self
                 .buttons
@@ -305,7 +305,7 @@ impl ButtonManager<Finished> {
 
         if self.ui_state.mode.load(Ordering::Relaxed) == keymaps::Mode::Hint
             && self.ui_state.selected_id.load(Ordering::Relaxed) == self.id
-            && self.ui_state.selected.load(Ordering::Relaxed) == true
+            && self.ui_state.selected.load(Ordering::Relaxed)
         {
             let hints = self
                 .buttons
@@ -326,7 +326,7 @@ impl ButtonManager<Finished> {
 
         if self.ui_state.mode.load(Ordering::Relaxed) == keymaps::Mode::Hint
             && self.ui_state.selected_id.load(Ordering::Relaxed) == self.id
-            && self.ui_state.selected.load(Ordering::Relaxed) == true
+            && self.ui_state.selected.load(Ordering::Relaxed)
         {
             let hints = self
                 .buttons

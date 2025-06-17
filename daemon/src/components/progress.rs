@@ -49,7 +49,7 @@ impl Component for Progress {
         let style = self.config.find_style(
             &self.app_name,
             self.ui_state.selected_id.load(Ordering::Relaxed) == self.id
-                && self.ui_state.selected.load(Ordering::Relaxed) == true,
+                && self.ui_state.selected.load(Ordering::Relaxed),
         );
 
         let element_width = style.progress.width.resolve(self.width);
@@ -96,7 +96,7 @@ impl Component for Progress {
         let style = self.config.find_style(
             &self.app_name,
             self.ui_state.selected_id.load(Ordering::Relaxed) == self.id
-                && self.ui_state.selected.load(Ordering::Relaxed) == true,
+                && self.ui_state.selected.load(Ordering::Relaxed),
         );
 
         let remaining_space = self.width - bounds.width;
