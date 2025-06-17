@@ -610,7 +610,6 @@ mod tests {
             "".into(),
             ui_state,
             None,
-            None,
             Arc::clone(&config),
         )
         .add_dismiss(&mut font_system)
@@ -675,7 +674,6 @@ mod tests {
             Urgency::Normal,
             "".into(),
             ui_state,
-            None,
             None,
             Arc::clone(&config),
         )

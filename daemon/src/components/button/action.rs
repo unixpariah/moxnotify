@@ -218,6 +218,7 @@ mod tests {
         config::Config,
         manager::UiState,
         rendering::text_renderer::Text,
+        Event,
     };
     use glyphon::FontSystem;
     use std::sync::Arc;
@@ -257,9 +258,11 @@ mod tests {
 
         button.click();
 
-        let (id, action) = rx.try_recv().unwrap();
+        let Event::InvokeAction { id, key } = rx.try_recv().unwrap() else {
+            panic!("");
+        };
         assert_eq!(id, test_id, "Button click should send button ID");
-        assert_eq!(action, test_action, "Button click should send button ID");
+        assert_eq!(key, test_action, "Button click should send button ID");
     }
 
     #[test]
@@ -323,16 +326,20 @@ mod tests {
         };
 
         button1.click();
-        let (id, action) = text_rx1.try_recv().unwrap();
+        let Event::InvokeAction { id, key } = text_rx1.try_recv().unwrap() else {
+            panic!("");
+        };
         assert_eq!(id, test_id1, "Button click should send button ID");
-        assert_eq!(action, test_action1, "Button click should send button ID");
+        assert_eq!(key, test_action1, "Button click should send button ID");
 
         assert!(text_rx2.try_recv().is_err());
 
         button2.click();
-        let (id, action) = text_rx2.try_recv().unwrap();
+        let Event::InvokeAction { id, key } = text_rx2.try_recv().unwrap() else {
+            panic!("");
+        };
         assert_eq!(id, test_id2, "Button click should send button ID");
-        assert_eq!(action, test_action2, "Button click should send button ID");
+        assert_eq!(key, test_action2, "Button click should send button ID");
 
         assert!(text_rx1.try_recv().is_err());
     }
