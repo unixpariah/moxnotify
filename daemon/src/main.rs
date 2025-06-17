@@ -361,10 +361,10 @@ impl Moxnotify {
                 if self.history == History::Hidden {
                     self.db.execute(
                         "DELETE FROM notifications WHERE rowid IN (
-                        SELECT rowid FROM notifications ORDER BY rowid ASC LIMIT (
-                            SELECT MAX(COUNT(*) - ?, 0) FROM notifications
-                        )
-                    )",
+                            SELECT rowid FROM notifications 
+                            ORDER BY rowid ASC 
+                            LIMIT MAX(0, (SELECT COUNT(*) FROM notifications) - ?)
+                        )",
                         params![self.config.general.history.size],
                     )?;
 

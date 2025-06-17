@@ -118,7 +118,7 @@ impl Default for History {
             std::fs::create_dir_all(dir).ok();
         }
 
-        Self { size: 1000, path }
+        Self { size: 100, path }
     }
 }
 
