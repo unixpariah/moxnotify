@@ -325,7 +325,7 @@ impl Notification {
         font_system: &mut FontSystem,
         data: NotificationData,
         ui_state: UiState,
-        loop_handle: Option<LoopHandle<'static, Moxnotify>>,
+        sender: Option<calloop::channel::Sender<crate::Event>>,
     ) -> Self {
         let mut body = Body::new(
             data.id,
@@ -366,7 +366,7 @@ impl Notification {
                     data.hints.urgency,
                     Arc::clone(&data.app_name),
                     ui_state.clone(),
-                    loop_handle,
+                    sender,
                     Arc::clone(&config),
                 )
                 .add_dismiss(font_system)
@@ -392,7 +392,7 @@ impl Notification {
             data.hints.urgency,
             Arc::clone(&data.app_name),
             ui_state.clone(),
-            loop_handle,
+            sender,
             Arc::clone(&config),
         )
         .add_dismiss(font_system)

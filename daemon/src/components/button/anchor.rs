@@ -6,7 +6,7 @@ use crate::{
     rendering::{text_renderer::Text, texture_renderer},
     utils::buffers,
 };
-use std::{rc::Rc, sync::Arc};
+use std::sync::Arc;
 
 pub struct AnchorButton {
     pub id: u32,
@@ -17,8 +17,8 @@ pub struct AnchorButton {
     pub text: Text,
     pub state: State,
     pub ui_state: UiState,
-    pub tx: Option<calloop::channel::Sender<Arc<str>>>,
-    pub anchor: Rc<Anchor>,
+    pub tx: Option<calloop::channel::Sender<crate::Event>>,
+    pub anchor: Arc<Anchor>,
     pub app_name: Arc<str>,
 }
 
@@ -113,7 +113,7 @@ impl Button for AnchorButton {
 
     fn click(&self) {
         if let Some(tx) = self.tx.as_ref() {
-            _ = tx.send(Arc::clone(&self.anchor.href));
+            _ = tx.send(crate::Event::InvokeAnchor(Arc::clone(&self.anchor.href)));
         }
     }
 

@@ -10,10 +10,7 @@ use crate::{
     Urgency,
 };
 use glyphon::{Attrs, Buffer, Color, Family, FontSystem, Shaping, Stretch, Style, Weight};
-use std::{
-    rc::Rc,
-    sync::{atomic::Ordering, Arc},
-};
+use std::sync::{atomic::Ordering, Arc};
 
 #[derive(Debug)]
 pub struct Anchor {
@@ -34,7 +31,7 @@ pub struct Body {
     id: NotificationId,
     app_name: Arc<str>,
     ui_state: UiState,
-    pub anchors: Vec<Rc<Anchor>>,
+    pub anchors: Vec<Arc<Anchor>>,
     config: Arc<Config>,
     pub buffer: Buffer,
     x: f32,
@@ -340,7 +337,7 @@ impl Text for Body {
             };
         });
 
-        self.anchors = anchors.into_iter().map(Rc::new).collect();
+        self.anchors = anchors.into_iter().map(Arc::new).collect();
     }
 }
 

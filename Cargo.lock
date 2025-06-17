@@ -741,6 +741,7 @@ dependencies = [
  "log",
  "mlua",
  "raw-window-handle",
+ "rayon",
  "resvg",
  "rusqlite",
  "serde",

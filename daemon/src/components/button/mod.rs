@@ -14,17 +14,13 @@ use crate::{
     manager::UiState,
     rendering::{text_renderer, texture_renderer},
     utils::buffers,
-    Moxnotify, Urgency,
+    Urgency,
 };
 use action::ActionButton;
 use anchor::AnchorButton;
-use calloop::{channel::Event, LoopHandle};
 use dismiss::DismissButton;
 use glyphon::{FontSystem, TextArea};
-use std::{
-    rc::Rc,
-    sync::{atomic::Ordering, Arc},
-};
+use std::sync::{atomic::Ordering, Arc};
 
 #[derive(Clone, Copy, Debug)]
 pub enum State {
@@ -32,7 +28,7 @@ pub enum State {
     Hovered,
 }
 
-pub trait Button: Component {
+pub trait Button: Component + Send + Sync {
     fn hint(&self) -> &Hint;
 
     fn click(&self);
@@ -67,7 +63,7 @@ pub struct ButtonManager<State = NotReady> {
     buttons: Vec<Box<dyn Button<Style = ButtonState>>>,
     urgency: Urgency,
     pub ui_state: UiState,
-    loop_handle: Option<LoopHandle<'static, Moxnotify>>,
+    sender: Option<calloop::channel::Sender<crate::Event>>,
     config: Arc<Config>,
     _state: std::marker::PhantomData<State>,
 }
@@ -78,7 +74,7 @@ impl ButtonManager<NotReady> {
         urgency: Urgency,
         app_name: Arc<str>,
         ui_state: UiState,
-        loop_handle: Option<LoopHandle<'static, Moxnotify>>,
+        sender: Option<calloop::channel::Sender<crate::Event>>,
         config: Arc<Config>,
     ) -> Self {
         Self {
@@ -86,7 +82,7 @@ impl ButtonManager<NotReady> {
             buttons: Vec::new(),
             urgency,
             ui_state,
-            loop_handle,
+            sender,
             config,
             app_name,
             _state: std::marker::PhantomData,
@@ -102,29 +98,13 @@ impl ButtonManager<NotReady> {
         self.internal_add_actions(app_name, actions, font_system)
     }
 
-    pub fn add_anchors(self, anchors: &[Rc<body::Anchor>], font_system: &mut FontSystem) -> Self {
+    pub fn add_anchors(self, anchors: &[Arc<body::Anchor>], font_system: &mut FontSystem) -> Self {
         self.internal_add_anchors(anchors, font_system)
     }
 
     pub fn add_dismiss(mut self, font_system: &mut FontSystem) -> ButtonManager<Ready> {
         let font = &self.config.styles.default.buttons.dismiss.default.font;
         let text = text_renderer::Text::new(font, font_system, "X");
-
-        let tx = if let Some(loop_handle) = self.loop_handle.as_ref() {
-            let (tx, rx) = calloop::channel::channel();
-            loop_handle
-                .insert_source(rx, move |_, _, moxnotify| {
-                    _ = moxnotify.event_sender.send(crate::Event::Dismiss {
-                        all: false,
-                        id: self.id,
-                    });
-                })
-                .ok();
-
-            Some(tx)
-        } else {
-            None
-        };
 
         let button = DismissButton {
             id: self.id,
@@ -143,7 +123,7 @@ impl ButtonManager<NotReady> {
             y: 0.,
             config: Arc::clone(&self.config),
             state: State::Unhovered,
-            tx,
+            tx: self.sender.clone(),
         };
 
         self.buttons.push(Box::new(button));
@@ -154,7 +134,7 @@ impl ButtonManager<NotReady> {
             buttons: self.buttons,
             urgency: self.urgency,
             ui_state: self.ui_state,
-            loop_handle: self.loop_handle,
+            sender: self.sender,
             config: self.config,
             _state: std::marker::PhantomData,
         }
@@ -171,7 +151,7 @@ impl ButtonManager<Ready> {
         self.internal_add_actions(app_name, actions, font_system)
     }
 
-    pub fn add_anchors(self, anchors: &[Rc<body::Anchor>], font_system: &mut FontSystem) -> Self {
+    pub fn add_anchors(self, anchors: &[Arc<body::Anchor>], font_system: &mut FontSystem) -> Self {
         self.internal_add_anchors(anchors, font_system)
     }
 
@@ -212,7 +192,7 @@ impl ButtonManager<Ready> {
             buttons: self.buttons,
             urgency: self.urgency,
             ui_state: self.ui_state,
-            loop_handle: self.loop_handle,
+            sender: self.sender,
             config: self.config,
             _state: std::marker::PhantomData,
         }
@@ -351,7 +331,7 @@ impl ButtonManager<Finished> {
 impl<S> ButtonManager<S> {
     fn internal_add_anchors(
         mut self,
-        anchors: &[Rc<body::Anchor>],
+        anchors: &[Arc<body::Anchor>],
         font_system: &mut FontSystem,
     ) -> Self {
         if anchors.is_empty() {
@@ -361,23 +341,6 @@ impl<S> ButtonManager<S> {
         let font = &self.config.styles.default.buttons.action.default.font;
 
         self.buttons.extend(anchors.iter().map(|anchor| {
-            let tx = if let Some(loop_handle) = self.loop_handle.as_ref() {
-                let (tx, rx) = calloop::channel::channel();
-
-                let uri = Arc::clone(&anchor.href);
-                loop_handle
-                    .insert_source(rx, move |_, _, moxnotify| {
-                        _ = moxnotify
-                            .event_sender
-                            .send(crate::Event::InvokeAnchor(Arc::clone(&uri)));
-                    })
-                    .ok();
-
-                Some(tx)
-            } else {
-                None
-            };
-
             let text = text_renderer::Text::new(font, font_system, "");
             Box::new(AnchorButton {
                 id: self.id,
@@ -393,10 +356,10 @@ impl<S> ButtonManager<S> {
                 ),
                 config: Arc::clone(&self.config),
                 state: State::Unhovered,
-                tx: tx.clone(),
+                tx: self.sender.clone(),
                 text,
                 ui_state: self.ui_state.clone(),
-                anchor: Rc::clone(anchor),
+                anchor: Arc::clone(anchor),
                 app_name: Arc::clone(&self.app_name),
             }) as Box<dyn Button<Style = ButtonState>>
         }));
@@ -413,24 +376,6 @@ impl<S> ButtonManager<S> {
         if actions.is_empty() {
             return self;
         }
-
-        let tx = if let Some(loop_handle) = self.loop_handle.as_ref() {
-            let (tx, rx) = calloop::channel::channel();
-            loop_handle
-                .insert_source(rx, move |event, _, moxnotify| {
-                    if let Event::Msg((_, action_key)) = event {
-                        _ = moxnotify.event_sender.send(crate::Event::InvokeAction {
-                            id: self.id,
-                            key: action_key,
-                        });
-                    }
-                })
-                .ok();
-
-            Some(tx)
-        } else {
-            None
-        };
 
         let mut buttons = actions
             .iter()
@@ -458,7 +403,7 @@ impl<S> ButtonManager<S> {
                     state: State::Unhovered,
                     width: 0.,
                     app_name: Arc::clone(&app_name),
-                    tx: tx.clone(),
+                    tx: self.sender.clone(),
                 }) as Box<dyn Button<Style = ButtonState>>
             })
             .collect();
@@ -665,6 +610,7 @@ mod tests {
             "".into(),
             ui_state,
             None,
+            None,
             Arc::clone(&config),
         )
         .add_dismiss(&mut font_system)
@@ -729,6 +675,7 @@ mod tests {
             Urgency::Normal,
             "".into(),
             ui_state,
+            None,
             None,
             Arc::clone(&config),
         )

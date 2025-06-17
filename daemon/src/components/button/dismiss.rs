@@ -19,7 +19,7 @@ pub struct DismissButton {
     pub text: text_renderer::Text,
     pub state: State,
     pub ui_state: UiState,
-    pub tx: Option<calloop::channel::Sender<u32>>,
+    pub tx: Option<calloop::channel::Sender<crate::Event>>,
     pub app_name: Arc<str>,
 }
 
@@ -177,7 +177,10 @@ impl Button for DismissButton {
 
     fn click(&self) {
         if let Some(tx) = self.tx.as_ref() {
-            _ = tx.send(self.id);
+            _ = tx.send(crate::Event::Dismiss {
+                all: false,
+                id: self.id,
+            });
         }
     }
 
@@ -248,7 +251,8 @@ mod tests {
 
         button.click();
 
-        let id = rx.try_recv().unwrap();
-        assert_eq!(id, test_id, "Button click should send button ID");
+        if let crate::Event::Dismiss { all: false, id } = rx.try_recv().unwrap() {
+            assert_eq!(id, test_id, "Button click should send button ID");
+        };
     }
 }

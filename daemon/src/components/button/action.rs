@@ -21,7 +21,7 @@ pub struct ActionButton {
     pub action: Arc<str>,
     pub state: State,
     pub width: f32,
-    pub tx: Option<calloop::channel::Sender<(u32, Arc<str>)>>,
+    pub tx: Option<calloop::channel::Sender<crate::Event>>,
 }
 
 impl Component for ActionButton {
@@ -179,7 +179,10 @@ impl Button for ActionButton {
 
     fn click(&self) {
         if let Some(tx) = self.tx.as_ref() {
-            _ = tx.send((self.id, Arc::clone(&self.action)));
+            _ = tx.send(crate::Event::InvokeAction {
+                id: self.id,
+                key: Arc::clone(&self.action),
+            });
         }
     }
 

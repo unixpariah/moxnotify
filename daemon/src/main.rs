@@ -83,7 +83,6 @@ pub struct Moxnotify {
     globals: GlobalList,
     loop_handle: calloop::LoopHandle<'static, Self>,
     emit_sender: broadcast::Sender<EmitEvent>,
-    event_sender: calloop::channel::Sender<Event>,
     compositor: wl_compositor::WlCompositor,
     audio: Audio,
     db: rusqlite::Connection,
@@ -139,6 +138,7 @@ impl Moxnotify {
             notifications: NotificationManager::new(
                 Arc::clone(&config),
                 loop_handle.clone(),
+                event_sender.clone(),
                 Rc::clone(&font_system),
             ),
             font_system,
@@ -150,7 +150,6 @@ impl Moxnotify {
             outputs: Vec::new(),
             loop_handle,
             emit_sender,
-            event_sender,
             compositor,
         })
     }
@@ -575,6 +574,7 @@ pub enum EmitEvent {
     Inhibited(bool),
 }
 
+#[derive(Debug)]
 pub enum Event {
     Waiting,
     Dismiss { all: bool, id: NotificationId },
