@@ -25,7 +25,12 @@ use rendering::{
 };
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
-use std::{cell::RefCell, path::Path, rc::Rc, sync::Arc};
+use std::{
+    cell::RefCell,
+    path::Path,
+    rc::Rc,
+    sync::{atomic::Ordering, Arc},
+};
 use tokio::sync::broadcast;
 use utils::image_data::ImageData;
 use wayland_client::{
@@ -248,20 +253,24 @@ impl Moxnotify {
                         log::info!("Focusing notification surface");
                         surface.focus(FocusReason::Ctl);
 
-                        let ui_state = self.notifications.ui_state.borrow();
-                        let should_select_last = ui_state.last_selected.is_some_and(|last_id| {
-                            self.notifications
-                                .notifications()
-                                .iter()
-                                .any(|n| n.id() == last_id)
-                        });
+                        let should_select_last =
+                            self.notifications.notifications().iter().any(|n| {
+                                n.id()
+                                    == self
+                                        .notifications
+                                        .ui_state
+                                        .selected_id
+                                        .load(Ordering::Relaxed)
+                            });
 
                         if should_select_last {
-                            let last_id = ui_state.last_selected.unwrap();
-                            drop(ui_state);
+                            let last_id = self
+                                .notifications
+                                .ui_state
+                                .selected_id
+                                .load(Ordering::Relaxed);
                             self.notifications.select(last_id);
                         } else {
-                            drop(ui_state);
                             self.notifications.next();
                         }
                     }

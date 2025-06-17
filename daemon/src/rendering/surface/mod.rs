@@ -7,7 +7,12 @@ use crate::{
     wgpu_state, Moxnotify, Output,
 };
 use glyphon::FontSystem;
-use std::{cell::RefCell, fmt, rc::Rc, sync::Arc};
+use std::{
+    cell::RefCell,
+    fmt,
+    rc::Rc,
+    sync::{atomic::Ordering, Arc},
+};
 use wayland_client::{delegate_noop, protocol::wl_surface, Connection, Dispatch, QueueHandle};
 use wayland_protocols::xdg::foreign::zv2::client::zxdg_exporter_v2;
 use wayland_protocols_wlr::layer_shell::v1::client::{
@@ -318,12 +323,16 @@ impl Moxnotify {
             )
             .ok();
 
-            let mut ui_state = self.notifications.ui_state.borrow_mut();
-            ui_state.scale = self
+            let scale = self
                 .surface
                 .as_ref()
                 .map(|surface| surface.scale)
                 .unwrap_or(1.0);
+
+            self.notifications
+                .ui_state
+                .scale
+                .store(scale, Ordering::Relaxed);
         }
 
         if total_width == 0. || total_height == 0. {

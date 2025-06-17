@@ -12,27 +12,36 @@ use crate::{
     utils::buffers,
     EmitEvent, History, Moxnotify, NotificationData,
 };
+use atomic_float::AtomicF32;
 use calloop::LoopHandle;
 use glyphon::{FontSystem, TextArea};
 use rusqlite::params;
-use std::{cell::RefCell, fmt, rc::Rc};
+use std::{
+    cell::RefCell,
+    fmt,
+    rc::Rc,
+    sync::{
+        atomic::{AtomicBool, AtomicU32, Ordering},
+        Arc,
+    },
+};
 use view::NotificationView;
 
 #[derive(Clone)]
 pub struct UiState {
-    pub scale: f32,
-    pub mode: keymaps::Mode,
-    pub selected: Option<NotificationId>,
-    pub last_selected: Option<NotificationId>,
+    pub scale: Arc<AtomicF32>,
+    pub mode: Arc<keymaps::AtomicMode>,
+    pub selected: Arc<AtomicBool>,
+    pub selected_id: Arc<AtomicU32>,
 }
 
 impl Default for UiState {
     fn default() -> Self {
         Self {
-            mode: keymaps::Mode::Normal,
-            scale: 1.0,
-            selected: None,
-            last_selected: None,
+            mode: Arc::new(keymaps::AtomicMode::default()),
+            scale: Arc::new(AtomicF32::new(1.0)),
+            selected: Arc::new(AtomicBool::new(false)),
+            selected_id: Arc::new(AtomicU32::new(0)),
         }
     }
 }
@@ -45,7 +54,7 @@ pub struct NotificationManager {
     pub font_system: Rc<RefCell<FontSystem>>,
     pub notification_view: NotificationView,
     inhibited: bool,
-    pub ui_state: Rc<RefCell<UiState>>,
+    pub ui_state: UiState,
 }
 
 impl NotificationManager {
@@ -54,21 +63,21 @@ impl NotificationManager {
         loop_handle: LoopHandle<'static, Moxnotify>,
         font_system: Rc<RefCell<FontSystem>>,
     ) -> Self {
-        let ui_state = Rc::new(RefCell::new(UiState::default()));
+        let ui_state = UiState::default();
 
         Self {
             inhibited: false,
             waiting: 0,
             notification_view: NotificationView::new(
                 Rc::clone(&config),
-                Rc::clone(&ui_state),
+                ui_state.clone(),
                 Rc::clone(&font_system),
             ),
             font_system,
             loop_handle,
             notifications: Vec::new(),
             config,
-            ui_state: Rc::clone(&ui_state),
+            ui_state,
         }
     }
 
@@ -221,7 +230,10 @@ impl NotificationManager {
     }
 
     pub fn selected_id(&self) -> Option<NotificationId> {
-        self.ui_state.borrow().selected
+        match self.ui_state.selected.load(Ordering::Relaxed) {
+            true => Some(self.ui_state.selected_id.load(Ordering::Relaxed)),
+            false => None,
+        }
     }
 
     pub fn selected_notification_mut(&mut self) -> Option<&mut Notification> {
@@ -238,7 +250,9 @@ impl NotificationManager {
             notification.hover();
             log::info!("Selected notification id: {id}");
 
-            self.ui_state.borrow_mut().selected = Some(id);
+            self.ui_state.selected_id.store(id, Ordering::Relaxed);
+            self.ui_state.selected.store(true, Ordering::Relaxed);
+
             notification.stop_timer(&self.loop_handle);
 
             let dismiss_button = notification
@@ -272,7 +286,8 @@ impl NotificationManager {
     }
 
     pub fn next(&mut self) {
-        let next_notification_index = if let Some(id) = self.ui_state.borrow().selected {
+        let next_notification_index = {
+            let id = self.ui_state.selected_id.load(Ordering::Relaxed);
             self.notifications
                 .iter()
                 .position(|n| n.id() == id)
@@ -283,8 +298,6 @@ impl NotificationManager {
                         0
                     }
                 })
-        } else {
-            0
         };
 
         if let Some(notification) = self.notifications.get(next_notification_index) {
@@ -317,7 +330,12 @@ impl NotificationManager {
     }
 
     pub fn prev(&mut self) {
-        let notification_index = if let Some(id) = self.ui_state.borrow().selected {
+        if !self.ui_state.selected.load(Ordering::Relaxed) {
+            return;
+        }
+
+        let notification_index = {
+            let id = self.ui_state.selected_id.load(Ordering::Relaxed);
             self.notifications.iter().position(|n| n.id() == id).map_or(
                 self.notifications.len().saturating_sub(1),
                 |index| {
@@ -328,8 +346,6 @@ impl NotificationManager {
                     }
                 },
             )
-        } else {
-            self.notifications.len().saturating_sub(1)
         };
 
         if let Some(notification) = self.notifications.get(notification_index) {
@@ -362,17 +378,20 @@ impl NotificationManager {
     }
 
     pub fn deselect(&mut self) {
-        let id = self.ui_state.borrow_mut().selected.take();
-        self.ui_state.borrow_mut().last_selected = id;
-        if let Some(old_id) = id {
-            if let Some(index) = self.notifications.iter().position(|n| n.id() == old_id) {
-                if let Some(notification) = self.notifications.get_mut(index) {
-                    notification.unhover();
-                    match self.config.general.queue {
-                        Queue::FIFO if index == 0 => notification.start_timer(&self.loop_handle),
-                        Queue::Unordered => notification.start_timer(&self.loop_handle),
-                        _ => {}
-                    }
+        if !self.ui_state.selected.load(Ordering::Relaxed) {
+            return;
+        }
+
+        self.ui_state.selected.store(false, Ordering::Relaxed);
+
+        let old_id = self.ui_state.selected_id.load(Ordering::Relaxed);
+        if let Some(index) = self.notifications.iter().position(|n| n.id() == old_id) {
+            if let Some(notification) = self.notifications.get_mut(index) {
+                notification.unhover();
+                match self.config.general.queue {
+                    Queue::FIFO if index == 0 => notification.start_timer(&self.loop_handle),
+                    Queue::Unordered => notification.start_timer(&self.loop_handle),
+                    _ => {}
                 }
             }
         }
@@ -390,7 +409,7 @@ impl NotificationManager {
                 Rc::clone(&self.config),
                 &mut self.font_system.borrow_mut(),
                 data,
-                Rc::clone(&self.ui_state),
+                self.ui_state.clone(),
                 None,
             );
             notification.set_position(0.0, y);
@@ -416,7 +435,6 @@ impl NotificationManager {
         self.notifications
             .iter_mut()
             .for_each(|n| n.set_position(x_offset, n.y));
-
         Ok(())
     }
 
@@ -439,7 +457,7 @@ impl NotificationManager {
             Rc::clone(&self.config),
             &mut self.font_system.borrow_mut(),
             data,
-            Rc::clone(&self.ui_state),
+            self.ui_state.clone(),
             Some(self.loop_handle.clone()),
         );
         notification.set_position(0.0, y);
@@ -619,7 +637,10 @@ impl Moxnotify {
                     .position(|n| n.id() == id)
                 {
                     if self.notifications.selected_id() == Some(id) {
-                        self.notifications.ui_state.borrow_mut().mode = keymaps::Mode::Normal;
+                        self.notifications
+                            .ui_state
+                            .mode
+                            .store(keymaps::Mode::Normal, Ordering::Relaxed);
                     }
 
                     self.notifications.dismiss(id);

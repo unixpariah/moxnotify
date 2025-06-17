@@ -6,7 +6,7 @@ use crate::{
     rendering::{text_renderer::Text, texture_renderer},
     utils::buffers,
 };
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{rc::Rc, sync::Arc};
 
 pub struct AnchorButton {
     pub id: u32,
@@ -16,7 +16,7 @@ pub struct AnchorButton {
     pub config: Rc<Config>,
     pub text: Text,
     pub state: State,
-    pub ui_state: Rc<RefCell<UiState>>,
+    pub ui_state: UiState,
     pub tx: Option<calloop::channel::Sender<Arc<str>>>,
     pub anchor: Rc<Anchor>,
     pub app_name: Arc<str>,
@@ -37,8 +37,8 @@ impl Component for AnchorButton {
         &self.app_name
     }
 
-    fn get_ui_state(&self) -> std::cell::Ref<'_, UiState> {
-        self.ui_state.borrow()
+    fn get_ui_state(&self) -> &UiState {
+        &self.ui_state
     }
 
     fn get_style(&self) -> &Self::Style {

@@ -6,7 +6,7 @@ use crate::{
     NotificationData,
 };
 use glyphon::{FontSystem, TextArea};
-use std::{cell::RefCell, ops::Range, rc::Rc};
+use std::{cell::RefCell, ops::Range, rc::Rc, sync::atomic::Ordering};
 
 pub struct NotificationView {
     pub visible: Range<usize>,
@@ -14,13 +14,13 @@ pub struct NotificationView {
     pub next: Option<Notification>,
     font_system: Rc<RefCell<FontSystem>>,
     config: Rc<Config>,
-    ui_state: Rc<RefCell<UiState>>,
+    ui_state: UiState,
 }
 
 impl NotificationView {
     pub fn new(
         config: Rc<Config>,
-        ui_state: Rc<RefCell<UiState>>,
+        ui_state: UiState,
         font_system: Rc<RefCell<FontSystem>>,
     ) -> Self {
         Self {
@@ -84,7 +84,7 @@ impl NotificationView {
                         summary: summary.into(),
                         ..Default::default()
                     },
-                    Rc::clone(&self.ui_state),
+                    self.ui_state.clone(),
                     None,
                 ));
 
@@ -125,7 +125,7 @@ impl NotificationView {
                         summary: summary.into(),
                         ..Default::default()
                     },
-                    Rc::clone(&self.ui_state),
+                    self.ui_state.clone(),
                     None,
                 );
                 next.set_position(next.x, total_height);
@@ -150,7 +150,7 @@ impl NotificationView {
                 border_radius: style.border.radius.into(),
                 border_size: style.border.size.into(),
                 border_color: style.border.color.to_linear(&crate::Urgency::Low),
-                scale: self.ui_state.borrow().scale,
+                scale: self.ui_state.scale.load(Ordering::Relaxed),
                 depth: 0.9,
             };
 
@@ -179,7 +179,7 @@ impl NotificationView {
                 border_radius: style.border.radius.into(),
                 border_size: style.border.size.into(),
                 border_color: style.border.color.to_linear(&crate::Urgency::Low),
-                scale: self.ui_state.borrow().scale,
+                scale: self.ui_state.scale.load(Ordering::Relaxed),
                 depth: 0.9,
             };
 

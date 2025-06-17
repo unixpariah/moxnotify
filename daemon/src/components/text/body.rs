@@ -10,7 +10,10 @@ use crate::{
     Urgency,
 };
 use glyphon::{Attrs, Buffer, Color, Family, FontSystem, Shaping, Stretch, Style, Weight};
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{
+    rc::Rc,
+    sync::{atomic::Ordering, Arc},
+};
 
 #[derive(Debug)]
 pub struct Anchor {
@@ -30,7 +33,7 @@ impl Anchor {
 pub struct Body {
     id: NotificationId,
     app_name: Arc<str>,
-    ui_state: Rc<RefCell<UiState>>,
+    ui_state: UiState,
     pub anchors: Vec<Rc<Anchor>>,
     config: Rc<Config>,
     pub buffer: Buffer,
@@ -356,8 +359,8 @@ impl Component for Body {
         self.id
     }
 
-    fn get_ui_state(&self) -> std::cell::Ref<'_, crate::manager::UiState> {
-        self.ui_state.borrow()
+    fn get_ui_state(&self) -> &UiState {
+        &self.ui_state
     }
 
     fn get_style(&self) -> &Self::Style {
@@ -375,7 +378,7 @@ impl Component for Body {
             border_radius: style.border.radius.into(),
             border_size: style.border.size.into(),
             border_color: style.border.color.to_linear(urgency),
-            scale: self.ui_state.borrow().scale,
+            scale: self.ui_state.scale.load(Ordering::Relaxed),
             depth: 0.8,
         }]
     }
@@ -403,7 +406,7 @@ impl Component for Body {
             buffer: &self.buffer,
             left,
             top,
-            scale: self.ui_state.borrow().scale,
+            scale: self.ui_state.scale.load(Ordering::Relaxed),
             bounds: glyphon::TextBounds {
                 left: left as i32,
                 top: top as i32,
@@ -478,7 +481,7 @@ impl Body {
         id: NotificationId,
         config: Rc<Config>,
         app_name: Arc<str>,
-        ui_state: Rc<RefCell<UiState>>,
+        ui_state: UiState,
         font_system: &mut FontSystem,
     ) -> Self {
         let dpi = 96.0;
@@ -514,7 +517,7 @@ mod tests {
         manager::UiState,
     };
     use glyphon::{Color, FontSystem};
-    use std::{cell::RefCell, rc::Rc};
+    use std::rc::Rc;
 
     #[test]
     fn test_body() {
@@ -524,7 +527,7 @@ mod tests {
             0,
             Rc::new(Config::default()),
             "".into(),
-            Rc::new(RefCell::new(UiState::default())),
+            UiState::default(),
             &mut font_system,
         );
 
@@ -549,7 +552,7 @@ mod tests {
             0,
             Rc::new(Config::default()),
             "".into(),
-            Rc::new(RefCell::new(UiState::default())),
+            UiState::default(),
             &mut font_system,
         );
 
@@ -570,7 +573,7 @@ mod tests {
             0,
             Rc::new(Config::default()),
             "".into(),
-            Rc::new(RefCell::new(UiState::default())),
+            UiState::default(),
             &mut font_system,
         );
 
@@ -743,7 +746,7 @@ mod tests {
             0,
             Rc::new(Config::default()),
             "test_app".into(),
-            Rc::new(RefCell::new(UiState::default())),
+            UiState::default(),
             &mut font_system,
         );
 
@@ -763,7 +766,7 @@ mod tests {
             0,
             Rc::new(Config::default()),
             "test_app".into(),
-            Rc::new(RefCell::new(UiState::default())),
+            UiState::default(),
             &mut font_system,
         );
 
@@ -787,7 +790,7 @@ mod tests {
             0,
             Rc::new(Config::default()),
             "test_app".into(),
-            Rc::new(RefCell::new(UiState::default())),
+            UiState::default(),
             &mut font_system,
         );
 

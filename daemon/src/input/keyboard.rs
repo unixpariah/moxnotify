@@ -1,5 +1,5 @@
 use crate::{
-    config::keymaps::{Key, KeyAction, KeyWithModifiers, Keys, Mode, Modifiers},
+    config::keymaps::{self, Key, KeyAction, KeyWithModifiers, Keys, Modifiers},
     manager::Reason,
     History, Moxnotify,
 };
@@ -7,7 +7,7 @@ use calloop::{
     timer::{TimeoutAction, Timer},
     RegistrationToken,
 };
-use std::time::Duration;
+use std::{sync::atomic::Ordering, time::Duration};
 use wayland_client::{
     protocol::{wl_keyboard, wl_seat},
     Connection, Dispatch, QueueHandle, WEnum,
@@ -237,7 +237,7 @@ impl Moxnotify {
 
         if let Some(key_combination) = self.config.keymaps.iter().find(|keymap| {
             keymap.keys == self.seat.keyboard.key_combination
-                && keymap.mode == self.notifications.ui_state.borrow().mode
+                && keymap.mode == self.notifications.ui_state.mode.load(Ordering::Relaxed)
         }) {
             log::debug!("Action executed: {:?}", key_combination.action);
             self.seat.keyboard.key_combination.clear();
@@ -273,7 +273,11 @@ impl Moxnotify {
                         self.seat.keyboard.repeat.key = None;
                     }
                 }
-                KeyAction::HintMode => self.notifications.ui_state.borrow_mut().mode = Mode::Hint,
+                KeyAction::HintMode => self
+                    .notifications
+                    .ui_state
+                    .mode
+                    .store(keymaps::Mode::Hint, Ordering::Relaxed),
                 KeyAction::ShowHistory => self.handle_app_event(crate::Event::ShowHistory)?,
                 KeyAction::HideHistory => {
                     self.handle_app_event(crate::Event::HideHistory)?;
@@ -307,7 +311,10 @@ impl Moxnotify {
                     false => self.audio.mute(),
                 },
                 KeyAction::NormalMode => {
-                    self.notifications.ui_state.borrow_mut().mode = Mode::Normal
+                    self.notifications
+                        .ui_state
+                        .mode
+                        .store(keymaps::Mode::Normal, Ordering::Relaxed);
                 }
             }
         } else {

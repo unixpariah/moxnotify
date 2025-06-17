@@ -16,8 +16,9 @@ use crate::{
 use calloop::timer::{TimeoutAction, Timer};
 use calloop::{LoopHandle, RegistrationToken};
 use glyphon::FontSystem;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{rc::Rc, sync::Arc};
 
 pub type NotificationId = u32;
 
@@ -31,7 +32,7 @@ pub struct Notification {
     pub registration_token: Option<RegistrationToken>,
     pub buttons: ButtonManager<Finished>,
     pub data: NotificationData,
-    ui_state: Rc<RefCell<UiState>>,
+    ui_state: UiState,
     pub summary: Summary,
     pub body: Body,
 }
@@ -57,8 +58,8 @@ impl Component for Notification {
         self.data.id
     }
 
-    fn get_ui_state(&self) -> std::cell::Ref<'_, UiState> {
-        self.ui_state.borrow()
+    fn get_ui_state(&self) -> &UiState {
+        &self.ui_state
     }
 
     fn get_style(&self) -> &Self::Style {
@@ -114,7 +115,7 @@ impl Component for Notification {
             border_radius: style.border.radius.into(),
             border_size: style.border.size.into(),
             border_color: style.border.color.to_linear(urgency),
-            scale: self.ui_state.borrow().scale,
+            scale: self.ui_state.scale.load(Ordering::Relaxed),
             depth: 0.9,
         }]
     }
@@ -196,7 +197,8 @@ impl Component for Notification {
 
             progress.set_width(available_width);
 
-            let is_selected = self.ui_state.borrow().selected == Some(self.data.id);
+            let is_selected = self.ui_state.selected.load(Ordering::Relaxed)
+                && self.ui_state.selected_id.load(Ordering::Relaxed) == self.data.id;
             let selected_style = self.config.find_style(&self.data.app_name, is_selected);
 
             let progress_x =
@@ -322,14 +324,14 @@ impl Notification {
         config: Rc<Config>,
         font_system: &mut FontSystem,
         data: NotificationData,
-        ui_state: Rc<RefCell<UiState>>,
+        ui_state: UiState,
         loop_handle: Option<LoopHandle<'static, Moxnotify>>,
     ) -> Self {
         let mut body = Body::new(
             data.id,
             Rc::clone(&config),
             Arc::clone(&data.app_name),
-            Rc::clone(&ui_state),
+            ui_state.clone(),
             font_system,
         );
 
@@ -337,7 +339,7 @@ impl Notification {
             data.id,
             Rc::clone(&config),
             Arc::clone(&data.app_name),
-            Rc::clone(&ui_state),
+            ui_state.clone(),
             font_system,
         );
 
@@ -354,7 +356,7 @@ impl Notification {
                     None,
                     None,
                     Rc::clone(&config),
-                    Rc::clone(&ui_state),
+                    ui_state.clone(),
                     Arc::clone(&data.app_name),
                 ),
                 progress: None,
@@ -363,13 +365,13 @@ impl Notification {
                     data.id,
                     data.hints.urgency,
                     Arc::clone(&data.app_name),
-                    Rc::clone(&ui_state),
+                    ui_state.clone(),
                     loop_handle,
                     Rc::clone(&config),
                 )
                 .add_dismiss(font_system)
                 .finish(font_system),
-                ui_state: Rc::clone(&ui_state),
+                ui_state: ui_state.clone(),
                 summary,
                 body,
                 data,
@@ -381,7 +383,7 @@ impl Notification {
             data.hints.image.as_ref(),
             data.app_icon.as_deref(),
             Rc::clone(&config),
-            Rc::clone(&ui_state),
+            ui_state.clone(),
             Arc::clone(&data.app_name),
         );
 
@@ -389,7 +391,7 @@ impl Notification {
             data.id,
             data.hints.urgency,
             Arc::clone(&data.app_name),
-            Rc::clone(&ui_state),
+            ui_state.clone(),
             loop_handle,
             Rc::clone(&config),
         )
@@ -425,7 +427,7 @@ impl Notification {
                 Progress::new(
                     data.id,
                     value,
-                    Rc::clone(&ui_state),
+                    ui_state.clone(),
                     Rc::clone(&config),
                     Arc::clone(&data.app_name),
                 )
@@ -440,7 +442,7 @@ impl Notification {
             config,
             hovered: false,
             registration_token: None,
-            ui_state: Rc::clone(&ui_state),
+            ui_state: ui_state.clone(),
             body,
         }
     }

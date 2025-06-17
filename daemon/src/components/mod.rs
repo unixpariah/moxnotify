@@ -4,6 +4,8 @@ pub mod notification;
 pub mod progress;
 pub mod text;
 
+use std::sync::atomic::Ordering;
+
 use crate::{
     config::{Config, StyleState},
     manager::UiState,
@@ -35,12 +37,13 @@ pub trait Component {
 
     fn get_id(&self) -> u32;
 
-    fn get_ui_state(&self) -> std::cell::Ref<'_, UiState>;
+    fn get_ui_state(&self) -> &UiState;
 
     fn get_notification_style(&self) -> &StyleState {
         self.get_config().find_style(
             self.get_app_name(),
-            self.get_ui_state().selected == Some(self.get_id()),
+            self.get_ui_state().selected.load(Ordering::Relaxed)
+                && self.get_ui_state().selected_id.load(Ordering::Relaxed) == self.get_id(),
         )
     }
 

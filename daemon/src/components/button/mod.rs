@@ -7,7 +7,7 @@ use crate::{
     config::{
         self,
         button::ButtonState,
-        keymaps::{self, Mode},
+        keymaps::{self},
         Config,
     },
     manager::{Reason, UiState},
@@ -20,7 +20,10 @@ use anchor::AnchorButton;
 use calloop::{channel::Event, LoopHandle};
 use dismiss::DismissButton;
 use glyphon::{FontSystem, TextArea};
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{
+    rc::Rc,
+    sync::{atomic::Ordering, Arc},
+};
 
 use super::text::body;
 
@@ -64,7 +67,7 @@ pub struct ButtonManager<State = NotReady> {
     id: u32,
     buttons: Vec<Box<dyn Button<Style = ButtonState>>>,
     urgency: Urgency,
-    pub ui_state: Rc<RefCell<UiState>>,
+    pub ui_state: UiState,
     loop_handle: Option<LoopHandle<'static, Moxnotify>>,
     config: Rc<Config>,
     _state: std::marker::PhantomData<State>,
@@ -75,7 +78,7 @@ impl ButtonManager<NotReady> {
         id: u32,
         urgency: Urgency,
         app_name: Arc<str>,
-        ui_state: Rc<RefCell<UiState>>,
+        ui_state: UiState,
         loop_handle: Option<LoopHandle<'static, Moxnotify>>,
         config: Rc<Config>,
     ) -> Self {
@@ -126,14 +129,14 @@ impl ButtonManager<NotReady> {
         let button = DismissButton {
             id: self.id,
             app_name: "".into(),
-            ui_state: Rc::clone(&self.ui_state),
+            ui_state: self.ui_state.clone(),
             hint: Hint::new(
                 0,
                 "",
                 "".into(),
                 Rc::clone(&self.config),
                 font_system,
-                Rc::clone(&self.ui_state),
+                self.ui_state.clone(),
             ),
             text,
             x: 0.,
@@ -197,7 +200,7 @@ impl ButtonManager<Ready> {
                 "".into(),
                 Rc::clone(&self.config),
                 font_system,
-                Rc::clone(&self.ui_state),
+                self.ui_state.clone(),
             );
 
             button.set_hint(hint);
@@ -278,8 +281,10 @@ impl ButtonManager<Finished> {
             .flat_map(|button| button.get_instances(&self.urgency))
             .collect::<Vec<_>>();
 
-        let ui_state = self.ui_state.borrow();
-        if ui_state.mode == keymaps::Mode::Hint && ui_state.selected == Some(self.id) {
+        if self.ui_state.mode.load(Ordering::Relaxed) == keymaps::Mode::Hint
+            && self.ui_state.selected_id.load(Ordering::Relaxed) == self.id
+            && self.ui_state.selected.load(Ordering::Relaxed) == true
+        {
             let hints = self
                 .buttons
                 .iter()
@@ -298,8 +303,10 @@ impl ButtonManager<Finished> {
             .flat_map(|button| button.get_text_areas(&self.urgency))
             .collect::<Vec<_>>();
 
-        let ui_state = self.ui_state.borrow();
-        if ui_state.mode == keymaps::Mode::Hint && ui_state.selected == Some(self.id) {
+        if self.ui_state.mode.load(Ordering::Relaxed) == keymaps::Mode::Hint
+            && self.ui_state.selected_id.load(Ordering::Relaxed) == self.id
+            && self.ui_state.selected.load(Ordering::Relaxed) == true
+        {
             let hints = self
                 .buttons
                 .iter()
@@ -317,8 +324,10 @@ impl ButtonManager<Finished> {
             .flat_map(|button| button.get_data(&self.urgency))
             .collect::<Vec<_>>();
 
-        let ui_state = self.ui_state.borrow();
-        if ui_state.mode == keymaps::Mode::Hint && ui_state.selected == Some(self.id) {
+        if self.ui_state.mode.load(Ordering::Relaxed) == keymaps::Mode::Hint
+            && self.ui_state.selected_id.load(Ordering::Relaxed) == self.id
+            && self.ui_state.selected.load(Ordering::Relaxed) == true
+        {
             let hints = self
                 .buttons
                 .iter()
@@ -368,7 +377,11 @@ impl<S> ButtonManager<S> {
                                 && surface.focus_reason == Some(surface::FocusReason::MouseEnter)
                             {
                                 moxnotify.notifications.deselect();
-                                moxnotify.notifications.ui_state.borrow_mut().mode = Mode::Normal;
+                                moxnotify
+                                    .notifications
+                                    .ui_state
+                                    .mode
+                                    .store(keymaps::Mode::Normal, Ordering::Relaxed);
                             }
                         }
                     }
@@ -392,13 +405,13 @@ impl<S> ButtonManager<S> {
                     "".into(),
                     Rc::clone(&self.config),
                     font_system,
-                    Rc::clone(&self.ui_state),
+                    self.ui_state.clone(),
                 ),
                 config: Rc::clone(&self.config),
                 state: State::Unhovered,
                 tx: tx.clone(),
                 text,
-                ui_state: Rc::clone(&self.ui_state),
+                ui_state: self.ui_state.clone(),
                 anchor: Rc::clone(anchor),
                 app_name: Arc::clone(&self.app_name),
             }) as Box<dyn Button<Style = ButtonState>>
@@ -459,14 +472,14 @@ impl<S> ButtonManager<S> {
 
                 Box::new(ActionButton {
                     id: self.id,
-                    ui_state: Rc::clone(&self.ui_state),
+                    ui_state: self.ui_state.clone(),
                     hint: Hint::new(
                         0,
                         "",
                         "".into(),
                         Rc::clone(&self.config),
                         font_system,
-                        Rc::clone(&self.ui_state),
+                        self.ui_state.clone(),
                     ),
                     text,
                     x: 0.,
@@ -501,7 +514,7 @@ pub struct Hint {
     app_name: Arc<str>,
     text: text_renderer::Text,
     config: Rc<Config>,
-    ui_state: Rc<RefCell<UiState>>,
+    ui_state: UiState,
     x: f32,
     y: f32,
 }
@@ -513,7 +526,7 @@ impl Hint {
         app_name: Arc<str>,
         config: Rc<Config>,
         font_system: &mut FontSystem,
-        ui_state: Rc<RefCell<UiState>>,
+        ui_state: UiState,
     ) -> Self
     where
         T: AsRef<str>,
@@ -550,8 +563,8 @@ impl Component for Hint {
         &self.app_name
     }
 
-    fn get_ui_state(&self) -> std::cell::Ref<'_, UiState> {
-        self.ui_state.borrow()
+    fn get_ui_state(&self) -> &UiState {
+        &self.ui_state
     }
 
     fn get_style(&self) -> &Self::Style {
@@ -609,7 +622,7 @@ impl Component for Hint {
             border_radius: style.border.radius.into(),
             border_size: style.border.size.into(),
             border_color: style.border.color.to_linear(urgency),
-            scale: self.ui_state.borrow().scale,
+            scale: self.ui_state.scale.load(Ordering::Relaxed),
             depth: 0.7,
         }]
     }
@@ -647,7 +660,7 @@ impl Component for Hint {
             buffer: &self.text.buffer,
             left: bounds.x + style.padding.left.resolve(pl),
             top: bounds.y + style.padding.top.resolve(pt),
-            scale: self.ui_state.borrow().scale,
+            scale: self.ui_state.scale.load(Ordering::Relaxed),
             bounds: glyphon::TextBounds {
                 left: (bounds.x + style.padding.left.resolve(pl)) as i32,
                 top: (bounds.y + style.padding.top.resolve(pt)) as i32,
@@ -669,19 +682,19 @@ mod tests {
     use super::ButtonManager;
     use crate::{manager::UiState, Urgency};
     use glyphon::FontSystem;
-    use std::{cell::RefCell, rc::Rc};
+    use std::rc::Rc;
 
     #[test]
     fn test_button_click_detection() {
         let config = Rc::new(crate::config::Config::default());
-        let ui_state = Rc::new(RefCell::new(UiState::default()));
+        let ui_state = UiState::default();
         let mut font_system = FontSystem::new();
 
         let mut button_manager = ButtonManager::new(
             1,
             Urgency::Normal,
             "".into(),
-            Rc::clone(&ui_state),
+            ui_state,
             None,
             Rc::clone(&config),
         )
@@ -739,14 +752,14 @@ mod tests {
     #[test]
     fn test_button_hover_detection() {
         let config = Rc::new(crate::config::Config::default());
-        let ui_state = Rc::new(RefCell::new(UiState::default()));
+        let ui_state = UiState::default();
         let mut font_system = FontSystem::new();
 
         let mut button_manager = ButtonManager::new(
             1,
             Urgency::Normal,
             "".into(),
-            Rc::clone(&ui_state),
+            ui_state,
             None,
             Rc::clone(&config),
         )

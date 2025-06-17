@@ -6,12 +6,15 @@ use crate::{
     utils::buffers,
     Urgency,
 };
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{
+    rc::Rc,
+    sync::{atomic::Ordering, Arc},
+};
 
 pub struct Progress {
     id: u32,
     app_name: Arc<str>,
-    ui_state: Rc<RefCell<UiState>>,
+    ui_state: UiState,
     config: Rc<Config>,
     value: i32,
     x: f32,
@@ -34,8 +37,8 @@ impl Component for Progress {
         self.id
     }
 
-    fn get_ui_state(&self) -> std::cell::Ref<'_, UiState> {
-        self.ui_state.borrow()
+    fn get_ui_state(&self) -> &UiState {
+        &self.ui_state
     }
 
     fn get_style(&self) -> &Self::Style {
@@ -45,7 +48,8 @@ impl Component for Progress {
     fn get_bounds(&self) -> Bounds {
         let style = self.config.find_style(
             &self.app_name,
-            self.ui_state.borrow().selected == Some(self.id),
+            self.ui_state.selected_id.load(Ordering::Relaxed) == self.id
+                && self.ui_state.selected.load(Ordering::Relaxed) == true,
         );
 
         let element_width = style.progress.width.resolve(self.width);
@@ -91,7 +95,8 @@ impl Component for Progress {
 
         let style = self.config.find_style(
             &self.app_name,
-            self.ui_state.borrow().selected == Some(self.id),
+            self.ui_state.selected_id.load(Ordering::Relaxed) == self.id
+                && self.ui_state.selected.load(Ordering::Relaxed) == true,
         );
 
         let remaining_space = self.width - bounds.width;
@@ -162,7 +167,7 @@ impl Component for Progress {
                 border_radius: border_radius.into(),
                 border_size: border_size.into(),
                 border_color: style.border.color.to_linear(urgency),
-                scale: self.get_ui_state().scale,
+                scale: self.ui_state.scale.load(Ordering::Relaxed),
                 depth: 0.8,
             });
         }
@@ -197,7 +202,7 @@ impl Component for Progress {
                     border_radius: border_radius.into(),
                     border_size: border_size.into(),
                     border_color: style.border.color.to_linear(urgency),
-                    scale: self.get_ui_state().scale,
+                    scale: self.ui_state.scale.load(Ordering::Relaxed),
                     depth: 0.8,
                 });
             }
@@ -215,7 +220,7 @@ impl Progress {
     pub fn new(
         id: u32,
         value: i32,
-        ui_state: Rc<RefCell<UiState>>,
+        ui_state: UiState,
         config: Rc<Config>,
         app_name: Arc<str>,
     ) -> Self {
@@ -240,14 +245,19 @@ impl Progress {
 mod tests {
     use super::*;
     use crate::Urgency;
-    use std::{cell::RefCell, rc::Rc, sync::Arc};
+    use std::{
+        rc::Rc,
+        sync::{
+            atomic::{AtomicBool, AtomicU32},
+            Arc,
+        },
+    };
 
     fn create_test_progress(value: i32) -> Progress {
         let config = Rc::new(Config::default());
-        let ui_state = Rc::new(RefCell::new(UiState::default()));
 
         let app_name = Arc::from("test_app");
-        let mut progress = Progress::new(1, value, ui_state, config, app_name);
+        let mut progress = Progress::new(1, value, UiState::default(), config, app_name);
         progress.set_width(300.0);
         progress.set_position(0.0, 0.0);
 
@@ -413,15 +423,20 @@ mod tests {
     #[test]
     fn test_selection_state() {
         let config = Rc::new(Config::default());
-        let ui_state = Rc::new(RefCell::new(UiState {
-            selected: Some(1),
+        let ui_state = UiState {
+            selected_id: Arc::new(AtomicU32::new(1)),
+            selected: Arc::new(AtomicBool::new(true)),
             ..Default::default()
-        }));
+        };
 
         let app_name = Arc::from("test_app");
         let progress = Progress::new(1, 50, ui_state, config, app_name);
 
-        assert_eq!(progress.get_ui_state().selected, Some(1));
+        assert!(progress.get_ui_state().selected.load(Ordering::Relaxed));
+        assert_eq!(
+            progress.get_ui_state().selected_id.load(Ordering::Relaxed),
+            1
+        );
     }
 
     #[test]

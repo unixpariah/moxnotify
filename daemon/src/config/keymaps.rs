@@ -1,6 +1,7 @@
 use serde::{de, Deserialize, Deserializer};
 use std::marker::PhantomData;
 use std::ops::DerefMut;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::{fmt, ops::Deref, str::FromStr};
 use xkbcommon::xkb::Keysym;
 
@@ -161,12 +162,76 @@ impl Deref for Keymaps {
 }
 
 #[derive(Deserialize, PartialEq, Eq, Hash, Debug, Default, Clone, Copy)]
+#[repr(u8)]
 pub enum Mode {
     #[default]
     #[serde(rename = "n")]
-    Normal,
+    Normal = 0,
     #[serde(rename = "h")]
-    Hint,
+    Hint = 1,
+}
+
+pub struct AtomicMode {
+    inner: AtomicU8,
+}
+
+impl AtomicMode {
+    pub fn new(mode: Mode) -> Self {
+        Self {
+            inner: AtomicU8::new(mode as u8),
+        }
+    }
+
+    pub fn load(&self, ordering: Ordering) -> Mode {
+        match self.inner.load(ordering) {
+            0 => Mode::Normal,
+            1 => Mode::Hint,
+            _ => unreachable!("Invalid Mode value"),
+        }
+    }
+
+    pub fn store(&self, mode: Mode, ordering: Ordering) {
+        self.inner.store(mode as u8, ordering);
+    }
+
+    pub fn swap(&self, mode: Mode, ordering: Ordering) -> Mode {
+        let old = self.inner.swap(mode as u8, ordering);
+        match old {
+            0 => Mode::Normal,
+            1 => Mode::Hint,
+            _ => unreachable!("Invalid Mode value"),
+        }
+    }
+
+    pub fn compare_exchange(
+        &self,
+        current: Mode,
+        new: Mode,
+        success: Ordering,
+        failure: Ordering,
+    ) -> Result<Mode, Mode> {
+        match self
+            .inner
+            .compare_exchange(current as u8, new as u8, success, failure)
+        {
+            Ok(old) => Ok(match old {
+                0 => Mode::Normal,
+                1 => Mode::Hint,
+                _ => unreachable!(),
+            }),
+            Err(old) => Err(match old {
+                0 => Mode::Normal,
+                1 => Mode::Hint,
+                _ => unreachable!(),
+            }),
+        }
+    }
+}
+
+impl Default for AtomicMode {
+    fn default() -> Self {
+        Self::new(Mode::default())
+    }
 }
 
 impl FromStr for Mode {

@@ -1,4 +1,10 @@
-use crate::{config::keymaps::Mode, rendering::surface::FocusReason, Moxnotify};
+use std::sync::atomic::Ordering;
+
+use crate::{
+    config::keymaps::{self},
+    rendering::surface::FocusReason,
+    Moxnotify,
+};
 use wayland_client::{
     delegate_noop,
     globals::GlobalList,
@@ -154,7 +160,11 @@ impl Dispatch<wl_pointer::WlPointer, ()> for Moxnotify {
                             }
                         }
                         state.update_surface_size();
-                        state.notifications.ui_state.borrow_mut().mode = Mode::Normal;
+                        state
+                            .notifications
+                            .ui_state
+                            .mode
+                            .store(keymaps::Mode::Normal, Ordering::Relaxed);
 
                         if let Some(surface) = state.surface.as_mut() {
                             _ = surface.render(

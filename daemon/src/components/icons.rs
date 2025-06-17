@@ -9,11 +9,10 @@ use crate::{
 };
 use resvg::usvg;
 use std::{
-    cell::RefCell,
     collections::BTreeMap,
     path::Path,
     rc::Rc,
-    sync::{Arc, LazyLock, Mutex},
+    sync::{atomic::Ordering, Arc, LazyLock, Mutex},
 };
 
 use super::Data;
@@ -52,7 +51,7 @@ pub struct Icons {
     app_icon: Option<ImageData>,
     x: f32,
     y: f32,
-    ui_state: Rc<RefCell<UiState>>,
+    ui_state: UiState,
     config: Rc<Config>,
     app_name: Arc<str>,
 }
@@ -63,7 +62,7 @@ impl Icons {
         image: Option<&Image>,
         app_icon: Option<&str>,
         config: Rc<Config>,
-        ui_state: Rc<RefCell<UiState>>,
+        ui_state: UiState,
         app_name: Arc<str>,
     ) -> Self {
         let icon = match image {
@@ -123,8 +122,8 @@ impl Component for Icons {
         &self.app_name
     }
 
-    fn get_ui_state(&self) -> std::cell::Ref<'_, UiState> {
-        self.ui_state.borrow()
+    fn get_ui_state(&self) -> &UiState {
+        &self.ui_state
     }
 
     fn get_style(&self) -> &Self::Style {
@@ -134,7 +133,8 @@ impl Component for Icons {
     fn get_bounds(&self) -> Bounds {
         let style = self.config.find_style(
             &self.app_name,
-            self.ui_state.borrow().selected == Some(self.id),
+            self.ui_state.selected_id.load(Ordering::Relaxed) == self.id
+                && self.ui_state.selected.load(Ordering::Relaxed) == true,
         );
 
         let (width, height) = self
@@ -167,7 +167,8 @@ impl Component for Icons {
     fn get_render_bounds(&self) -> Bounds {
         let style = self.config.find_style(
             &self.app_name,
-            self.ui_state.borrow().selected == Some(self.id),
+            self.ui_state.selected_id.load(Ordering::Relaxed) == self.id
+                && self.ui_state.selected.load(Ordering::Relaxed) == true,
         );
 
         let (width, height) = self
@@ -207,7 +208,8 @@ impl Component for Icons {
 
         let style = self.config.find_style(
             &self.app_name,
-            self.ui_state.borrow().selected == Some(self.id),
+            self.ui_state.selected_id.load(Ordering::Relaxed) == self.id
+                && self.ui_state.selected.load(Ordering::Relaxed) == true,
         );
 
         let mut bounds = self.get_render_bounds();
@@ -218,7 +220,7 @@ impl Component for Icons {
                 top: bounds.y,
                 width: bounds.width,
                 height: bounds.height,
-                scale: self.ui_state.borrow().scale,
+                scale: self.ui_state.scale.load(Ordering::Relaxed),
                 border_size: style.icon.border.size.into(),
                 bounds: TextureBounds {
                     left: bounds.x as u32,
@@ -243,7 +245,7 @@ impl Component for Icons {
                 top: bounds.y,
                 width: app_icon_size,
                 height: app_icon_size,
-                scale: self.ui_state.borrow().scale,
+                scale: self.ui_state.scale.load(Ordering::Relaxed),
                 border_size: style.icon.border.size.into(),
                 bounds: TextureBounds {
                     left: bounds.x as u32,
@@ -330,7 +332,6 @@ where
 mod tests {
     use super::*;
     use image::{DynamicImage, RgbaImage};
-    use std::cell::RefCell;
     use std::path::{Path, PathBuf};
     use std::rc::Rc;
     use std::sync::Arc;
@@ -350,7 +351,7 @@ mod tests {
     #[test]
     fn new_with_image_data() {
         let config = Rc::new(Config::default());
-        let ui_state = Rc::new(RefCell::new(UiState::default()));
+        let ui_state = UiState::default();
 
         let img = RgbaImage::new(64, 64);
         let image_data = ImageData::try_from(DynamicImage::ImageRgba8(img)).unwrap();

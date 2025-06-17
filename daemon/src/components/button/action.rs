@@ -7,12 +7,15 @@ use crate::{
     utils::buffers,
     Urgency,
 };
-use std::{cell::RefCell, rc::Rc, sync::Arc};
+use std::{
+    rc::Rc,
+    sync::{atomic::Ordering, Arc},
+};
 
 pub struct ActionButton {
     pub id: u32,
     pub app_name: Arc<str>,
-    pub ui_state: Rc<RefCell<UiState>>,
+    pub ui_state: UiState,
     pub x: f32,
     pub y: f32,
     pub hint: Hint,
@@ -39,8 +42,8 @@ impl Component for ActionButton {
         &self.app_name
     }
 
-    fn get_ui_state(&self) -> std::cell::Ref<'_, UiState> {
-        self.ui_state.borrow()
+    fn get_ui_state(&self) -> &UiState {
+        &self.ui_state
     }
 
     fn get_instances(&self, urgency: &Urgency) -> Vec<buffers::Instance> {
@@ -57,7 +60,7 @@ impl Component for ActionButton {
             border_radius: style.border.radius.into(),
             border_size: style.border.size.into(),
             border_color: style.border.color.to_linear(urgency),
-            scale: self.get_ui_state().scale,
+            scale: self.ui_state.scale.load(Ordering::Relaxed),
             depth: 0.8,
         }]
     }
@@ -91,7 +94,7 @@ impl Component for ActionButton {
             buffer: &self.text.buffer,
             left: extents.x + style.border.size.left + style.padding.left.resolve(pl),
             top: extents.y + style.border.size.top + style.padding.top.resolve(pt),
-            scale: self.get_ui_state().scale,
+            scale: self.ui_state.scale.load(Ordering::Relaxed),
             bounds: glyphon::TextBounds {
                 left: (extents.x + style.border.size.left + style.padding.left.resolve(pl)) as i32,
                 top: (extents.y + style.border.size.top + style.padding.top.resolve(pt)) as i32,
@@ -217,21 +220,21 @@ mod tests {
         rendering::text_renderer::Text,
     };
     use glyphon::FontSystem;
-    use std::{cell::RefCell, rc::Rc, sync::Arc};
+    use std::{rc::Rc, sync::Arc};
 
     use super::ActionButton;
 
     #[test]
     fn test_action_button() {
         let config = Rc::new(Config::default());
-        let ui_state = Rc::new(RefCell::new(UiState::default()));
+        let ui_state = UiState::default();
         let hint = Hint::new(
             0,
             "",
             "".into(),
             Rc::clone(&config),
             &mut FontSystem::new(),
-            Rc::clone(&ui_state),
+            ui_state.clone(),
         );
 
         let (tx, rx) = calloop::channel::channel();
@@ -245,7 +248,7 @@ mod tests {
             text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
             state: State::Hovered,
             config: Rc::clone(&config),
-            ui_state: Rc::clone(&ui_state),
+            ui_state: ui_state.clone(),
             tx: Some(tx),
             width: 100.,
             action: Arc::clone(&test_action),
@@ -262,7 +265,7 @@ mod tests {
     #[test]
     fn test_multiple_action_buttons() {
         let config = Rc::new(Config::default());
-        let ui_state = Rc::new(RefCell::new(UiState::default()));
+        let ui_state = UiState::default();
 
         let (tx, text_rx1) = calloop::channel::channel();
 
@@ -274,7 +277,7 @@ mod tests {
             "".into(),
             Rc::clone(&config),
             &mut FontSystem::new(),
-            Rc::clone(&ui_state),
+            ui_state.clone(),
         );
 
         let button1 = ActionButton {
@@ -285,7 +288,7 @@ mod tests {
             text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
             state: State::Hovered,
             config: Rc::clone(&config),
-            ui_state: Rc::clone(&ui_state),
+            ui_state: ui_state.clone(),
             tx: Some(tx.clone()),
             width: 100.,
             action: Arc::clone(&test_action1),
@@ -302,7 +305,7 @@ mod tests {
             "".into(),
             Rc::clone(&config),
             &mut FontSystem::new(),
-            Rc::clone(&ui_state),
+            ui_state.clone(),
         );
         let button2 = ActionButton {
             id: test_id2,
@@ -312,7 +315,7 @@ mod tests {
             text: Text::new(&config.styles.default.font, &mut FontSystem::new(), ""),
             state: State::Hovered,
             config: Rc::clone(&config),
-            ui_state: Rc::clone(&ui_state),
+            ui_state: ui_state.clone(),
             tx: Some(tx.clone()),
             width: 100.,
             action: Arc::clone(&test_action2),
